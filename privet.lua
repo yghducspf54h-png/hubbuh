@@ -54,11 +54,11 @@ WindUI:AddTheme({
     SliderThumb = Color3.fromHex("#C5A059"),
 })
 
--- 🪟 نافذة السكريبت مع حقوق "المبجل"
+-- 🪟 نافذة السكريبت مع حقوق "المبجل" والمملكة
 local Window = WindUI:CreateWindow({
-    Title = "🌴 San Diego Auto Farm | المبجل",
+    Title = "🇸🇦 🌴 San Diego Auto Farm | المبجل",
     Icon = "monitor",
-    Author = "By: المبجل",
+    Author = "By: المبجل (Al-Mubajjil)",
     Folder = "SanDiegoFarmSaudi",
     Size = UDim2.fromOffset(580, 460),
     Transparent = false,
@@ -68,7 +68,7 @@ local Window = WindUI:CreateWindow({
     User = {
         Enabled = true,
         Anonymous = false,
-        Callback = function() print("المبجل - تم النقر") end,
+        Callback = function() print("المبجل - تم النقر بواسطة المستخدم") end,
     },
 })
 
@@ -87,7 +87,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v1.2 | حقوق المبجل",
+    Title = "v1.2 | حقوق المبجل & السعودية",
     Icon = "shield-check",
     Color = Color3.fromHex("#C5A059"),
     Radius = 10,
@@ -924,7 +924,7 @@ end
 
 ReadTab:Paragraph({
     Title = "⚠️ تنبيه هام / Warning",
-    Content = "تم تطوير وتعديل هذا السكريبت بواسطة (المبجل)."
+    Content = "تم تطوير وتعديل هذا السكريبت بواسطة (المبجل) - السعودية 🇸🇦.\nThis script is developed and customized by Al-Mubajjil."
 })
 
 ReadTab:Paragraph({
@@ -1088,40 +1088,6 @@ MiscTab:Toggle({
     Value = showPathLine,
     Callback = function(state)
         showPathLine = state
-        if not showPathLine then
-            clearWaylines()
-        end
-    end
-})
-
-MiscTab:Slider({
-    Title = "حجم إضاءة المسار / Path Glow Size",
-    Desc = "تعديل سماكة الخط وسطوعه",
-    Icon = "sparkles",
-    Step = 0.1,
-    Value = {
-        Min = 0.1,
-        Max = 3.0,
-        Default = pathGlowSize,
-    },
-    Callback = function(value)
-        pathGlowSize = value
-        updateActiveBeams()
-    end
-})
-
-MiscTab:Slider({
-    Title = "طول نمط المسار / Path Texture Length",
-    Desc = "تعديل طول نمط الخط",
-    Icon = "ruler",
-    Step = 0.1,
-    Value = {
-        Min = 1.0,
-        Max = 20.0,
-        Default = pathLength,
-    },
-    Callback = function(value)
-        pathLength = value
-        updateActiveBeams()
+        if not state then clearWaylines() end
     end
 })
