@@ -1,312 +1,534 @@
 local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
 
--- إعدادات السكربت الشاملة
-local Settings = {
-    ActiveFarm = false,
-    CurrentJob = "None",
-    AimbotEnabled = false,
-    ESPEnabled = false,
-    FOVSize = 130,
-    Language = "AR", -- AR or EN
-    IsMinimized = false
-}
-
--- النصوص للغتين
-local Texts = {
-    AR = {
-        Title = "لوحة تحكم بلوك سبين الاحترافية",
-        StatusStop = "الحالة: متوقف",
-        StatusRun = "الحالة: شغال (",
-        ATM = "تهكير الصرافات (ATM)",
-        Grocery = "وظيفة البقالة (Grocery)",
-        Cases = "فتح الصناديق واللوت",
-        Jobs = "إنجاز المهام والوظائف العامة",
-        All = "فارم شامل (كل شيء)",
-        Aimbot = "التصويب التلقائي (Aimbot)",
-        Close = "إغلاق اللوحة",
-        Active = " [شغال]",
-        Stopped = " [متوقف]"
+local FarmEngine = {
+    Running = false,
+    CurrentTarget = nil,
+    TargetMeta = {},        
+    State = "Searching",    -- Searching | Moving | Repathing | Interacting
+    Metrics = {
+        Success = 0,
+        Failed = {
+            Pathfinding = 0,
+            Movement = 0,
+            Interaction = 0,
+            Verification = 0
+        }
     },
-    EN = {
-        Title = "BLOCKSPIN - PRO HUB",
-        StatusStop = "Status: Stopped",
-        StatusRun = "Status: Running (",
-        ATM = "ATM & Registers Farm",
-        Grocery = "Grocery / Shelf Stocker",
-        Cases = "Cases & Loot Farm",
-        Jobs = "General Jobs & Tasks",
-        All = "Full Farm (Everything)",
-        Aimbot = "Aimbot / Combat Assist",
-        Close = "Close Hub",
-        Active = " [ON]",
-        Stopped = " [OFF]"
-    }
+    TargetCache = {},       
+    GlobalConnections = {}, 
+    InitialValues = {}
 }
 
-local function getT(key)
-    return Texts[Settings.Language][key] or key
+local function CaptureState(statName)
+    if not statName then return {} end
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if leaderstats then
+        local stat = leaderstats:FindFirstChild(statName)
+        if stat and (stat:IsA("IntValue") or stat:IsA("NumberValue")) then
+            return { [statName] = stat.Value }
+        end
+    end
+    return {}
 end
 
-local GUI_Name = HttpService:GenerateGUID(false)
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-if PlayerGui:FindFirstChild(GUI_Name) then PlayerGui[GUI_Name]:Destroy() end
+local function CleanPromptConnection(meta)
+    if meta and meta.PromptConn then
+        meta.PromptConn:Disconnect()
+        meta.PromptConn = nil
+    end
+end
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = GUI_Name
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = PlayerGui
+local function ClearTargetMeta(obj)
+    local meta = FarmEngine.TargetMeta[obj]
+    if meta then
+        CleanPromptConnection(meta)
+        if meta.BaseConn then
+            meta.BaseConn:Disconnect()
+            meta.BaseConn = nil
+        end
+        if meta.DescendantRemoveConn then
+            meta.DescendantRemoveConn:Disconnect()
+            meta.DescendantRemoveConn = nil
+        end
+        FarmEngine.TargetMeta[obj] = nil
+    end
+end
 
--- الإطار الرئيسي
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 270, 0, 480)
-MainFrame.Position = UDim2.new(0.03, 0, 0.15, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local function AttachTargetListeners(obj, profile)
+    local meta = FarmEngine.TargetMeta[obj]
+    if not meta then
+        meta = {
+            Retries = 0, 
+            BlacklistUntil = nil, 
+            PromptConn = nil,
+            BaseConn = nil,
+            DescendantRemoveConn = nil,
+            MoveStartTime = 0,
+            JourneyStartTime = 0,
+            LastPos = Vector3.new(),
+            CurrentPath = nil,
+            WaypointIndex = 1,
+            PathRetries = 0,
+            LastTargetPos = Vector3.new(),
+            TriedRecomputingOnStuck = false,
+            FallbackCount = 0,
+            WaypointTime = 0
+        }
+        FarmEngine.TargetMeta[obj] = meta
+    end
 
--- رأس الواجهة
-local Header = Instance.new("TextLabel")
-Header.Size = UDim2.new(1, 0, 0.1, 0)
-Header.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-Header.Text = getT("Title")
-Header.TextColor3 = Color3.fromRGB(255, 255, 255)
-Header.TextSize, Header.Font = 12, Enum.Font.GothamBold
-Header.Parent = MainFrame
-Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
-
--- زر تصغير/تكبير الواجهة (-)
-local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-MinimizeBtn.Position = UDim2.new(0.85, 0, 0.02, 0)
-MinimizeBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-MinimizeBtn.Text = "-"
-MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeBtn.TextSize, MinimizeBtn.Font = 14, Enum.Font.GothamBold
-MinimizeBtn.Parent = Header
-Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
-
--- زر تبديل اللغة (AR/EN)
-local LangBtn = Instance.new("TextButton")
-LangBtn.Size = UDim2.new(0, 35, 0, 30)
-LangBtn.Position = UDim2.new(0.68, 0, 0.02, 0)
-LangBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-LangBtn.Text = "EN"
-LangBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-LangBtn.TextSize, LangBtn.Font = 10, Enum.Font.GothamBold
-LangBtn.Parent = Header
-Instance.new("UICorner", LangBtn).CornerRadius = UDim.new(0, 6)
-
--- شريط الحالة
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(0.9, 0, 0.05, 0)
-StatusLabel.Position = UDim2.new(0.05, 0, 0.11, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = getT("StatusStop")
-StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-StatusLabel.TextSize, StatusLabel.Font = 10, Enum.Font.GothamBold
-StatusLabel.Parent = MainFrame
-
--- قائمة العناصر التي يمكن إخفاؤها عند التنزيل
-local ElementsContainer = Instance.new("Folder")
-ElementsContainer.Name = "ElementsContainer"
-ElementsContainer.Parent = MainFrame
-
--- محرك التفاعل المتقدم لجميع الوظائف (بما فيها البقالة والصرافات)
-task.spawn(function()
-    while true do
-        if Settings.ActiveFarm and Settings.CurrentJob ~= "None" then
-            pcall(function()
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    local name = obj.Name:lower()
-                    local matchTarget = false
-
-                    if Settings.CurrentJob == "ATM" and (name:find("atm") or name:find("register") or name:find("cash")) then
-                        matchTarget = true
-                    elseif Settings.CurrentJob == "Grocery" and (name:find("shelf") or name:find("stocker") or name:find("grocery") or name:find("market") or name:find("box")) then
-                        matchTarget = true
-                    elseif Settings.CurrentJob == "Cases" and (name:find("case") or name:find("box") or name:find("crate") or name:find("drop")) then
-                        matchTarget = true
-                    elseif Settings.CurrentJob == "Jobs" and (name:find("job") or name:find("work") or name:find("task") or name:find("shift")) then
-                        matchTarget = true
-                    elseif Settings.CurrentJob == "All" then
-                        matchTarget = true
+    local function evaluatePrompt()
+        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+        CleanPromptConnection(meta)
+        
+        if prompt and profile.Validator(obj) and prompt.Enabled then
+            FarmEngine.TargetCache[obj] = true
+            
+            meta.PromptConn = prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
+                if not prompt.Enabled or not prompt.Parent then
+                    FarmEngine.TargetCache[obj] = nil
+                    CleanPromptConnection(meta)
+                    if FarmEngine.CurrentTarget == obj then
+                        FarmEngine.CurrentTarget = nil
+                        FarmEngine.State = "Searching"
                     end
+                else
+                    if profile.Validator(obj) then
+                        FarmEngine.TargetCache[obj] = true
+                    end
+                end
+            end)
+        else
+            FarmEngine.TargetCache[obj] = nil
+        end
+    end
 
-                    if matchTarget then
-                        if obj:FindFirstChild("ProximityPrompt") then
-                            fireproximityprompt(obj.ProximityPrompt)
-                        elseif obj:IsA("BasePart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = LocalPlayer.Character.HumanoidRootPart
-                            if (hrp.Position - obj.Position).Magnitude < 35 then
-                                hrp.CFrame = hrp.CFrame:Lerp(obj.CFrame + Vector3.new(0, 2, 0), 0.25)
+    evaluatePrompt()
+
+    if not meta.BaseConn then
+        meta.BaseConn = obj.DescendantAdded:Connect(function(child)
+            if child:IsA("ProximityPrompt") then
+                evaluatePrompt()
+            end
+        end)
+    end
+
+    if not meta.DescendantRemoveConn then
+        meta.DescendantRemoveConn = obj.DescendantRemoving:Connect(function(child)
+            if child:IsA("ProximityPrompt") then
+                task.defer(evaluatePrompt)
+            end
+        end)
+    end
+end
+
+local function SetupCacheListeners(profile)
+    table.clear(FarmEngine.TargetCache)
+    for obj, _ in pairs(FarmEngine.TargetMeta) do
+        ClearTargetMeta(obj)
+    end
+    table.clear(FarmEngine.TargetMeta)
+    
+    local function evaluateAndAdd(obj)
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            if profile.Validator(obj) then
+                AttachTargetListeners(obj, profile)
+            end
+        end
+    end
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        evaluateAndAdd(obj)
+    end
+
+    local addConn = workspace.DescendantAdded:Connect(function(obj)
+        evaluateAndAdd(obj)
+    end)
+    
+    local removeConn = workspace.DescendantRemoving:Connect(function(obj)
+        if obj:IsA("ProximityPrompt") then
+            local parentObj = obj.Parent
+            while parentObj and parentObj ~= workspace do
+                if FarmEngine.TargetCache[parentObj] then
+                    FarmEngine.TargetCache[parentObj] = nil
+                    local meta = FarmEngine.TargetMeta[parentObj]
+                    if meta then CleanPromptConnection(meta) end
+                    if FarmEngine.CurrentTarget == parentObj then
+                        FarmEngine.CurrentTarget = nil
+                        FarmEngine.State = "Searching"
+                    end
+                    break
+                end
+                parentObj = parentObj.Parent
+            end
+        elseif FarmEngine.TargetCache[obj] or FarmEngine.TargetMeta[obj] then
+            FarmEngine.TargetCache[obj] = nil
+            ClearTargetMeta(obj)
+            if FarmEngine.CurrentTarget == obj then
+                FarmEngine.CurrentTarget = nil
+                FarmEngine.State = "Searching"
+            end
+        end
+    end)
+    
+    table.insert(FarmEngine.GlobalConnections, addConn)
+    table.insert(FarmEngine.GlobalConnections, removeConn)
+end
+
+-- مصدر وحيد ومسؤول حصرياً عن زيادة PathRetries
+local function ComputePathSafe(pathObj, startPos, targetPos, meta)
+    meta.CurrentPath = nil
+    local success, err = pcall(function()
+        pathObj:ComputeAsync(startPos, targetPos)
+    end)
+    
+    if success and pathObj.Status == Enum.PathStatus.Success then
+        meta.CurrentPath = pathObj:GetWaypoints()
+        meta.WaypointIndex = 2
+        meta.PathRetries = 0
+        return true, "Success"
+    else
+        meta.PathRetries = (meta.PathRetries or 0) + 1
+        return false, err or tostring(pathObj.Status)
+    end
+end
+
+local function VerifySuccessWithRetry(oldState, target, profile)
+    local targetStatName = profile.TargetStat
+    local maxWait = profile.VerificationTimeout or 1.5
+    local interval = 0.25
+    local elapsed = 0
+
+    while elapsed < maxWait do
+        if targetStatName then
+            local currentState = CaptureState(targetStatName)
+            if currentState[targetStatName] and oldState[targetStatName] then
+                if currentState[targetStatName] > oldState[targetStatName] then
+                    return true 
+                end
+            end
+        else
+            if not target or not target.Parent then return true end
+            local prompt = target:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if not prompt or not prompt.Enabled then
+                return true
+            end
+        end
+        
+        task.wait(interval)
+        elapsed += interval
+    end
+    
+    return false
+end
+
+function FarmEngine:Start(profile)
+    if self.Running then return end
+    self.Running = true
+    self.State = "Searching"
+    
+    SetupCacheListeners(profile)
+    
+    task.spawn(function()
+        local path = PathfindingService:CreatePath({
+            AgentRadius = profile.AgentRadius or 2,
+            AgentHeight = profile.AgentHeight or 5,
+            AgentCanJump = true
+        })
+
+        while self.Running do
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char and char:FindFirstChild("Humanoid")
+            
+            if not hrp or not humanoid or humanoid.Health <= 0 then
+                self.State = "Searching"
+                self.CurrentTarget = nil
+                task.wait(1)
+                continue
+            end
+            
+            local currentTime = tick()
+            
+            if self.State == "Searching" then
+                self.CurrentTarget = nil
+                local bestTarget = nil
+                local bestScore = math.huge
+                local maxDist = profile.MaxDistance or 250
+                local retryPenalty = profile.RetryPenaltyScore or 15
+                
+                for obj, _ in pairs(FarmEngine.TargetCache) do
+                    if obj and obj.Parent then
+                        local meta = FarmEngine.TargetMeta[obj]
+                        
+                        if meta and meta.BlacklistUntil and currentTime >= meta.BlacklistUntil then
+                            meta.Retries = math.max(0, meta.Retries - 1)
+                            meta.BlacklistUntil = nil
+                        end
+                        
+                        local maxRetriesExceeded = meta and meta.Retries >= (profile.MaxRetries or 6)
+                        
+                        if not maxRetriesExceeded and (not meta or not meta.BlacklistUntil) then
+                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt and prompt.Enabled then
+                                local targetPos = (obj:IsA("Model") and obj:GetPivot().Position) or obj.Position
+                                local dist = (hrp.Position - targetPos).Magnitude
+                                
+                                if dist < maxDist then
+                                    local score = dist + ((meta and meta.Retries or 0) * retryPenalty)
+                                    if score < bestScore then
+                                        bestScore = score
+                                        bestTarget = obj
+                                    end
+                                end
                             end
                         end
                     end
                 end
-            end)
-        end
-        task.wait(0.6)
-    end
-end)
-
--- دالة إنشاء أزرار الوظائف
-local function createButton(jobKey, yPos)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0.075, 0)
-    btn.Position = UDim2.new(0.05, 0, yPos, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-    btn.Text = getT(jobKey) .. getT("Stopped")
-    btn.TextColor3 = Color3.fromRGB(170, 170, 170)
-    btn.TextSize, btn.Font = 10, Enum.Font.GothamMedium
-    btn.Name = jobKey
-    btn.Parent = ElementsContainer
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-    btn.MouseButton1Click:Connect(function()
-        if Settings.CurrentJob == jobKey then
-            Settings.CurrentJob = "None"
-            Settings.ActiveFarm = false
-            btn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-            btn.TextColor3 = Color3.fromRGB(170, 170, 170)
-            btn.Text = getT(jobKey) .. getT("Stopped")
-            StatusLabel.Text = getT("StatusStop")
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        else
-            Settings.CurrentJob = jobKey
-            Settings.ActiveFarm = true
-            for _, child in ipairs(ElementsContainer:GetChildren()) do
-                if child:IsA("TextButton") and child.Name ~= "Aimbot" then
-                    child.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-                    child.TextColor3 = Color3.fromRGB(170, 170, 170)
-                    child.Text = getT(child.Name) .. getT("Stopped")
+                
+                if bestTarget then
+                    self.CurrentTarget = bestTarget
+                    self.State = "Moving"
+                    local meta = self.TargetMeta[bestTarget]
+                    if meta then
+                        meta.MoveStartTime = currentTime
+                        meta.JourneyStartTime = currentTime
+                        meta.LastPos = hrp.Position
+                        meta.TriedRecomputingOnStuck = false
+                        meta.FallbackCount = 0
+                        meta.PathRetries = 0
+                        meta.WaypointTime = currentTime
+                        
+                        local targetPos = (bestTarget:IsA("Model") and bestTarget:GetPivot().Position) or bestTarget.Position
+                        meta.LastTargetPos = targetPos
+                        
+                        local success, _ = ComputePathSafe(path, hrp.Position, targetPos, meta)
+                        if not success then
+                            self.Metrics.Failed.Pathfinding += 1
+                        end
+                    end
+                else
+                    task.wait(0.4)
                 end
+                
+            elseif self.State == "Moving" then
+                if not self.CurrentTarget or not self.CurrentTarget.Parent then
+                    self.State = "Searching"
+                    continue
+                end
+                
+                local meta = self.TargetMeta[self.CurrentTarget]
+                if not meta then
+                    self.State = "Searching"
+                    continue
+                end
+                
+                -- مراقبة الحد الأقصى لزمن الرحلة بالكامل لمنع التعليق الطويل
+                local maxJourneyTime = profile.TotalJourneyTimeout or 45
+                if currentTime - meta.JourneyStartTime > maxJourneyTime then
+                    meta.Retries += 1
+                    meta.BlacklistUntil = currentTime + 25
+                    self.Metrics.Failed.Movement += 1
+                    self.CurrentTarget = nil
+                    self.State = "Searching"
+                    continue
+                end
+                
+                local targetPos = (self.CurrentTarget:IsA("Model") and self.CurrentTarget:GetPivot().Position) or self.CurrentTarget.Position
+                
+                if (targetPos - meta.LastTargetPos).Magnitude > 6 then
+                    meta.LastTargetPos = targetPos
+                    self.State = "Repathing"
+                    continue
+                end
+                
+                if meta.CurrentPath and meta.WaypointIndex <= #meta.CurrentPath then
+                    local waypoint = meta.CurrentPath[meta.WaypointIndex]
+                    humanoid:MoveTo(waypoint.Position)
+                    
+                    if waypoint.Action == Enum.PathWaypointAction.Jump then
+                        humanoid.Jump = true
+                    end
+                    
+                    local hPosPlayer = hrp.Position * Vector3.new(1, 0, 1)
+                    local hPosWaypoint = waypoint.Position * Vector3.new(1, 0, 1)
+                    
+                    if (hPosPlayer - hPosWaypoint).Magnitude < 3.5 then
+                        meta.WaypointIndex += 1
+                        meta.WaypointTime = currentTime
+                    else
+                        -- إذا علق عند نقطة معينة، التوجيه لـ Repathing لحساب مسار سليم بدل القفز الأعمى
+                        if currentTime - meta.WaypointTime > 4.0 then
+                            self.State = "Repathing"
+                            continue
+                        end
+                    end
+                else
+                    self.State = "Repathing"
+                    continue
+                end
+                
+                local currentDist = (hrp.Position - targetPos).Magnitude
+                if currentDist < 4.2 then
+                    self.State = "Interacting"
+                else
+                    local timeElapsed = currentTime - meta.MoveStartTime
+                    if timeElapsed > 5 then
+                        local positionDelta = (hrp.Position - meta.LastPos).Magnitude
+                        if positionDelta < 1.5 then
+                            if not meta.TriedRecomputingOnStuck then
+                                meta.TriedRecomputingOnStuck = true
+                                self.State = "Repathing"
+                                continue
+                            else
+                                meta.Retries += 1
+                                self.Metrics.Failed.Movement += 1
+                                local cooldown = math.min(meta.Retries * 10, 45)
+                                meta.BlacklistUntil = currentTime + cooldown
+                                self.CurrentTarget = nil
+                                self.State = "Searching"
+                            end
+                        else
+                            meta.LastPos = hrp.Position
+                            meta.MoveStartTime = currentTime
+                        end
+                    end
+                end
+                
+            elseif self.State == "Repathing" then
+                if not self.CurrentTarget or not self.CurrentTarget.Parent then
+                    self.State = "Searching"
+                    continue
+                end
+                
+                local meta = self.TargetMeta[self.CurrentTarget]
+                if not meta then
+                    self.State = "Searching"
+                    continue
+                end
+                
+                local targetPos = (self.CurrentTarget:IsA("Model") and self.CurrentTarget:GetPivot().Position) or self.CurrentTarget.Position
+                
+                local success, _ = ComputePathSafe(path, hrp.Position, targetPos, meta)
+                if success then
+                    meta.FallbackCount = 0
+                    meta.TriedRecomputingOnStuck = false
+                    meta.WaypointTime = currentTime
+                    self.State = "Moving"
+                else
+                    self.Metrics.Failed.Pathfinding += 1
+                    meta.FallbackCount = (meta.FallbackCount or 0) + 1
+                    
+                    -- Fallback مؤقت ومحدود جداً بعدد المحاولات الفعلية للـ Repath وليس الحلقات
+                    if meta.FallbackCount <= 2 then
+                        humanoid:MoveTo(targetPos)
+                        self.State = "Moving"
+                    else
+                        meta.Retries += 1
+                        meta.BlacklistUntil = currentTime + 20
+                        self.CurrentTarget = nil
+                        self.State = "Searching"
+                    end
+                end
+                
+            elseif self.State == "Interacting" then
+                if self.CurrentTarget and self.CurrentTarget.Parent then
+                    local targetPos = (self.CurrentTarget:IsA("Model") and self.CurrentTarget:GetPivot().Position) or self.CurrentTarget.Position
+                    if (hrp.Position - targetPos).Magnitude > 6.5 then
+                        self.State = "Moving"
+                        continue
+                    end
+                    
+                    local prompt = self.CurrentTarget:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    
+                    -- التحقق من وجود الـ Prompt وقت التفاعل منعاً للنجاح الوهمي
+                    if not prompt or not prompt.Enabled then
+                        self.Metrics.Failed.Verification += 1
+                        local meta = self.TargetMeta[self.CurrentTarget]
+                        if meta then
+                            meta.Retries += 1
+                            meta.BlacklistUntil = currentTime + 15
+                        end
+                    else
+                        self.InitialValues = CaptureState(profile.TargetStat)
+                        
+                        local successInteract, _ = pcall(function()
+                            if profile.CustomInteraction then
+                                profile.CustomInteraction(self.CurrentTarget, prompt)
+                            else
+                                fireproximityprompt(prompt)
+                            end
+                        end)
+                        
+                        if not successInteract then
+                            -- عقوبة وحظر فورية عند فشل التفاعل البرمجي
+                            self.Metrics.Failed.Interaction += 1
+                            local meta = self.TargetMeta[self.CurrentTarget]
+                            if meta then
+                                meta.Retries += 1
+                                local cooldown = math.min(meta.Retries * 8, 30)
+                                meta.BlacklistUntil = currentTime + cooldown
+                            end
+                        else
+                            if VerifySuccessWithRetry(self.InitialValues, self.CurrentTarget, profile) then
+                                self.Metrics.Success += 1
+                                local meta = self.TargetMeta[self.CurrentTarget]
+                                if meta then
+                                    meta.Retries = 0
+                                    meta.BlacklistUntil = nil
+                                    meta.PathRetries = 0
+                                    meta.TriedRecomputingOnStuck = false
+                                end
+                            else
+                                self.Metrics.Failed.Verification += 1
+                                local meta = self.TargetMeta[self.CurrentTarget]
+                                if meta then
+                                    meta.Retries += 1
+                                    local cooldown = math.min(meta.Retries * 8, 30)
+                                    meta.BlacklistUntil = currentTime + cooldown
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                self.CurrentTarget = nil
+                self.State = "Searching"
             end
-            btn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btn.Text = getT(jobKey) .. getT("Active")
-            StatusLabel.Text = getT("StatusRun") .. getT(jobKey) .. ")"
-            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+            
+            task.wait(0.1)
         end
     end)
 end
 
-createButton("ATM", 0.18)
-createButton("Grocery", 0.27)
-createButton("Cases", 0.36)
-createButton("Jobs", 0.45)
-createButton("All", 0.54)
-
--- زر الآيمبوت للدفاع
-local AimbotBtn = Instance.new("TextButton")
-AimbotBtn.Size = UDim2.new(0.9, 0, 0.075, 0)
-AimbotBtn.Position = UDim2.new(0.05, 0, 0.63, 0)
-AimbotBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-AimbotBtn.Text = getT("Aimbot") .. getT("Stopped")
-AimbotBtn.TextColor3 = Color3.fromRGB(170, 170, 170)
-AimbotBtn.TextSize, AimbotBtn.Font = 10, Enum.Font.GothamMedium
-AimbotBtn.Name = "Aimbot"
-AimbotBtn.Parent = ElementsContainer
-Instance.new("UICorner", AimbotBtn).CornerRadius = UDim.new(0, 6)
-
-AimbotBtn.MouseButton1Click:Connect(function()
-    Settings.AimbotEnabled = not Settings.AimbotEnabled
-    if Settings.AimbotEnabled then
-        AimbotBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-        AimbotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        AimbotBtn.Text = getT("Aimbot") .. getT("Active")
-    else
-        AimbotBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-        AimbotBtn.TextColor3 = Color3.fromRGB(170, 170, 170)
-        AimbotBtn.Text = getT("Aimbot") .. getT("Stopped")
+function FarmEngine:Stop()
+    self.Running = false
+    self.State = "Searching"
+    self.CurrentTarget = nil
+    
+    table.clear(self.TargetCache)
+    table.clear(self.InitialValues)
+    
+    for obj, _ in pairs(self.TargetMeta) do
+        ClearTargetMeta(obj)
     end
-end)
-
--- محرك الآيمبوت
-RunService.RenderStepped:Connect(function()
-    if Settings.AimbotEnabled then
-        local closest, dist = nil, math.huge
-        local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-        
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
-                local head = p.Character.Head
-                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local mag = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    if mag < Settings.FOVSize and mag < dist then
-                        dist = mag
-                        closest = p
-                    end
-                end
-            end
-        end
-        
-        if closest and closest.Character:FindFirstChild("Head") then
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, closest.Character.Head.Position), 0.2)
+    table.clear(self.TargetMeta)
+    
+    for _, conn in ipairs(self.GlobalConnections) do
+        conn:Disconnect()
+    end
+    table.clear(self.GlobalConnections)
+    
+    local char = LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if humanoid and hrp then
+            humanoid:MoveTo(hrp.Position)
         end
     end
-end)
+end
 
--- زر إغلاق الواجهة
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
-CloseBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-CloseBtn.Text = getT("Close")
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize, CloseBtn.Font = 11, Enum.Font.GothamBold
-CloseBtn.Name = "CloseBtn"
-CloseBtn.Parent = ElementsContainer
-
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
-
--- وظيفة التصغير والتكبير
-MinimizeBtn.MouseButton1Click:Connect(function()
-    Settings.IsMinimized = not Settings.IsMinimized
-    if Settings.IsMinimized then
-        MainFrame.Size = UDim2.new(0, 270, 0, 45)
-        MinimizeBtn.Text = "+"
-        ElementsContainer.Visible = false
-    else
-        MainFrame.Size = UDim2.new(0, 270, 0, 480)
-        MinimizeBtn.Text = "-"
-        ElementsContainer.Visible = true
-    end
-end)
-
--- وظيفة تغيير اللغة الفورية
-LangBtn.MouseButton1Click:Connect(function()
-    if Settings.Language == "AR" then
-        Settings.Language = "EN"
-        LangBtn.Text = "AR"
-    else
-        Settings.Language = "AR"
-        LangBtn.Text = "EN"
-    end
-    
-    Header.Text = getT("Title")
-    AimbotBtn.Text = getT("Aimbot") .. (Settings.AimbotEnabled and getT("Active") or getT("Stopped"))
-    CloseBtn.Text = getT("Close")
-    
-    for _, child in ipairs(ElementsContainer:GetChildren()) do
-        if child:IsA("TextButton") and child.Name ~= "Aimbot" and child.Name ~= "CloseBtn" then
-            local isRunning = (Settings.CurrentJob == child.Name)
-            child.Text = getT(child.Name) .. (isRunning and getT("Active") or getT("Stopped"))
-        end
-    end
-    
-    if Settings.CurrentJob == "None" then
-        StatusLabel.Text = getT("StatusStop")
-    else
-        StatusLabel.Text = getT("StatusRun") .. getT(Settings.CurrentJob) .. ")"
-    end
-end)
+return FarmEngine
