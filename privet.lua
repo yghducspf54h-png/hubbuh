@@ -1,6 +1,14 @@
--- Al-Mubajjil Hub - Private Build (Ultimate Edition)
--- Developed & Customized by: المبجل (Al-Mubajjil)
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
+-- Al-Mubajjil Hub - Fixed Build
+repeat task.wait() until game:IsLoaded()
+
+local Success, OrionLib = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
+end)
+
+if not Success or not OrionLib then
+    warn("فشل تحميل مكتبة Orion. تأكد من أن المنفذ يدعم الوظائف المطلوبة.")
+    return
+end
 
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -64,17 +72,6 @@ local function PurgeRoute()
     RouteContainer:ClearAllChildren()
 end
 
-local function RefreshBeams()
-    for _, data in ipairs(BeamReferences) do
-        if data.Beam and data.Beam.Parent then
-            data.Beam.Width0 = SystemSettings.LineWidth
-            data.Beam.Width1 = SystemSettings.LineWidth
-            data.Beam.TextureLength = SystemSettings.LineLength
-            data.Beam.TextureSpeed = SystemSettings.LineVel
-        end
-    end
-end
-
 local function BuildRouteLines(points, startIdx)
     PurgeRoute()
     if not SystemSettings.ShowTrack or not points or startIdx > #points then return end
@@ -130,23 +127,6 @@ local function BuildRouteLines(points, startIdx)
         table.insert(RouteObjects, lineBeam)
         table.insert(BeamReferences, {Beam = lineBeam, Index = i})
     end
-
-    RouteLoop = RunSvc.RenderStepped:Connect(function()
-        local timeTick = (tick() * 0.5) % 1
-        for _, data in ipairs(BeamReferences) do
-            if data.Beam and data.Beam.Parent then
-                local f1 = math.sin((timeTick + (data.Index * 0.1)) * math.pi * 2) * 0.5 + 0.5
-                local f2 = math.sin((timeTick + ((data.Index + 1) * 0.1)) * math.pi * 2) * 0.5 + 0.5
-                local c1 = Color3.fromRGB(0, 108, 53):Lerp(Color3.fromRGB(197, 160, 89), f1)
-                local c2 = Color3.fromRGB(0, 108, 53):Lerp(Color3.fromRGB(197, 160, 89), f2)
-
-                data.Beam.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, c1),
-                    ColorSequenceKeypoint.new(1, c2)
-                })
-            end
-        end
-    end)
 end
 
 local RouteBuy = {
@@ -514,87 +494,6 @@ local function CountCleanable()
     return total
 end
 
-local function MainOperationLoop()
-    local savedPart, savedPrompt = nil, nil
-
-    while SystemSettings.Active do
-        if CountItems(UserConfig.TargetObj) < UserConfig.GoalLimit then
-            if not savedPart or not savedPart.Parent then
-                savedPart, savedPrompt = LocateTarget(UserConfig.TargetObj)
-            end
-
-            if savedPart then
-                EnterVehicle()
-                local reachedTarget, _ = MoveToDestination(savedPart.Position)
-                if reachedTarget then
-                    local timeoutCount = 0
-                    while SystemSettings.Active and CountItems(UserConfig.TargetObj) < UserConfig.GoalLimit and timeoutCount < 40 do
-                        ExecuteInteraction(savedPart, savedPrompt)
-                        task.wait(0.05)
-                        timeoutCount = timeoutCount + 1
-                    end
-                    EnterVehicle()
-                end
-            else
-                task.wait(0.5)
-            end
-        end
-
-        if not SystemSettings.Active then break end
-        DriveThroughRoute(RouteBuy)
-        if not SystemSettings.Active then break end
-
-        if SystemSettings.AutoSell and CountItems(UserConfig.TargetObj) > 0 then
-            local lastPos = RouteBuy[#RouteBuy]
-            local sellPart, sellPrompt = LocateNearest(UserConfig.SellObj, lastPos)
-            if not sellPart then sellPart, sellPrompt = LocateNearest("Smuggle", lastPos) end
-
-            if sellPart then
-                EnterVehicle()
-                local reachedSell, _ = MoveToDestination(sellPart.Position)
-                if reachedSell then
-                    local sellTries = 0
-                    while SystemSettings.Active and CountItems(UserConfig.TargetObj) > 0 and sellTries < 35 do
-                        ExecuteInteraction(sellPart, sellPrompt)
-                        task.wait(0.08)
-                        sellTries = sellTries + 1
-                    end
-                    EnterVehicle()
-                end
-            else
-                task.wait(0.5)
-            end
-        end
-
-        if not SystemSettings.Active then break end
-        DriveThroughRoute(RouteSell)
-        if not SystemSettings.Active then break end
-
-        if SystemSettings.AutoClean then
-            local cleanPart, cleanPrompt = LocateTarget(UserConfig.CleanObj)
-            if cleanPart then
-                EnterVehicle()
-                local reachedClean, _ = MoveToDestination(cleanPart.Position)
-                if reachedClean then
-                    local cleanTries = 0
-                    while SystemSettings.Active and CountCleanable() > 0 and cleanTries < 40 do
-                        ExecuteInteraction(cleanPart, cleanPrompt)
-                        task.wait(0.08)
-                        cleanTries = cleanTries + 1
-                    end
-                    task.wait(0.1)
-                    EnterVehicle()
-                end
-            else
-                task.wait(0.5)
-            end
-        end
-
-        task.wait(0.1)
-    end
-    PurgeRoute()
-end
-
 local Window = OrionLib:MakeWindow({
     Name = "🌴 Al-Mubajjil Ultimate Hub | سكريبت المبجل",
     HidePremium = false,
@@ -631,7 +530,77 @@ TabMain:AddToggle({
     Callback = function(state)
         SystemSettings.Active = state
         if SystemSettings.Active then
-            task.spawn(MainOperationLoop)
+            task.spawn(function()
+                while SystemSettings.Active do
+                    local savedPart, savedPrompt = LocateTarget(UserConfig.TargetObj)
+                    if savedPart then
+                        EnterVehicle()
+                        local reachedTarget, _ = MoveToDestination(savedPart.Position)
+                        if reachedTarget then
+                            local timeoutCount = 0
+                            while SystemSettings.Active and CountItems(UserConfig.TargetObj) < UserConfig.GoalLimit and timeoutCount < 40 do
+                                ExecuteInteraction(savedPart, savedPrompt)
+                                task.wait(0.05)
+                                timeoutCount = timeoutCount + 1
+                            end
+                            EnterVehicle()
+                        end
+                    else
+                        task.wait(0.5)
+                    end
+                    if not SystemSettings.Active then break end
+                    DriveThroughRoute(RouteBuy)
+                    if not SystemSettings.Active then break end
+
+                    if SystemSettings.AutoSell and CountItems(UserConfig.TargetObj) > 0 then
+                        local lastPos = RouteBuy[#RouteBuy]
+                        local sellPart, sellPrompt = LocateNearest(UserConfig.SellObj, lastPos)
+                        if not sellPart then sellPart, sellPrompt = LocateNearest("Smuggle", lastPos) end
+
+                        if sellPart then
+                            EnterVehicle()
+                            local reachedSell, _ = MoveToDestination(sellPart.Position)
+                            if reachedSell then
+                                local sellTries = 0
+                                while SystemSettings.Active and CountItems(UserConfig.TargetObj) > 0 and sellTries < 35 do
+                                    ExecuteInteraction(sellPart, sellPrompt)
+                                    task.wait(0.08)
+                                    sellTries = sellTries + 1
+                                end
+                                EnterVehicle()
+                            end
+                        else
+                            task.wait(0.5)
+                        end
+                    end
+
+                    if not SystemSettings.Active then break end
+                    DriveThroughRoute(RouteSell)
+                    if not SystemSettings.Active then break end
+
+                    if SystemSettings.AutoClean then
+                        local cleanPart, cleanPrompt = LocateTarget(UserConfig.CleanObj)
+                        if cleanPart then
+                            EnterVehicle()
+                            local reachedClean, _ = MoveToDestination(cleanPart.Position)
+                            if reachedClean then
+                                local cleanTries = 0
+                                while SystemSettings.Active and CountCleanable() > 0 and cleanTries < 40 do
+                                    ExecuteInteraction(cleanPart, cleanPrompt)
+                                    task.wait(0.08)
+                                    cleanTries = cleanTries + 1
+                                end
+                                task.wait(0.1)
+                                EnterVehicle()
+                            end
+                        else
+                            task.wait(0.5)
+                        end
+                    end
+                    task.wait(0.1)
+                end
+                PurgeRoute()
+            end)
         else
             PurgeRoute()
         end
