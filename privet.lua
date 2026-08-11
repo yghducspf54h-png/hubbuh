@@ -4,7 +4,7 @@ local Camera = workspace.CurrentCamera
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
--- إعدادات نظام BlockSpin الأساسية
+-- إعدادات السكربت الشاملة
 local Settings = {
     ActiveFarm = false,
     CurrentJob = "None",
@@ -13,6 +13,7 @@ local Settings = {
     FOVSize = 130
 }
 
+-- اسم عشوائي للواجهة لتجنب الحظر
 local GUI_Name = HttpService:GenerateGUID(false)
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 if PlayerGui:FindFirstChild(GUI_Name) then PlayerGui[GUI_Name]:Destroy() end
@@ -22,10 +23,11 @@ ScreenGui.Name = GUI_Name
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
+-- إطار الواجهة الرئيسي
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 270, 0, 390)
-MainFrame.Position = UDim2.new(0.03, 0, 0.18, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+MainFrame.Size = UDim2.new(0, 280, 0, 420)
+MainFrame.Position = UDim2.new(0.03, 0, 0.15, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -33,28 +35,27 @@ MainFrame.Parent = ScreenGui
 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
--- عنوان الواجهة
+-- رأس الواجهة (العنوان)
 local Header = Instance.new("TextLabel")
 Header.Size = UDim2.new(1, 0, 0.1, 0)
-Header.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-Header.Text = "BLOCKSPIN - MAX JOB HUB"
+Header.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+Header.Text = "لوحة تحكم بلوك سبين الاحترافية"
 Header.TextColor3 = Color3.fromRGB(255, 255, 255)
-Header.TextSize, Header.Font = 12, Enum.Font.GothamBold
+Header.TextSize, Header.Font = 13, Enum.Font.GothamBold
 Header.Parent = MainFrame
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
 
--- شاشة عرض الوظيفة النشطة حالياً
+-- شريط حالة الوظيفة النشطة
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(0.9, 0, 0.07, 0)
-StatusLabel.Position = UDim2.new(0.05, 0, 0.12, 0)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.11, 0)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Selected Job: None"
-StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
-StatusLabel.TextSize = 11
-StatusLabel.Font = Enum.Font.GothamBold
+StatusLabel.Text = "الوظيفة الحالية: معطل"
+StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+StatusLabel.TextSize, StatusLabel.Font = 11, Enum.Font.GothamBold
 StatusLabel.Parent = MainFrame
 
--- محرك التفاعل الفارم الذكي الخاص بـ BlockSpin
+-- محرك الفارم والتفاعل التلقائي مع جميع الوظائف
 task.spawn(function()
     while true do
         if Settings.ActiveFarm and Settings.CurrentJob ~= "None" then
@@ -63,11 +64,13 @@ task.spawn(function()
                     local name = obj.Name:lower()
                     local matchTarget = false
 
-                    if Settings.CurrentJob == "Cash & ATMs" and (name:find("atm") or name:find("cash") or name:find("register")) then
+                    if Settings.CurrentJob == "Cash" and (name:find("atm") or name:find("cash") or name:find("register") or name:find("money")) then
                         matchTarget = true
-                    elseif Settings.CurrentJob == "Cases & Loot" and (name:find("case") or name:find("box") or name:find("drop")) then
+                    elseif Settings.CurrentJob == "Cases" and (name:find("case") or name:find("box") or name:find("drop") or name:find("crate")) then
                         matchTarget = true
-                    elseif Settings.CurrentJob == "Jobs / Tasks" and (name:find("job") or name:find("work") or name:find("task") or name:find("clean")) then
+                    elseif Settings.CurrentJob == "Jobs" and (name:find("job") or name:find("work") or name:find("task") or name:find("shift")) then
+                        matchTarget = true
+                    elseif Settings.CurrentJob == "All" then
                         matchTarget = true
                     end
 
@@ -81,55 +84,55 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.6)
+        task.wait(0.5)
     end
 end)
 
--- دالة صناعة أزرار اختيار الوظائف
-local function createJobButton(text, jobName, yPos)
+-- دالة لإنشاء أزرار الوظائف باللغة العربية
+local function createJobButton(arabicText, jobName, yPos)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0.08, 0)
+    btn.Size = UDim2.new(0.9, 0, 0.075, 0)
     btn.Position = UDim2.new(0.05, 0, yPos, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-    btn.Text = text .. " : [OFF]"
-    btn.TextColor3 = Color3.fromRGB(170, 170, 170)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    btn.Text = arabicText .. " : [متوقف]"
+    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
     btn.TextSize, btn.Font = 11, Enum.Font.GothamMedium
     btn.Parent = MainFrame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     btn.MouseButton1Click:Connect(function()
         if Settings.CurrentJob == jobName then
-            -- إيقاف إذا كان هو المختار
             Settings.CurrentJob = "None"
             Settings.ActiveFarm = false
-            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-            btn.TextColor3 = Color3.fromRGB(170, 170, 170)
-            btn.Text = text .. " : [OFF]"
-            StatusLabel.Text = "Selected Job: None"
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            btn.TextColor3 = Color3.fromRGB(180, 180, 180)
+            btn.Text = arabicText .. " : [متوقف]"
+            StatusLabel.Text = "الوظيفة الحالية: معطل"
         else
             Settings.CurrentJob = jobName
             Settings.ActiveFarm = true
             btn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btn.Text = text .. " : [ON]"
-            StatusLabel.Text = "Selected Job: " .. jobName
+            btn.Text = arabicText .. " : [شغال]"
+            StatusLabel.Text = "الوظيفة: " .. arabicText
         end
     end)
 end
 
--- إنشاء أزرار الوظائف المحددة بدقة لماب BlockSpin
-createJobButton("Farm: Cash & ATMs", "Cash & ATMs", 0.21)
-createJobButton("Farm: Cases & Loot", "Cases & Loot", 0.31)
-createJobButton("Farm: General Jobs", "Jobs / Tasks", 0.41)
+-- إضافة أزرار الوظائف الشاملة
+createJobButton("فارم الكاش وصرافات الـ ATM", "Cash", 0.19)
+createJobButton("فتح الصناديق واللوت (Cases)", "Cases", 0.28)
+createJobButton("إنجاز المهام والوظائف العامة", "Jobs", 0.37)
+createJobButton("فارم شامل (كل شيء في الماب)", "All", 0.46)
 
--- أزرار إضافية للحماية والقتال (Aimbot & ESP)
-local function createToggle(text, yPos, callback)
+-- دالة الأزرار الإضافية (مثل الآيمبوت)
+local function createToggle(arabicText, yPos, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0.08, 0)
+    btn.Size = UDim2.new(0.9, 0, 0.075, 0)
     btn.Position = UDim2.new(0.05, 0, yPos, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-    btn.Text = text .. " : [OFF]"
-    btn.TextColor3 = Color3.fromRGB(170, 170, 170)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    btn.Text = arabicText .. " : [متوقف]"
+    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
     btn.TextSize, btn.Font = 11, Enum.Font.GothamMedium
     btn.Parent = MainFrame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -140,21 +143,22 @@ local function createToggle(text, yPos, callback)
         if state then
             btn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btn.Text = text .. " : [ON]"
+            btn.Text = arabicText .. " : [شغال]"
         else
-            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-            btn.TextColor3 = Color3.fromRGB(170, 170, 170)
-            btn.Text = text .. " : [OFF]"
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            btn.TextColor3 = Color3.fromRGB(180, 180, 180)
+            btn.Text = arabicText .. " : [متوقف]"
         end
         callback(state)
     end)
 end
 
-createToggle("Combat Aimbot", 0.53, function(val)
+-- تفعيل الآيمبوت التلقائي للدفاع
+createToggle("التصويب التلقائي (Aimbot)", 0.58, function(val)
     Settings.AimbotEnabled = val
 end)
 
--- نظام التشغيل البصري للآيمبوت
+-- نظام عمل الآيمبوت الذكي
 RunService.RenderStepped:Connect(function()
     if Settings.AimbotEnabled then
         local closest, dist = nil, math.huge
@@ -184,8 +188,8 @@ end)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
 CloseBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(160, 35, 35)
-CloseBtn.Text = "Close Menu"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+CloseBtn.Text = "إغلاق اللوحة بالكامل"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.TextSize, CloseBtn.Font = 11, Enum.Font.GothamBold
 CloseBtn.Parent = MainFrame
