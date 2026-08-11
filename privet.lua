@@ -525,11 +525,14 @@ function FarmEngine:Stop()
     end
 end
 
--- كود التشغيل المباشر:
+-- ========================================================
+-- التشغيل الشامل (لكل الوظائف والعناصر التي تمتلك ProximityPrompt تلقائياً)
+-- ========================================================
 FarmEngine:Start({
     Validator = function(obj)
-        -- استبدل "Coin" باسم الشيء أو الهدف في اللعبة لديك
-        return obj.Name == "Coin" 
+        -- يقوم بفحص أي عنصر في اللعبة ويمتلك زر تفاعل (ProximityPrompt) ويقوم بجمعه تلقائياً
+        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+        return prompt ~= nil
     end,
-    MaxDistance = 300,
+    MaxDistance = 500, -- المسافة القصوى للبحث
 })
