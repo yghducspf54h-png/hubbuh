@@ -8,10 +8,13 @@ local Camera = workspace.CurrentCamera
 if CoreGui:FindFirstChild("AlMubajilGui") then
     CoreGui.AlMubajilGui:Destroy()
 end
+if CoreGui:FindFirstChild("AlMubajilFOV") then
+    CoreGui.AlMubajilFOV:Destroy()
+end
 
 local Settings = {
     SpeedEnabled = false,
-    WalkSpeedValue = 22, -- سرعة آمنة تماماً تمنع طرد النظام أو الموت
+    WalkSpeedValue = 20, -- قيمة آمنة تماماً تمنع الموت أو كشف الحماية
     ESPEnabled = false,
     AimbotEnabled = false,
     FOVEnabled = false,
@@ -23,11 +26,11 @@ local Settings = {
 local Texts = {
     AR = {
         Title = "سكربت المبجل - San Diego",
-        Speed = "السرعة الآمنة",
-        ESP = "كشف اللاعبين وأسماء مصغرة",
-        Aimbot = "التصويب التلقائي السلس (Aimbot)",
+        Speed = "السرعة الآمنة (بدون موت)",
+        ESP = "كشف اللاعبين (أسماء مصغرة)",
+        Aimbot = "الايم بوت (على دائرة FOV)",
         FOV = "دائرة الرؤية (FOV)",
-        AutoSmuggle = "فارم البضائع المهربة التلقائي",
+        AutoSmuggle = "فارم البضائع المهربة الشامل",
         LangBtn = "English",
         Running = "شغال",
         Stopped = "متوقف",
@@ -36,10 +39,10 @@ local Texts = {
     EN = {
         Title = "AlMubajil Script - San Diego",
         Speed = "Safe Speed",
-        ESP = "ESP & Small Names",
-        Aimbot = "Smooth Aimbot",
+        ESP = "ESP (Small Names)",
+        Aimbot = "FOV Aimbot",
         FOV = "FOV Circle",
-        AutoSmuggle = "Auto Smuggling Farm",
+        AutoSmuggle = "Advanced Auto Farm",
         LangBtn = "عربي",
         Running = "ON",
         Stopped = "OFF",
@@ -47,7 +50,7 @@ local Texts = {
     }
 }
 
--- دائرة الـ FOV
+-- دائرة الـ FOV مع إمكانية التعديل والحجم المرن
 local FOVGui = Instance.new("ScreenGui")
 FOVGui.Name = "AlMubajilFOV"
 FOVGui.Parent = CoreGui
@@ -71,14 +74,12 @@ FOVStroke.Color = Color3.fromRGB(255, 255, 255)
 FOVStroke.Thickness = 1.5
 FOVStroke.Transparency = 0.3
 
--- نظام الـ ESP بدون تظليل خلف الجدران مع أسماء بحجم صغير جداً
+-- نظام الـ ESP بأسماء مصغرة بدون كشف خلف الجدران (رؤية واضحة بدون تخريب)
 local function ApplyESP(player)
     if player == LocalPlayer then return end
     
     local function CharacterAdded(char)
         if not char then return end
-        
-        -- إزالة أي تظليل قديم قد يُظهر اللاعب من خلف الجدران
         if char:FindFirstChild("AlMubajilHighlight") then 
             char.AlMubajilHighlight:Destroy() 
         end
@@ -91,7 +92,7 @@ local function ApplyESP(player)
             bb.Adornee = head
             bb.Size = UDim2.new(0, 80, 0, 20)
             bb.StudsOffset = Vector3.new(0, 1.8, 0)
-            bb.AlwaysOnTop = true
+            bb.AlwaysOnTop = false -- لا يظهر من خلف الجدران حسب طلبك
             bb.Enabled = Settings.ESPEnabled
             
             local lbl = Instance.new("TextLabel")
@@ -102,7 +103,7 @@ local function ApplyESP(player)
             lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
             lbl.TextStrokeTransparency = 0.5
             lbl.Font = Enum.Font.SourceSansBold
-            lbl.TextSize = 10 -- حجم اسم صغير جداً
+            lbl.TextSize = 10
         end
     end
     
@@ -113,7 +114,7 @@ end
 for _, p in ipairs(Players:GetPlayers()) do ApplyESP(p) end
 Players.PlayerAdded:Connect(ApplyESP)
 
--- الواجهة الرئيسية
+-- الواجهة الرئيسية وتصميم تحكم حجم الـ FOV
 local MainGui = Instance.new("ScreenGui")
 MainGui.Name = "AlMubajilGui"
 MainGui.Parent = CoreGui
@@ -123,8 +124,8 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Parent = MainGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -195)
-MainFrame.Size = UDim2.new(0, 320, 0, 390)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -210)
+MainFrame.Size = UDim2.new(0, 320, 0, 420)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
@@ -170,10 +171,8 @@ CloseBtn.MouseButton1Click:Connect(function()
     MainGui:Destroy()
     FOVGui:Destroy()
     for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
-                p.Character.Head.AlMubajilName:Destroy()
-            end
+        if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
+            p.Character.Head.AlMubajilName:Destroy()
         end
     end
 end)
@@ -218,12 +217,12 @@ CreditsLabel.TextSize = 11
 
 local toggles = {}
 
-local function CreateToggle(key, textKey, yPos, callback)
+local function CreateToggle(textKey, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Parent = MainFrame
     btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     btn.Position = UDim2.new(0.06, 0, 0, yPos)
-    btn.Size = UDim2.new(0.88, 0, 0, 38)
+    btn.Size = UDim2.new(0.88, 0, 0, 36)
     btn.Font = Enum.Font.SourceSansBold
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.TextSize = 13
@@ -250,23 +249,70 @@ local function CreateToggle(key, textKey, yPos, callback)
     end)
 end
 
-CreateToggle("Speed", "Speed", 50, function(state) Settings.SpeedEnabled = state end)
-CreateToggle("ESP", "ESP", 95, function(state)
+CreateToggle("Speed", 50, function(state) Settings.SpeedEnabled = state end)
+CreateToggle("ESP", 92, function(state)
     Settings.ESPEnabled = state
     for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
-                p.Character.Head.AlMubajilName.Enabled = state
-            end
+        if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
+            p.Character.Head.AlMubajilName.Enabled = state
         end
     end
 end)
-CreateToggle("Aimbot", "Aimbot", 140, function(state) Settings.AimbotEnabled = state end)
-CreateToggle("FOV", "FOV", 185, function(state)
+CreateToggle("Aimbot", 134, function(state) Settings.AimbotEnabled = state end)
+CreateToggle("FOV", 176, function(state)
     Settings.FOVEnabled = state
     FOVFrame.Visible = state
 end)
-CreateToggle("AutoSmuggle", "AutoSmuggle", 230, function(state) Settings.AutoSmuggleEnabled = state end)
+CreateToggle("AutoSmuggle", 218, function(state) Settings.AutoSmuggleEnabled = state end)
+
+-- أزرار تحكم بحجم دائرة الـ FOV (تكبير وتصغير)
+local FOVText = Instance.new("TextLabel")
+FOVText.Parent = MainFrame
+FOVText.BackgroundTransparency = 1
+FOVText.Position = UDim2.new(0.06, 0, 0, 262)
+FOVText.Size = UDim2.new(0.88, 0, 0, 20)
+FOVText.Font = Enum.Font.SourceSansBold
+FOVText.Text = "FOV Size: " .. Settings.FOVRadius
+FOVText.TextColor3 = Color3.fromRGB(200, 200, 200)
+FOVText.TextSize = 12
+
+local MinusFOV = Instance.new("TextButton")
+MinusFOV.Parent = MainFrame
+MinusFOV.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+MinusFOV.Position = UDim2.new(0.06, 0, 0, 286)
+MinusFOV.Size = UDim2.new(0.42, 0, 0, 28)
+MinusFOV.Font = Enum.Font.SourceSansBold
+MinusFOV.Text = "[-] تصغير FOV"
+MinusFOV.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinusFOV.TextSize = 12
+local MinFCorner = Instance.new("UICorner") MinFCorner.CornerRadius = UDim.new(0, 6) MinFCorner.Parent = MinusFOV
+
+local PlusFOV = Instance.new("TextButton")
+PlusFOV.Parent = MainFrame
+PlusFOV.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+PlusFOV.Position = UDim2.new(0.52, 0, 0, 286)
+PlusFOV.Size = UDim2.new(0.42, 0, 0, 28)
+PlusFOV.Font = Enum.Font.SourceSansBold
+PlusFOV.Text = "[+] تكبير FOV"
+PlusFOV.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlusFOV.TextSize = 12
+local PlusFCorner = Instance.new("UICorner") PlusFCorner.CornerRadius = UDim.new(0, 6) PlusFCorner.Parent = PlusFOV
+
+MinusFOV.MouseButton1Click:Connect(function()
+    if Settings.FOVRadius > 50 then
+        Settings.FOVRadius = Settings.FOVRadius - 25
+        FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
+        FOVText.Text = "FOV Size: " .. Settings.FOVRadius
+    end
+end)
+
+PlusFOV.MouseButton1Click:Connect(function()
+    if Settings.FOVRadius < 400 then
+        Settings.FOVRadius = Settings.FOVRadius + 25
+        FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
+        FOVText.Text = "FOV Size: " .. Settings.FOVRadius
+    end
+end)
 
 LangBtn.MouseButton1Click:Connect(function()
     Settings.Language = Settings.Language == "AR" and "EN" or "AR"
@@ -279,16 +325,15 @@ end)
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
-    MainFrame:TweenSize(isMinimized and UDim2.new(0, 320, 0, 40) or UDim2.new(0, 320, 0, 390), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+    MainFrame:TweenSize(isMinimized and UDim2.new(0, 320, 0, 40) or UDim2.new(0, 320, 0, 420), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
     MinBtn.Text = isMinimized and "+" or "-"
-    for _, t in ipairs(toggles) do t.Button.Visible = not isMinimized end
-    CreditsLabel.Visible = not isMinimized
 end)
 
--- البحث عن أقرب لاعب للإيم بوت ضمن نطاق الـ FOV
-local function GetClosestPlayer()
+-- دحث أقرب لاعب داخل دائرة الـ FOV بدقة عالية
+local function GetClosestPlayerInFOV()
     local target = nil
     local shortestDist = Settings.FOVRadius
+    local centerScreen = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
@@ -296,9 +341,7 @@ local function GetClosestPlayer()
             local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
             
             if onScreen then
-                local centerScreen = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerScreen).Magnitude
-                
                 if dist < shortestDist then
                     shortestDist = dist
                     target = head
@@ -309,23 +352,23 @@ local function GetClosestPlayer()
     return target
 end
 
--- حلقة لتشغيل الميزات مع تصويب سلس جداً (Interpolation) وفارم شامل لكل أنواع البرومبتات
+-- حلقة التشغيل الفعالة والمحدثة لحل جميع المشاكل
 RunService.RenderStepped:Connect(function()
-    -- حماية من الموت وسرعة آمنة
+    -- سرعة آمنة تماماً بدون تفعيل نظام الموت السريع في الماب
     if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeedValue
     end
     
-    -- نظام تصويب تلقائي سلس جداً (Smooth Aimbot) لسهولة التحكم وعدم الاهتزاز
+    -- نظام الايم بوت المحصور داخل دائرة الـ FOV ويستهدف اللي يدخل فيها بس عند الضغط على كليك يمين
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local targetHead = GetClosestPlayer()
+        local targetHead = GetClosestPlayerInFOV()
         if targetHead then
             local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.2) -- تدرج سلس في الحركة للتحكم الكامل
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.25)
         end
     end
     
-    -- فارم تلقائي شامل للمهامات والبضائع والمشتريات (يغطي جميع الأجسام التفاعلية ProximityPrompt و ClickDetector)
+    -- فارم تلقائي شامل ومُحسّن بقوة لكل البضائع والبرومبتات (فارم البقالة والتهريب والمهمات يشتغل فوري)
     if Settings.AutoSmuggleEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             local hrp = LocalPlayer.Character.HumanoidRootPart
@@ -334,7 +377,7 @@ RunService.RenderStepped:Connect(function()
                     local parent = obj.Parent
                     if parent then
                         local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
-                        if pos and (pos - hrp.Position).Magnitude < 20 then
+                        if pos and (pos - hrp.Position).Magnitude <= (obj.MaxActivationDistance or 25) then
                             fireproximityprompt(obj)
                         end
                     end
@@ -342,7 +385,7 @@ RunService.RenderStepped:Connect(function()
                     local parent = obj.Parent
                     if parent then
                         local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
-                        if pos and (pos - hrp.Position).Magnitude < 15 then
+                        if pos and (pos - hrp.Position).Magnitude <= 20 then
                             fireclickdetector(obj)
                         end
                     end
