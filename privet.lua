@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local LocalPlayer = Players.LocalPlayer
 
--- إحداثيات أو أسماء الأماكن والوظائف بناءً على خريطة ودليل BlockSpin
 local JobLocations = {
     ["Burger Place (مطعم البرجر)"] = {Name = "Burger Place", Pos = Vector3.new(-50, 3, -20)},
     ["Butcher’s Cut (اللحام)"] = {Name = "Butcher’s Cut", Pos = Vector3.new(40, 3, 60)},
@@ -14,9 +13,6 @@ local JobLocations = {
 
 local selectedJob = "Burger Place (مطعم البرجر)"
 
--- ========================================================
--- بناء واجهة المستخدم (UI) مع قائمة اختيار الوظائف
--- ========================================================
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local TitleLabel = Instance.new("TextLabel")
@@ -53,7 +49,6 @@ local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 8)
 TitleCorner.Parent = TitleLabel
 
--- زر اختيار الوظيفة
 DropdownButton.Parent = MainFrame
 DropdownButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 DropdownButton.Position = UDim2.new(0.08, 0, 0.25, 0)
@@ -63,11 +58,10 @@ DropdownButton.Text = "Job: Burger Place"
 DropdownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 DropdownButton.TextSize = 13
 
--- قائمة الوظائف المنسدلة
 DropdownList.Parent = MainFrame
 DropdownList.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 DropdownList.Position = UDim2.new(0.08, 0, 0.42, 0)
-DropdownList.Size = UDim2.new(0, 200, 0, 0) -- مخفية بالبداية
+DropdownList.Size = UDim2.new(0, 200, 0, 0)
 DropdownList.CanvasSize = UDim2.new(0, 0, 0, 200)
 DropdownList.Visible = false
 DropdownList.BorderSizePixel = 0
@@ -104,7 +98,6 @@ DropdownButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- زر التشغيل
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
 ToggleButton.Position = UDim2.new(0.08, 0, 0.68, 0)
@@ -123,9 +116,6 @@ StatusLabel.Text = "Status: Idle"
 StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 StatusLabel.TextSize = 13
 
--- ========================================================
--- محرك تنفيذ الوظيفة المحددة
--- ========================================================
 local FarmEngine = { Running = false }
 
 function FarmEngine:Start()
@@ -143,14 +133,12 @@ function FarmEngine:Start()
             if not hrp or not humanoid then
                 task.wait(1)
                 continue
-            }
+            end
             
             local targetData = JobLocations[selectedJob]
             if targetData then
-                StatusStatus = targetData.Name
                 StatusLabel.Text = "Working at: " .. targetData.Name
                 
-                -- التوجه لموقع الوظيفة المختار بدقة عبر Pathfinding
                 local success, err = pcall(function()
                     path:ComputeAsync(hrp.Position, targetData.Pos)
                 end)
@@ -168,7 +156,6 @@ function FarmEngine:Start()
                     humanoid:MoveTo(targetData.Pos)
                 end
                 
-                -- محاكاة التفاعل مع الوظيفة بمكانها المخصص
                 local targetObj = workspace:FindFirstChild(targetData.Name, true)
                 if targetObj then
                     local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
