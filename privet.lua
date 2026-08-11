@@ -14,7 +14,7 @@ end
 
 local Settings = {
     SpeedEnabled = false,
-    WalkSpeedValue = 20, -- قيمة آمنة تماماً تمنع الموت أو كشف الحماية
+    WalkSpeedValue = 20,
     ESPEnabled = false,
     AimbotEnabled = false,
     FOVEnabled = false,
@@ -50,7 +50,7 @@ local Texts = {
     }
 }
 
--- دائرة الـ FOV مع إمكانية التعديل والحجم المرن
+-- دائرة الـ FOV المرنة
 local FOVGui = Instance.new("ScreenGui")
 FOVGui.Name = "AlMubajilFOV"
 FOVGui.Parent = CoreGui
@@ -74,7 +74,7 @@ FOVStroke.Color = Color3.fromRGB(255, 255, 255)
 FOVStroke.Thickness = 1.5
 FOVStroke.Transparency = 0.3
 
--- نظام الـ ESP بأسماء مصغرة بدون كشف خلف الجدران (رؤية واضحة بدون تخريب)
+-- نظام الـ ESP بأسماء مصغرة بدون كشف خلف الجدران
 local function ApplyESP(player)
     if player == LocalPlayer then return end
     
@@ -92,7 +92,7 @@ local function ApplyESP(player)
             bb.Adornee = head
             bb.Size = UDim2.new(0, 80, 0, 20)
             bb.StudsOffset = Vector3.new(0, 1.8, 0)
-            bb.AlwaysOnTop = false -- لا يظهر من خلف الجدران حسب طلبك
+            bb.AlwaysOnTop = false
             bb.Enabled = Settings.ESPEnabled
             
             local lbl = Instance.new("TextLabel")
@@ -114,7 +114,7 @@ end
 for _, p in ipairs(Players:GetPlayers()) do ApplyESP(p) end
 Players.PlayerAdded:Connect(ApplyESP)
 
--- الواجهة الرئيسية وتصميم تحكم حجم الـ FOV
+-- الواجهة الرئيسية والتحكم الكامل
 local MainGui = Instance.new("ScreenGui")
 MainGui.Name = "AlMubajilGui"
 MainGui.Parent = CoreGui
@@ -265,7 +265,7 @@ CreateToggle("FOV", 176, function(state)
 end)
 CreateToggle("AutoSmuggle", 218, function(state) Settings.AutoSmuggleEnabled = state end)
 
--- أزرار تحكم بحجم دائرة الـ FOV (تكبير وتصغير)
+-- أزرار تحكم حجم الـ FOV
 local FOVText = Instance.new("TextLabel")
 FOVText.Parent = MainFrame
 FOVText.BackgroundTransparency = 1
@@ -329,7 +329,7 @@ MinBtn.MouseButton1Click:Connect(function()
     MinBtn.Text = isMinimized and "+" or "-"
 end)
 
--- دحث أقرب لاعب داخل دائرة الـ FOV بدقة عالية
+-- دالة لتحديد اللاعب المستهدف داخل دائرة الـ FOV بدقة
 local function GetClosestPlayerInFOV()
     local target = nil
     local shortestDist = Settings.FOVRadius
@@ -352,14 +352,14 @@ local function GetClosestPlayerInFOV()
     return target
 end
 
--- حلقة التشغيل الفعالة والمحدثة لحل جميع المشاكل
+-- حلقة التشغيل الرئيسية المعالجة لكل المشاكل
 RunService.RenderStepped:Connect(function()
-    -- سرعة آمنة تماماً بدون تفعيل نظام الموت السريع في الماب
+    -- سرعة آمنة تمنع الموت نهائياً
     if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeedValue
     end
     
-    -- نظام الايم بوت المحصور داخل دائرة الـ FOV ويستهدف اللي يدخل فيها بس عند الضغط على كليك يمين
+    -- إيم بوت داخل دائرة الـ FOV فقط عند الضغط على زر الماوس الأيمن
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local targetHead = GetClosestPlayerInFOV()
         if targetHead then
@@ -368,7 +368,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    -- فارم تلقائي شامل ومُحسّن بقوة لكل البضائع والبرومبتات (فارم البقالة والتهريب والمهمات يشتغل فوري)
+    -- فارم شامل ودقيق لجميع البضائع والبرومبتات التفاعلية في الماب
     if Settings.AutoSmuggleEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             local hrp = LocalPlayer.Character.HumanoidRootPart
