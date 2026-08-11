@@ -3,7 +3,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 -- إعدادات السكربت الافتراضية
 local Settings = {
@@ -12,11 +11,11 @@ local Settings = {
     TeamCheck = false,
     AimbotEnabled = false,
     ShowFOV = false,
-    FOVSize = 100,       -- نصف قطر الدائرة بالبكسل
-    Smoothness = 0.15    -- نسبة سلاسة توجيه الكاميرا (كلما قلّ الرقم كان التصويب أسرع)
+    FOVSize = 100,
+    Smoothness = 0.15
 }
 
--- [نظام الحماية]: توليد أسماء عشوائية فريدة لمنع الكشف
+-- [نظام الحماية]: توليد أسماء عشوائية فريدة
 local GUI_NAME = HttpService:GenerateGUID(false):sub(1, 8)
 local HIGHLIGHT_NAME = HttpService:GenerateGUID(false):sub(1, 8)
 local BILLBOARD_NAME = HttpService:GenerateGUID(false):sub(1, 8)
@@ -25,7 +24,7 @@ local FOV_GUI_NAME = HttpService:GenerateGUID(false):sub(1, 8)
 local Connections = {}
 local ActiveBillboards = {}
 
--- 1. إنشاء واجهة التحكم (Premium UI)
+-- 1. إنشاء واجهة التحكم
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local oldGui = PlayerGui:FindFirstChild(GUI_NAME)
 if oldGui then oldGui:Destroy() end
@@ -35,7 +34,6 @@ ScreenGui.Name = GUI_NAME
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
--- إطار الواجهة الرئيسي
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 240, 0, 320)
 MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
@@ -49,7 +47,6 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
--- العنوان
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0.12, 0)
 Title.BackgroundTransparency = 1
@@ -59,7 +56,6 @@ Title.TextSize = 14
 Title.Font = Enum.Font.GothamBold
 Title.Parent = MainFrame
 
--- دالة مساعدة لإنشاء الأزرار التفاعلية
 local function createButton(text, yPos, callback)
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0.9, 0, 0.1, 0)
@@ -92,7 +88,7 @@ local function createButton(text, yPos, callback)
     return button
 end
 
--- 2. إنشاء دائرة الـ FOV المرئية في منتصف الشاشة
+-- 2. دائرة الـ FOV
 local oldFov = PlayerGui:FindFirstChild(FOV_GUI_NAME)
 if oldFov then oldFov:Destroy() end
 
@@ -105,30 +101,26 @@ local FovFrame = Instance.new("Frame")
 FovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 FovFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 FovFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-FovFrame.BackgroundTransparency = 1 -- جعل الخلفية شفافة لرؤية اللعبة
+FovFrame.BackgroundTransparency = 1
 FovFrame.Visible = false
 FovFrame.Parent = FovGui
 
 local FovCorner = Instance.new("UICorner")
-FovCorner.CornerRadius = UDim.new(1, 0) -- دائرة كاملة
+FovCorner.CornerRadius = UDim.new(1, 0)
 FovCorner.Parent = FovFrame
 
--- رسم خط الدائرة الخارجي
 local FovStroke = Instance.new("UIStroke")
 FovStroke.Color = Color3.fromRGB(0, 170, 255)
 FovStroke.Thickness = 1.5
 FovStroke.Transparency = 0.5
 FovStroke.Parent = FovFrame
 
--- تحديث حجم ومكان الدائرة بناءً على الإعدادات
 local function updateFOVVisual()
     FovFrame.Size = UDim2.new(0, Settings.FOVSize * 2, 0, Settings.FOVSize * 2)
     FovFrame.Visible = Settings.ShowFOV
 end
 
--- 3. ميكانيكية الـ Aimbot والـ ESP
-
--- تنظيف مجسم لاعب معين
+-- 3. نظام الـ ESP والـ Aimbot
 local function cleanCharacter(character)
     local hl = character:FindFirstChild(HIGHLIGHT_NAME)
     if hl then hl:Destroy() end
@@ -136,7 +128,6 @@ local function cleanCharacter(character)
     if bb then bb:Destroy() end
 end
 
--- إظهار اللاعبين وتأثيرات Chams والأسماء
 local function updatePlayerESP(player)
     local char = player.Character
     if not char then return end
@@ -193,7 +184,6 @@ local function updatePlayerESP(player)
     end
 end
 
--- العثور على أقرب لاعب داخل حدود دائرة الـ FOV
 local function getClosestPlayerInFOV()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -201,7 +191,6 @@ local function getClosestPlayerInFOV()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-            -- تخطي أعضاء الفريق إذا كانت الميزة مفعلة
             if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
             if player.Character.Humanoid.Health <= 0 then continue end
 
@@ -209,7 +198,6 @@ local function getClosestPlayerInFOV()
             if head then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
                 if onScreen then
-                    -- حساب المسافة بين رأس اللاعب ومركز الشاشة (FOV)
                     local distanceToCenter = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                     if distanceToCenter <= Settings.FOVSize and distanceToCenter < shortestDistance then
                         shortestDistance = distanceToCenter
@@ -222,10 +210,8 @@ local function getClosestPlayerInFOV()
     return closestPlayer
 end
 
--- تشغيل تتبع الكاميرا للهدف (Aimbot Loop)
 local function startAimbotLoop()
     local conn = RunService.RenderStepped:Connect(function()
-        -- تحديث المسافات للأسماء
         if Settings.NamesEnabled then
             for player, label in pairs(ActiveBillboards) do
                 if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -238,11 +224,9 @@ local function startAimbotLoop()
             end
         end
 
-        -- منطق الـ Aimbot
         if Settings.AimbotEnabled then
             local target = getClosestPlayerInFOV()
             if target and target.Character and target.Character:FindFirstChild("Head") then
-                -- توجيه الكاميرا بسلاسة (Smooth Lerping) نحو الرأس
                 local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
                 Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Smoothness)
             end
@@ -251,7 +235,6 @@ local function startAimbotLoop()
     table.insert(Connections, conn)
 end
 
--- تفعيل المراقبة
 local function initializeESP()
     for _, conn in ipairs(Connections) do conn:Disconnect() end
     Connections = {}
@@ -304,7 +287,6 @@ createButton("Show FOV Circle", 0.63, function(val)
     updateFOVVisual()
 end)
 
--- أزرار التحكم في حجم الـ FOV
 local FOVLabel = Instance.new("TextLabel")
 FOVLabel.Size = UDim2.new(1, 0, 0.08, 0)
 FOVLabel.Position = UDim2.new(0, 0, 0.75, 0)
@@ -343,7 +325,6 @@ local IncreaseCorner = Instance.new("UICorner")
 IncreaseCorner.CornerRadius = UDim.new(0, 4)
 IncreaseCorner.Parent = IncreaseBtn
 
--- تفعيل أزرار تغيير الحجم
 DecreaseBtn.MouseButton1Click:Connect(function()
     if Settings.FOVSize > 20 then
         Settings.FOVSize = Settings.FOVSize - 10
@@ -360,6 +341,5 @@ IncreaseBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- تشغيل السكربت
 initializeESP()
 updateFOVVisual()
