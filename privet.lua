@@ -1,1127 +1,752 @@
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- Al-Mubajjil Hub - Private Build (Ultimate Edition)
+-- Developed & Customized by: المبجل (Al-Mubajjil)
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
 
--- 🇸🇦 Custom Theme: Saudi Green & Gold Edition (خلفية ونمط مستوحى من السعودية)
-WindUI:AddTheme({
-    Name = "SaudiTheme",
-    
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
-    Background = Color3.fromHex("#0A0F0D"),
-    BackgroundTransparency = 0,
-    Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
-    Text = Color3.fromHex("#FFFFFF"),
-    Placeholder = Color3.fromHex("#7a7a7a"),
-    Button = Color3.fromHex("#132219"),
-    Icon = Color3.fromHex("#C5A059"),
-    
-    Hover = Color3.fromHex("#1B3B2B"),
-    
-    WindowBackground = Color3.fromHex("#0A0F0D"),
-    WindowShadow = Color3.fromHex("#006C35"),
-    
-    DialogBackground = Color3.fromHex("#0A0F0D"),
-    DialogBackgroundTransparency = 0,
-    DialogTitle = Color3.fromHex("#C5A059"),
-    DialogContent = Color3.fromHex("#FFFFFF"),
-    DialogIcon = Color3.fromHex("#006C35"),
-    
-    WindowTopbarButtonIcon = Color3.fromHex("#C5A059"),
-    WindowTopbarTitle = Color3.fromHex("#FFFFFF"),
-    WindowTopbarAuthor = Color3.fromHex("#C5A059"),
-    WindowTopbarIcon = Color3.fromHex("#006C35"),
-    
-    TabBackground = Color3.fromHex("#0A0F0D"),
-    TabTitle = Color3.fromHex("#FFFFFF"),
-    TabIcon = Color3.fromHex("#C5A059"),
-    
-    ElementBackground = Color3.fromHex("#111A14"),
-    ElementTitle = Color3.fromHex("#FFFFFF"),
-    ElementDesc = Color3.fromHex("#A1A1AA"),
-    ElementIcon = Color3.fromHex("#C5A059"),
-    
-    PopupBackground = Color3.fromHex("#0A0F0D"),
-    PopupBackgroundTransparency = 0,
-    PopupTitle = Color3.fromHex("#C5A059"),
-    PopupContent = Color3.fromHex("#FFFFFF"),
-    PopupIcon = Color3.fromHex("#006C35"),
-    
-    Toggle = Color3.fromHex("#006C35"),
-    ToggleBar = Color3.fromHex("#C5A059"),
-    
-    Checkbox = Color3.fromHex("#1B3B2B"),
-    CheckboxIcon = Color3.fromHex("#C5A059"),
-    
-    Slider = Color3.fromHex("#006C35"),
-    SliderThumb = Color3.fromHex("#C5A059"),
-})
-
--- 🪟 نافذة السكريبت مع حقوق "المبجل"
-local Window = WindUI:CreateWindow({
-    Title = "🌴 San Diego Auto Farm | المبجل",
-    Icon = "monitor",
-    Author = "By: المبجل",
-    Folder = "SanDiegoFarmSaudi",
-    Size = UDim2.fromOffset(580, 460),
-    Transparent = false,
-    Theme = "SaudiTheme",
-    SideBarWidth = 170,
-    HasOutline = true,
-    User = {
-        Enabled = true,
-        Anonymous = false,
-        Callback = function() print("المبجل - تم النقر") end,
-    },
-})
-
-Window:EditOpenButton({
-    Title = "🌴 San Diego Auto Farm",
-    Icon = "monitor",
-    CornerRadius = UDim.new(0,16),
-    StrokeThickness = 2,
-    Color = ColorSequence.new(
-        Color3.fromHex("006C35"), 
-        Color3.fromHex("C5A059")
-    ),
-    OnlyMobile = false,
-    Enabled = true,
-    Draggable = true,
-})
-
-Window:Tag({
-    Title = "v1.2 | حقوق المبجل",
-    Icon = "shield-check",
-    Color = Color3.fromHex("#C5A059"),
-    Radius = 10,
-})
-
--- 📑 Tabs (الأقسام بالعربي والانجليزي)
-local ReadTab = Window:Tab({
-    Title = "التنبيهات / Read",
-    Icon = "triangle-alert",
-})
-
-local MainTab = Window:Tab({
-    Title = "التجميع الآلي / Auto Farm",
-    Icon = "bot",
-})
-
-local MiscTab = Window:Tab({
-    Title = "إضافات / Misc",
-    Icon = "sliders-horizontal",
-})
-
---------------------------------------------------------------------
--- ⚙️ VARIABLES & CONFIGS
---------------------------------------------------------------------
+local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local TweenSvc = game:GetService("TweenService")
+local RunSvc = game:GetService("RunSvc")
 local Lighting = game:GetService("Lighting")
 
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
-local isRunning = false
-local autoSell = true
-local autoLaunder = true
-local fpsBoostActive = false
-local antiPauseActive = false
-local noRenderActive = false
-local showPathLine = true
-local pathColor1 = Color3.fromHex("#006C35")
-local pathColor2 = Color3.fromHex("#C5A059")
-
-local pathGlowSize = 1.2
-local pathLength = 6.5
-local pathSpeed = 0
-
-local lastVehicle = nil
-local lastVehicleCFrame = nil
-
-local CONFIG = {
-	Speed = 250,
-	Height = 2.5,
-	Amount = 5,
-	TweenDelay = 0.1, 
-	ItemName = "Fake Diamond Ring",
-	SellName = "Smuggle Goods Seller",
-	LaunderName = "Launder Cash"
+local SystemSettings = {
+    Active = false,
+    AutoSell = true,
+    AutoClean = true,
+    TurboFPS = false,
+    NoIdle = false,
+    BlankRender = false,
+    ShowTrack = true,
+    LineWidth = 1.2,
+    LineLength = 6.5,
+    LineVel = 0
 }
 
-local PROTECTED_ITEMS = {
-	["fists"] = true,
-	["passport"] = true
+local UserConfig = {
+    Velocity = 250,
+    Altitude = 2.5,
+    GoalLimit = 5,
+    DelayTime = 0.1,
+    TargetObj = "Fake Diamond Ring",
+    SellObj = "Smuggle Goods Seller",
+    CleanObj = "Launder Cash"
 }
 
-local function isProtectedItem(itemName)
-	return PROTECTED_ITEMS[string.lower(itemName)] == true
-end
-
-local function applyAntiPause(state)
-	antiPauseActive = state
-	if state then
-		pcall(function()
-			local pauseScript = game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui").RobloxGui:FindFirstChild("CoreScripts/NetworkPause")
-			if pauseScript then
-				pauseScript:Destroy()
-			end
-		end)
-	end
-end
-
-local function applyNoRender(state)
-	noRenderActive = state
-	if state then
-		RunService:Set3dRenderingEnabled(false)
-	else
-		RunService:Set3dRenderingEnabled(true)
-	end
-end
-
-local postBuyWaypoints = {
-	Vector3.new(6837.8, 17.2, 30.7),
-	Vector3.new(6843.8, 17.2, 101.4),
-	Vector3.new(2785.6, 17.2, 94.8),
-	Vector3.new(2669.2, 17.2, 111.6),
-	Vector3.new(97.4, 17.2, 112.9),
-	Vector3.new(54.6, 17.2, 341.1),
-	Vector3.new(-124.1, 17.2, 394.1),
-	Vector3.new(-101.3, 17.2, 505.4),
-	Vector3.new(13.0, 17.2, 494.9),
-	Vector3.new(44.5, 17.2, 431.0),
-	Vector3.new(47.6, 33.3, 563.5),
-	Vector3.new(29.3, 33.3, 424.0),
-	Vector3.new(42.9, 49.3, 561.7),
-	Vector3.new(-80.5, 49.3, 428.5)
+local IgnoredTools = {
+    ["fists"] = true,
+    ["passport"] = true
 }
 
-local postSellWaypoints = {
+local function CheckIgnore(name)
+    return IgnoredTools[string.lower(name)] == true
+end
+
+local ActiveTransport = nil
+local RouteContainer = workspace:FindFirstChild("Mubajjil_RouteFolder") or Instance.new("Folder")
+RouteContainer.Name = "Mubajjil_RouteFolder"
+RouteContainer.Parent = workspace
+
+local RouteObjects = {}
+local BeamReferences = {}
+local RouteLoop = nil
+
+local function PurgeRoute()
+    if RouteLoop then
+        RouteLoop:Disconnect()
+        RouteLoop = nil
+    end
+    for _, obj in ipairs(RouteObjects) do
+        if obj and obj.Parent then obj:Destroy() end
+    end
+    RouteObjects = {}
+    BeamReferences = {}
+    RouteContainer:ClearAllChildren()
+end
+
+local function RefreshBeams()
+    for _, data in ipairs(BeamReferences) do
+        if data.Beam and data.Beam.Parent then
+            data.Beam.Width0 = SystemSettings.LineWidth
+            data.Beam.Width1 = SystemSettings.LineWidth
+            data.Beam.TextureLength = SystemSettings.LineLength
+            data.Beam.TextureSpeed = SystemSettings.LineVel
+        end
+    end
+end
+
+local function BuildRouteLines(points, startIdx)
+    PurgeRoute()
+    if not SystemSettings.ShowTrack or not points or startIdx > #points then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local pathNodes = {root.Position}
+    for i = startIdx, #points do
+        table.insert(pathNodes, points[i])
+    end
+
+    BeamReferences = {}
+
+    for i = 1, #pathNodes - 1 do
+        local p1, p2 = pathNodes[i], pathNodes[i+1]
+
+        local part1 = Instance.new("Part", RouteContainer)
+        part1.Size = Vector3.new(0.1, 0.1, 0.1)
+        part1.Position = p1
+        part1.Anchored = true
+        part1.CanCollide = false
+        part1.Transparency = 1
+
+        local part2 = Instance.new("Part", RouteContainer)
+        part2.Size = Vector3.new(0.1, 0.1, 0.1)
+        part2.Position = p2
+        part2.Anchored = true
+        part2.CanCollide = false
+        part2.Transparency = 1
+
+        local att1 = Instance.new("Attachment", part1)
+        local att2 = Instance.new("Attachment", part2)
+
+        local lineBeam = Instance.new("Beam", RouteContainer)
+        lineBeam.Attachment0 = att1
+        lineBeam.Attachment1 = att2
+        lineBeam.Texture = "rbxassetid://446111271"
+        lineBeam.TextureMode = Enum.TextureMode.Wrap
+        lineBeam.TextureLength = SystemSettings.LineLength
+        lineBeam.TextureSpeed = SystemSettings.LineVel
+        lineBeam.Width0 = SystemSettings.LineWidth
+        lineBeam.Width1 = SystemSettings.LineWidth
+        lineBeam.Transparency = NumberSequence.new(0)
+        lineBeam.FaceCamera = true
+        lineBeam.LightEmission = 1
+        lineBeam.LightInfluence = 0
+
+        table.insert(RouteObjects, part1)
+        table.insert(RouteObjects, part2)
+        table.insert(RouteObjects, lineBeam)
+        table.insert(BeamReferences, {Beam = lineBeam, Index = i})
+    end
+
+    RouteLoop = RunSvc.RenderStepped:Connect(function()
+        local timeTick = (tick() * 0.5) % 1
+        for _, data in ipairs(BeamReferences) do
+            if data.Beam and data.Beam.Parent then
+                local f1 = math.sin((timeTick + (data.Index * 0.1)) * math.pi * 2) * 0.5 + 0.5
+                local f2 = math.sin((timeTick + ((data.Index + 1) * 0.1)) * math.pi * 2) * 0.5 + 0.5
+                local c1 = Color3.fromRGB(0, 108, 53):Lerp(Color3.fromRGB(197, 160, 89), f1)
+                local c2 = Color3.fromRGB(0, 108, 53):Lerp(Color3.fromRGB(197, 160, 89), f2)
+
+                data.Beam.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, c1),
+                    ColorSequenceKeypoint.new(1, c2)
+                })
+            end
+        end
+    end)
+end
+
+local RouteBuy = {
+    Vector3.new(6837.8, 17.2, 30.7),
+    Vector3.new(6843.8, 17.2, 101.4),
+    Vector3.new(2785.6, 17.2, 94.8),
+    Vector3.new(2669.2, 17.2, 111.6),
+    Vector3.new(97.4, 17.2, 112.9),
+    Vector3.new(54.6, 17.2, 341.1),
+    Vector3.new(-124.1, 17.2, 394.1),
+    Vector3.new(-101.3, 17.2, 505.4),
+    Vector3.new(13.0, 17.2, 494.9),
+    Vector3.new(44.5, 17.2, 431.0),
+    Vector3.new(47.6, 33.3, 563.5),
+    Vector3.new(29.3, 33.3, 424.0),
+    Vector3.new(42.9, 49.3, 561.7),
+    Vector3.new(-80.5, 49.3, 428.5)
+}
+
+local RouteSell = {
     Vector3.new(-33.5, 49.3, 429.2),
-	Vector3.new(-24.6, 53.5, 405.4),
-	Vector3.new(23.4, 17.2, 348.7),
-	Vector3.new(169.1, 17.2, 148.7),
-	Vector3.new(2848.5, 17.2, 159.6),
-	Vector3.new(6867.7, 17.2, 133.0),
-	Vector3.new(6832.1, 17.4, -41.5),
-	Vector3.new(6805.6, 17.4, -34.4)
+    Vector3.new(-24.6, 53.5, 405.4),
+    Vector3.new(23.4, 17.2, 348.7),
+    Vector3.new(169.1, 17.2, 148.7),
+    Vector3.new(2848.5, 17.2, 159.6),
+    Vector3.new(6867.7, 17.2, 133.0),
+    Vector3.new(6832.1, 17.4, -41.5),
+    Vector3.new(6805.6, 17.4, -34.4)
 }
 
---------------------------------------------------------------------
--- 🛣️ WAYPOINT SYSTEM
---------------------------------------------------------------------
-local pathFolder = workspace:FindFirstChild("AutoFarm_PathFolder") or Instance.new("Folder")
-pathFolder.Name = "AutoFarm_PathFolder"
-pathFolder.Parent = workspace
-
-local activePathObjects = {}
-local activeBeamsList = {}
-local pathAnimConnection = nil
-
-local function clearWaylines()
-	if pathAnimConnection then
-		pathAnimConnection:Disconnect()
-		pathAnimConnection = nil
-	end
-	for _, obj in ipairs(activePathObjects) do
-		if obj and obj.Parent then
-			obj:Destroy()
-		end
-	end
-	activePathObjects = {}
-	activeBeamsList = {}
-	pathFolder:ClearAllChildren()
+local function LocateTarget(nameKey)
+    local targetKey = string.lower(nameKey)
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local objStr = string.lower(prompt.ObjectText or "")
+            local actStr = string.lower(prompt.ActionText or "")
+            local parentStr = string.lower(prompt.Parent and prompt.Parent.Name or "")
+            if string.find(objStr, targetKey) or string.find(actStr, targetKey) or string.find(parentStr, targetKey) then
+                local container = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
+                if container:IsA("BasePart") then
+                    return container, prompt
+                elseif container:IsA("Model") then
+                    local primary = container.PrimaryPart or container:FindFirstChildWhichIsA("BasePart", true)
+                    if primary then return primary, prompt end
+                end
+            end
+        end
+    end
+    return nil, nil
 end
 
-local function updateActiveBeams()
-	for _, item in ipairs(activeBeamsList) do
-		if item.Beam and item.Beam.Parent then
-			item.Beam.Width0 = pathGlowSize
-			item.Beam.Width1 = pathGlowSize
-			item.Beam.TextureLength = pathLength
-			item.Beam.TextureSpeed = pathSpeed
-		end
-	end
+local function LocateNearest(nameKey, referencePos)
+    local targetKey = string.lower(nameKey)
+    local bestPart, bestPrompt = nil, nil
+    local minDistance = math.huge
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local objStr = string.lower(prompt.ObjectText or "")
+            local actStr = string.lower(prompt.ActionText or "")
+            local parentStr = string.lower(prompt.Parent and prompt.Parent.Name or "")
+            if string.find(objStr, targetKey) or string.find(actStr, targetKey) or string.find(parentStr, targetKey) then
+                local container = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
+                if container then
+                    local part = container:IsA("BasePart") and container or container.PrimaryPart or container:FindFirstChildWhichIsA("BasePart", true)
+                    if part then
+                        local dist = (referencePos - part.Position).Magnitude
+                        if dist < minDistance then
+                            minDistance = dist
+                            bestPart = part
+                            bestPrompt = prompt
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestPart, bestPrompt
 end
 
-local function drawForwardPath(waypoints, currentIndex)
-	clearWaylines()
-	if not showPathLine or not waypoints or currentIndex > #waypoints then return end
-
-	local char = player.Character
-	if not char then return end
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-
-	local pointsToDraw = {}
-	table.insert(pointsToDraw, hrp.Position)
-
-	for i = currentIndex, #waypoints do
-		table.insert(pointsToDraw, waypoints[i])
-	end
-
-	activeBeamsList = {}
-
-	for i = 1, #pointsToDraw - 1 do
-		local pA = pointsToDraw[i]
-		local pB = pointsToDraw[i+1]
-
-		local partA = Instance.new("Part")
-		partA.Size = Vector3.new(0.1, 0.1, 0.1)
-		partA.Position = pA
-		partA.Anchored = true
-		partA.CanCollide = false
-		partA.Transparency = 1
-		partA.Parent = pathFolder
-
-		local partB = Instance.new("Part")
-		partB.Size = Vector3.new(0.1, 0.1, 0.1)
-		partB.Position = pB
-		partB.Anchored = true
-		partB.CanCollide = false
-		partB.Transparency = 1
-		partB.Parent = pathFolder
-
-		local attA = Instance.new("Attachment", partA)
-		local attB = Instance.new("Attachment", partB)
-
-		local beam = Instance.new("Beam")
-		beam.Attachment0 = attA
-		beam.Attachment1 = attB
-		
-		beam.Texture = "rbxassetid://446111271"
-		beam.TextureMode = Enum.TextureMode.Wrap
-		beam.TextureLength = pathLength
-		beam.TextureSpeed = pathSpeed
-		
-		beam.Width0 = pathGlowSize
-		beam.Width1 = pathGlowSize
-		beam.Transparency = NumberSequence.new(0)
-		beam.FaceCamera = true
-		beam.LightEmission = 1
-		beam.LightInfluence = 0
-		beam.Parent = pathFolder
-
-		table.insert(activePathObjects, partA)
-		table.insert(activePathObjects, partB)
-		table.insert(activePathObjects, beam)
-		table.insert(activeBeamsList, {Beam = beam, Index = i})
-	end
-
-	pathAnimConnection = RunService.RenderStepped:Connect(function()
-		local speed = 0.5
-		local offset = (tick() * speed) % 1
-
-		for _, item in ipairs(activeBeamsList) do
-			if item.Beam and item.Beam.Parent then
-				local factorA = math.sin((offset + (item.Index * 0.1)) * math.pi * 2) * 0.5 + 0.5
-				local factorB = math.sin((offset + ((item.Index + 1) * 0.1)) * math.pi * 2) * 0.5 + 0.5
-
-				local cA = pathColor1:Lerp(pathColor2, factorA)
-				local cB = pathColor1:Lerp(pathColor2, factorB)
-
-				item.Beam.Color = ColorSequence.new({
-					ColorSequenceKeypoint.new(0, cA),
-					ColorSequenceKeypoint.new(1, cB)
-				})
-			end
-		end
-	end)
+local function ExtractVehicle(seatObj)
+    if not seatObj then return nil end
+    local currentObj = seatObj
+    local modelFound = nil
+    while currentObj and currentObj ~= workspace do
+        if currentObj:IsA("Model") then modelFound = currentObj end
+        currentObj = currentObj.Parent
+    end
+    return modelFound
 end
 
---------------------------------------------------------------------
--- ⚡ FPS BOOST
---------------------------------------------------------------------
-local originalLightingSettings = {}
-local fpsConnections = {}
+local function LeaveVehicle()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
 
-local function stripCharacter(char)
-	if not char then return end
-	local children = char:GetChildren()
-	for i = #children, 1, -1 do
-		local item = children[i]
-		if item:IsA("Accessory") or item:IsA("Clothing") or item:IsA("ShirtGraphic") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("CharacterMesh") then
-			pcall(function() item:Destroy() end)
-		end
-	end
+    if humanoid and humanoid.SeatPart then
+        ActiveTransport = ExtractVehicle(humanoid.SeatPart)
+        if ActiveTransport then
+            for _, part in ipairs(ActiveTransport:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+            local primaryPart = ActiveTransport.PrimaryPart or ActiveTransport:FindFirstChildWhichIsA("BasePart", true)
+            if primaryPart then primaryPart.Anchored = true end
+        end
+
+        if root then
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        humanoid.Sit = false
+        task.wait(0.1)
+
+        if root and ActiveTransport then
+            local primaryPart = ActiveTransport.PrimaryPart or ActiveTransport:FindFirstChildWhichIsA("BasePart", true)
+            if primaryPart then
+                root.CFrame = primaryPart.CFrame * CFrame.new(0, 5, 0)
+            end
+        end
+    end
 end
 
-local function optimizeInst(v)
-	if not v then return end
-	pcall(function()
-		if v:IsA("BasePart") then
-			v.Material = Enum.Material.SmoothPlastic
-			v.CastShadow = false
-			v.Reflectance = 0
-		elseif v:IsA("Decal") or v:IsA("Texture") then
-			v:Destroy()
-		elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-			v.Enabled = false
-		elseif v:IsA("Light") then
-			v.Enabled = false
-		end
-	end)
+local function EnterVehicle()
+    if not ActiveTransport or not ActiveTransport.Parent then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root or not humanoid then return end
+
+    local primaryPart = ActiveTransport.PrimaryPart or ActiveTransport:FindFirstChildWhichIsA("BasePart", true)
+    if primaryPart then primaryPart.Anchored = false end
+
+    if humanoid.SeatPart then return end
+
+    local seat = ActiveTransport:FindFirstChildWhichIsA("VehicleSeat", true) or ActiveTransport:FindFirstChildWhichIsA("Seat", true)
+    if seat then
+        root.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
+        task.wait(0.1)
+        seat:Sit(humanoid)
+        task.wait(0.2)
+    end
 end
 
-local function applyFPSBoost(state)
-	fpsBoostActive = state
-	if state then
-		originalLightingSettings.GlobalShadows = Lighting.GlobalShadows
-		originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
-		originalLightingSettings.Ambient = Lighting.Ambient
-		originalLightingSettings.FogEnd = Lighting.FogEnd
-		originalLightingSettings.Technology = Lighting.Technology
-
-		Lighting.GlobalShadows = false
-		Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
-		Lighting.Ambient = Color3.fromRGB(15, 15, 15)
-		Lighting.FogEnd = 9e9
-		
-		pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
-
-		local lightingChildren = Lighting:GetChildren()
-		for i = #lightingChildren, 1, -1 do
-			local child = lightingChildren[i]
-			if child:IsA("Sky") or child:IsA("Atmosphere") or child:IsA("PostEffect") or child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect") then
-				pcall(function() child:Destroy() end)
-			end
-		end
-		
-		local darkSky = Instance.new("Sky")
-		darkSky.Name = "FPSBoostSky"
-		darkSky.SkyboxBk = "rbxassetid://0"
-		darkSky.SkyboxDn = "rbxassetid://0"
-		darkSky.SkyboxFt = "rbxassetid://0"
-		darkSky.SkyboxLf = "rbxassetid://0"
-		darkSky.SkyboxRt = "rbxassetid://0"
-		darkSky.SkyboxUp = "rbxassetid://0"
-		darkSky.SkyboxColor = Color3.fromRGB(10, 10, 10)
-		darkSky.Parent = Lighting
-
-		local descendants = workspace:GetDescendants()
-		for i = 1, #descendants do optimizeInst(descendants[i]) end
-
-		local connAdded = workspace.DescendantAdded:Connect(function(v)
-			if fpsBoostActive then task.wait() optimizeInst(v) end
-		end)
-		table.insert(fpsConnections, connAdded)
-
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p.Character then stripCharacter(p.Character) end
-			local connChar = p.CharacterAdded:Connect(function(char)
-				if fpsBoostActive then
-					char:WaitForChild("Humanoid", 5)
-					task.wait(0.2)
-					stripCharacter(char)
-				end
-			end)
-			table.insert(fpsConnections, connChar)
-		end
-	else
-		for _, conn in ipairs(fpsConnections) do if conn then conn:Disconnect() end end
-		fpsConnections = {}
-		Lighting.GlobalShadows = originalLightingSettings.GlobalShadows or true
-		Lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient or Color3.fromRGB(128, 128, 128)
-		Lighting.Ambient = originalLightingSettings.Ambient or Color3.fromRGB(128, 128, 128)
-		local currentSky = Lighting:FindFirstChild("FPSBoostSky")
-		if currentSky then currentSky:Destroy() end
-	end
+local function GetClosestNodeIndex(pointsList, currentPos)
+    local idx = 1
+    local minVal = math.huge
+    for i, pos in ipairs(pointsList) do
+        local d = (Vector3.new(currentPos.X, pos.Y, currentPos.Z) - pos).Magnitude
+        if d < minVal then
+            minVal = d
+            idx = i
+        end
+    end
+    return idx
 end
 
---------------------------------------------------------------------
--- 🧠 TARGET & ROUTING HELPERS
---------------------------------------------------------------------
-local function findTarget(keyword)
-	local key = string.lower(keyword)
-	for _, prompt in ipairs(workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			local objText = string.lower(prompt.ObjectText or "")
-			local actText = string.lower(prompt.ActionText or "")
-			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
-			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
-				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-				if targetPart:IsA("BasePart") then return targetPart, prompt
-				elseif targetPart:IsA("Model") then
-					local part = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-					if part then return part, prompt end
-				end
-			end
-		end
-	end
-	return nil, nil
+local function MoveToDestination(targetPos)
+    local char = LocalPlayer.Character
+    if not char then return false, false end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root or not humanoid then return false, false end
+
+    local seat = humanoid.SeatPart
+    local vehicle = ExtractVehicle(seat)
+    local movingPart = (seat and vehicle) and (vehicle.PrimaryPart or seat) or root
+    if not movingPart then return false, false end
+
+    local floatingBase = Instance.new("Part", workspace)
+    floatingBase.Name = "Mubajjil_Platform"
+    floatingBase.Size = Vector3.new(30, 1, 30)
+    floatingBase.Anchored = true
+    floatingBase.CanCollide = true
+    floatingBase.Transparency = 1
+
+    local bodyVel = Instance.new("BodyVelocity", movingPart)
+    bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+    bodyVel.Velocity = Vector3.zero
+
+    local bodyGyro = Instance.new("BodyGyro", movingPart)
+    bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+    bodyGyro.P = 10000
+    bodyGyro.CFrame = movingPart.CFrame
+
+    local noclipConn = RunSvc.Stepped:Connect(function()
+        if not SystemSettings.Active then return end
+        if movingPart and movingPart.Parent then
+            floatingBase.CFrame = movingPart.CFrame * CFrame.new(0, -3.5, 0)
+        end
+        if LocalPlayer.Character then
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part ~= floatingBase then part.CanCollide = false end
+            end
+        end
+        if vehicle then
+            for _, part in ipairs(vehicle:GetDescendants()) do
+                if part:IsA("BasePart") and part ~= floatingBase then part.CanCollide = false end
+            end
+        end
+    end)
+
+    local destinationOffset = Vector3.new(targetPos.X, targetPos.Y + UserConfig.Altitude, targetPos.Z)
+    local arrivedStatus = false
+    local isRubberband = false
+    local lastPos = movingPart.Position
+    local thresholdLimit = math.clamp(UserConfig.Velocity * 0.04, 6, 15)
+
+    local heartbeatConn = RunSvc.Heartbeat:Connect(function()
+        if not SystemSettings.Active or not movingPart or not movingPart.Parent then arrivedStatus = false return end
+
+        local curPos = movingPart.Position
+        local displacement = (curPos - lastPos).Magnitude
+        local distanceToDest = (destinationOffset - curPos).Magnitude
+
+        if displacement > 45 and distanceToDest > 20 then
+            isRubberband = true
+            bodyVel.Velocity = Vector3.zero
+            return
+        end
+
+        lastPos = curPos
+
+        if distanceToDest <= thresholdLimit then
+            arrivedStatus = true
+            return
+        end
+
+        local factor = math.clamp(distanceToDest / 40, 0.25, 1)
+        local curSpeed = UserConfig.Velocity * factor
+        local directionVec = (destinationOffset - curPos)
+
+        bodyVel.Velocity = directionVec.Unit * curSpeed
+        bodyGyro.CFrame = CFrame.lookAt(curPos, Vector3.new(destinationOffset.X, curPos.Y, destinationOffset.Z))
+    end)
+
+    while SystemSettings.Active and not arrivedStatus and not isRubberband do
+        task.wait(0.01)
+    end
+
+    if noclipConn then noclipConn:Disconnect() end
+    if heartbeatConn then heartbeatConn:Disconnect() end
+    bodyVel:Destroy()
+    bodyGyro:Destroy()
+    floatingBase:Destroy()
+
+    if movingPart and movingPart.Parent then
+        movingPart.AssemblyLinearVelocity = Vector3.zero
+        movingPart.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    if LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
+    end
+
+    return arrivedStatus, isRubberband
 end
 
-local function findNearestTargetToPos(keyword, pos)
-	local key = string.lower(keyword)
-	local nearestPart, nearestPrompt = nil, nil
-	local minDistance = math.huge
-	for _, prompt in ipairs(workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			local objText = string.lower(prompt.ObjectText or "")
-			local actText = string.lower(prompt.ActionText or "")
-			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
-			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
-				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-				if targetPart then
-					local part = targetPart:IsA("BasePart") and targetPart or targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-					if part then
-						local dist = (pos - part.Position).Magnitude
-						if dist < minDistance then minDistance = dist nearestPart = part nearestPrompt = prompt end
-					end
-				end
-			end
-		end
-	end
-	return nearestPart, nearestPrompt
+local function DriveThroughRoute(pointsList)
+    local currentIndex = 1
+    while SystemSettings.Active and currentIndex <= #pointsList do
+        if currentIndex == 1 then EnterVehicle() end
+        BuildRouteLines(pointsList, currentIndex)
+
+        local targetCoord = pointsList[currentIndex]
+        local reached, rubberband = MoveToDestination(targetCoord)
+
+        if rubberband then
+            task.wait(0.3)
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local nearestIdx = GetClosestNodeIndex(pointsList, root.Position)
+                currentIndex = nearestIdx
+                local safeSpot = pointsList[nearestIdx] + Vector3.new(0, UserConfig.Altitude, 0)
+                local currentMover = root
+
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.SeatPart then
+                    local veh = ExtractVehicle(humanoid.SeatPart)
+                    if veh then currentMover = veh.PrimaryPart or humanoid.SeatPart end
+                end
+
+                local tweenRestore = TweenSvc:Create(currentMover, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(safeSpot)})
+                tweenRestore:Play()
+                tweenRestore.Completed:Wait()
+                task.wait(0.1)
+            end
+        elseif reached then
+            currentIndex = currentIndex + 1
+        end
+    end
+    PurgeRoute()
 end
 
-local function getVehicleModel(seat)
-	if not seat then return nil end
-	local current = seat
-	local vehicleModel = nil
-	while current and current ~= workspace do
-		if current:IsA("Model") then vehicleModel = current end
-		current = current.Parent
-	end
-	return vehicleModel
-end
+local function ExecuteInteraction(targetPart, promptObj)
+    local prompt = promptObj 
+        or (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt")) 
+        or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt")) 
+        or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
 
-local function dismountVehicle()
-	local char = player.Character
-	if not char then return end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	
-	if humanoid and humanoid.SeatPart then
-		lastVehicle = getVehicleModel(humanoid.SeatPart)
-		if lastVehicle then
-			for _, part in ipairs(lastVehicle:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.AssemblyLinearVelocity = Vector3.zero
-					part.AssemblyAngularVelocity = Vector3.zero
-				end
-			end
-			
-			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-			if primary then
-				primary.Anchored = true
-			end
-		end
-		
-		if hrp then
-			hrp.AssemblyLinearVelocity = Vector3.zero
-			hrp.AssemblyAngularVelocity = Vector3.zero
-		end
-
-		humanoid.Sit = false
-		task.wait(0.1)
-		
-		if hrp and lastVehicle then
-			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-			if primary then
-				hrp.CFrame = primary.CFrame * CFrame.new(0, 5, 0)
-			end
-		end
-	end
-end
-
-local function getInVehicle()
-	if not lastVehicle or not lastVehicle.Parent then return end
-	local char = player.Character
-	if not char then return end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return end
-	
-	local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-	if primary then
-		primary.Anchored = false
-	end
-
-	if humanoid.SeatPart then return end
-	
-	local seat = lastVehicle:FindFirstChildWhichIsA("VehicleSeat", true) or lastVehicle:FindFirstChildWhichIsA("Seat", true)
-	if seat then
-		hrp.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
-		task.wait(0.1)
-		seat:Sit(humanoid)
-		task.wait(0.2)
-	end
-end
-
-local function getNearestWaypointIndex(waypoints, currentPos)
-	local closestIdx = 1
-	local minDist = math.huge
-	for i, wp in ipairs(waypoints) do
-		local dist = (Vector3.new(currentPos.X, wp.Y, currentPos.Z) - wp).Magnitude
-		if dist < minDist then
-			minDist = dist
-			closestIdx = i
-		end
-	end
-	return closestIdx
-end
-
-local function moveToPositionVelocity(targetPos)
-	local char = player.Character
-	if not char then return false, false end
-	
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return false, false end
-
-	local seat = humanoid.SeatPart
-	local vehicleModel = getVehicleModel(seat)
-	
-	local movePart = (seat and vehicleModel) and (vehicleModel.PrimaryPart or seat) or hrp
-	if not movePart then return false, false end
-
-	local floatPart = Instance.new("Part")
-	floatPart.Name = "AntiFall_FloatPlatform"
-	floatPart.Size = Vector3.new(30, 1, 30)
-	floatPart.Anchored = true
-	floatPart.CanCollide = true
-	floatPart.Transparency = 1
-	floatPart.Parent = workspace
-
-	local bodyVel = Instance.new("BodyVelocity")
-	bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-	bodyVel.Velocity = Vector3.zero
-	bodyVel.Parent = movePart
-
-	local bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-	bodyGyro.P = 10000
-	bodyGyro.CFrame = movePart.CFrame
-	bodyGyro.Parent = movePart
-
-	local noclipConnection = RunService.Stepped:Connect(function()
-		if not isRunning then return end
-		if movePart and movePart.Parent then 
-			floatPart.CFrame = movePart.CFrame * CFrame.new(0, -3.5, 0) 
-		end
-		if player.Character then
-			for _, part in ipairs(player.Character:GetDescendants()) do
-				if part:IsA("BasePart") and part ~= floatPart then 
-					part.CanCollide = false 
-				end
-			end
-		end
-		if vehicleModel then
-			for _, part in ipairs(vehicleModel:GetDescendants()) do
-				if part:IsA("BasePart") and part ~= floatPart then 
-					part.CanCollide = false 
-				end
-			end
-		end
-	end)
-
-	local targetPosWithHeight = Vector3.new(targetPos.X, targetPos.Y + CONFIG.Height, targetPos.Z)
-	local arrived = false
-	local rubberbandDetected = false
-	local previousPos = movePart.Position
-
-	local stopThreshold = math.clamp(CONFIG.Speed * 0.04, 6, 15)
-
-	local renderConnection = RunService.Heartbeat:Connect(function()
-		if not isRunning or not movePart or not movePart.Parent then arrived = false return end
-
-		local currentPos = movePart.Position
-		local moveDelta = (currentPos - previousPos).Magnitude
-		local distToTarget = (targetPosWithHeight - currentPos).Magnitude
-
-		if moveDelta > 45 and distToTarget > 20 then
-			rubberbandDetected = true
-			bodyVel.Velocity = Vector3.zero
-			return
-		end
-		
-		previousPos = currentPos
-
-		if distToTarget <= stopThreshold then
-			arrived = true
-			return
-		end
-
-		local speedFactor = math.clamp(distToTarget / 40, 0.25, 1)
-		local currentSpeed = CONFIG.Speed * speedFactor
-		local direction = (targetPosWithHeight - currentPos)
-		
-		bodyVel.Velocity = direction.Unit * currentSpeed
-		bodyGyro.CFrame = CFrame.lookAt(currentPos, Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z))
-	end)
-
-	while isRunning and not arrived and not rubberbandDetected do
-		task.wait(0.01)
-	end
-
-	if noclipConnection then noclipConnection:Disconnect() end
-	if renderConnection then renderConnection:Disconnect() end
-	bodyVel:Destroy()
-	bodyGyro:Destroy()
-	floatPart:Destroy()
-
-	if movePart and movePart.Parent then
-		movePart.AssemblyLinearVelocity = Vector3.zero
-		movePart.AssemblyAngularVelocity = Vector3.zero
-	end
-
-	if player.Character then
-		for _, part in ipairs(player.Character:GetDescendants()) do
-			if part:IsA("BasePart") then part.CanCollide = true end
-		end
-	end
-
-	return arrived, rubberbandDetected
-end
-
-local function moveToTargetVelocity(targetPart)
-	if not targetPart then return false end
-	local arrived, rubberband = moveToPositionVelocity(targetPart.Position)
-	return arrived
-end
-
-local function tweenToInteract(targetPart)
-	local char = player.Character
-	if not char then return false end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return false end
-
-	local seat = humanoid.SeatPart
-	local vehicleModel = getVehicleModel(seat)
-	local groundTargetCFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
-
-	if seat and vehicleModel then
-		local duration = math.clamp((vehicleModel.PrimaryPart.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local cframeValue = Instance.new("CFrameValue")
-		cframeValue.Value = vehicleModel:GetPivot()
-
-		local tween = TweenService:Create(cframeValue, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Value = groundTargetCFrame})
-		local conn = cframeValue.Changed:Connect(function(newCFrame)
-			if vehicleModel and vehicleModel.Parent then vehicleModel:PivotTo(newCFrame) end
-		end)
-
-		tween:Play()
-		task.wait(duration)
-		conn:Disconnect()
-		cframeValue:Destroy()
-
-		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-		dismountVehicle()
-		return true
-	else
-		local duration = math.clamp((hrp.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = groundTargetCFrame})
-		tween:Play()
-		task.wait(duration)
-
-		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-		return true
-	end
-end
-
-local function goToTarget(targetPart)
-	local reached = moveToTargetVelocity(targetPart)
-	if not reached or not isRunning then return false end
-	return tweenToInteract(targetPart)
-end
-
-local function processWaypoints(waypoints, labelPrefix)
-	local currentIndex = 1
-
-	while isRunning and currentIndex <= #waypoints do
-		if currentIndex == 1 then getInVehicle() end
-		
-		drawForwardPath(waypoints, currentIndex)
-		
-		local targetPos = waypoints[currentIndex]
-		local arrived, rubberbandDetected = moveToPositionVelocity(targetPos)
-
-		if rubberbandDetected then
-			task.wait(0.3)
-
-			local char = player.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			
-			if hrp then
-				local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
-				currentIndex = nearestIdx
-				
-				local safeTargetPos = waypoints[nearestIdx] + Vector3.new(0, CONFIG.Height, 0)
-				local movePart = hrp
-				
-				local humanoid = char:FindFirstChildOfClass("Humanoid")
-				if humanoid and humanoid.SeatPart then
-					local vModel = getVehicleModel(humanoid.SeatPart)
-					if vModel then movePart = vModel.PrimaryPart or humanoid.SeatPart end
-				end
-
-				local recoverTween = TweenService:Create(movePart, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(safeTargetPos)})
-				recoverTween:Play()
-				recoverTween.Completed:Wait()
-				task.wait(0.1)
-			end
-		elseif arrived then
-			currentIndex = currentIndex + 1
-		end
-	end
-	clearWaylines()
-end
-
---------------------------------------------------------------------
--- ⚙️ INTERACT LOGIC
---------------------------------------------------------------------
-local function interactWith(targetPart, prompt)
-	local activePrompt = prompt 
-		or (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt")) 
-		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt")) 
-		or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
-
-	if activePrompt then
-		activePrompt.HoldDuration = 0
-		
-		if fireproximityprompt then
-			fireproximityprompt(activePrompt)
-		else
-			pcall(function()
-				activePrompt:InputHoldBegin()
-				task.wait(0.01)
-				activePrompt:InputHoldEnd()
-			end)
-		end
-		return true
-	end
-
-	local clickDetector = (targetPart and targetPart:FindFirstChildOfClass("ClickDetector")) 
-		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ClickDetector")) 
-		or (targetPart and targetPart:FindFirstChildWhichIsA("ClickDetector", true))
-
-	if clickDetector and fireclickdetector then
-		fireclickdetector(clickDetector)
-		return true
-	end
-
-	return false
-end
-
-local function getProcessableItemCount()
-	local count = 0
-	if player:FindFirstChild("Backpack") then
-		for _, item in ipairs(player.Backpack:GetChildren()) do
-			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
-		end
-	end
-	local char = player.Character
-	if char then
-		for _, item in ipairs(char:GetChildren()) do
-			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
-		end
-	end
-	return count
-end
-
-local function getItemCount(itemName)
-	local count = 0
-	local key = string.lower(itemName)
-	if player:FindFirstChild("Backpack") then
-		for _, item in ipairs(player.Backpack:GetChildren()) do
-			if string.find(string.lower(item.Name), key) then count = count + 1 end
-		end
-	end
-	local char = player.Character
-	if char then
-		for _, item in ipairs(char:GetChildren()) do
-			if string.find(string.lower(item.Name), key) then count = count + 1 end
-		end
-	end
-	return count
-end
-
---------------------------------------------------------------------
--- 🔄 MAIN LOOP
---------------------------------------------------------------------
-local function mainLoop()
-	local savedBuyPart, savedBuyPrompt = nil, nil
-
-	while isRunning do
-		if getItemCount(CONFIG.ItemName) < CONFIG.Amount then
-			if not savedBuyPart or not savedBuyPart.Parent then 
-				savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName) 
-			end
-
-			if savedBuyPart then
-				getInVehicle()
-				if goToTarget(savedBuyPart) then
-					local buyTimeout = 0
-					while isRunning and getItemCount(CONFIG.ItemName) < CONFIG.Amount and buyTimeout < 40 do
-						interactWith(savedBuyPart, savedBuyPrompt)
-						task.wait(0.05)
-						buyTimeout = buyTimeout + 1
-					end
-					getInVehicle()
-				end
-			else
-				task.wait(0.5)
-			end
-		end
-
-		if not isRunning then break end
-		processWaypoints(postBuyWaypoints, "Post-Buy Route")
-		if not isRunning then break end
-
-		if autoSell and getItemCount(CONFIG.ItemName) > 0 then
-			local lastBuyPos = postBuyWaypoints[#postBuyWaypoints]
-			local sellPart, sellPrompt = findNearestTargetToPos(CONFIG.SellName, lastBuyPos)
-			if not sellPart then 
-				sellPart, sellPrompt = findNearestTargetToPos("Smuggle", lastBuyPos) 
-			end
-
-			if sellPart then
-				getInVehicle()
-				if goToTarget(sellPart) then
-					local sellAttempts = 0
-					while isRunning and getItemCount(CONFIG.ItemName) > 0 and sellAttempts < 35 do
-						interactWith(sellPart, sellPrompt)
-						task.wait(0.08)
-						sellAttempts = sellAttempts + 1
-					end
-					getInVehicle()
-				end
-			else
-				task.wait(0.5)
-			end
-		end
-
-		if not isRunning then break end
-		processWaypoints(postSellWaypoints, "Post-Sell Route")
-		if not isRunning then break end
-
-		if autoLaunder then
-			local launderPart, launderPrompt = findTarget(CONFIG.LaunderName)
-			if launderPart then
-				getInVehicle()
-				if goToTarget(launderPart) then
-					local launderAttempts = 0
-					while isRunning and getProcessableItemCount() > 0 and launderAttempts < 40 do
-						interactWith(launderPart, launderPrompt)
-						task.wait(0.08)
-						launderAttempts = launderAttempts + 1
-					end
-					task.wait(0.1)
-					getInVehicle()
-				end
-			else
-				task.wait(0.5)
-			end
-		end
-		
-		task.wait(0.1)
-	end
-	clearWaylines()
-end
-
---------------------------------------------------------------------
--- 🎛️ WINDUI ELEMENTS & CONTROLS (عربي / إنجليزي)
---------------------------------------------------------------------
-
-ReadTab:Paragraph({
-    Title = "⚠️ تنبيه هام / Warning",
-    Content = "تم تطوير وتعديل هذا السكريبت بواسطة (المبجل)."
-})
-
-ReadTab:Paragraph({
-    Title = "ℹ️ ملاحظة الأداء / Performance",
-    Content = "إذا واجهت تقطيعاً، فلا تلوم السكريبت بل جهازك! / If you're laggy don't blame the script!!"
-})
-
-MainTab:Toggle({
-    Title = "التجميع الآلي / Auto Farm",
-    Desc = "تشغيل أو إيقاف التجميع الآلي",
-    Icon = "power",
-    Type = "Toggle",
-    Value = isRunning,
-    Callback = function(state)
-        isRunning = state
-        if isRunning then
-            task.spawn(mainLoop)
+    if prompt then
+        prompt.HoldDuration = 0
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
         else
-            clearWaylines()
+            pcall(function()
+                prompt:InputHoldBegin()
+                task.wait(0.01)
+                prompt:InputHoldEnd()
+            end)
+        end
+        return true
+    end
+
+    local clickDet = (targetPart and targetPart:FindFirstChildOfClass("ClickDetector")) 
+        or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ClickDetector")) 
+        or (targetPart and targetPart:FindFirstChildWhichIsA("ClickDetector", true))
+
+    if clickDet and fireclickdetector then
+        fireclickdetector(clickDet)
+        return true
+    end
+
+    return false
+end
+
+local function CountItems(nameKey)
+    local count = 0
+    local key = string.lower(nameKey)
+    if LocalPlayer:FindFirstChild("Backpack") then
+        for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+            if string.find(string.lower(item.Name), key) then count = count + 1 end
+        end
+    end
+    local char = LocalPlayer.Character
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if string.find(string.lower(item.Name), key) then count = count + 1 end
+        end
+    end
+    return count
+end
+
+local function CountCleanable()
+    local total = 0
+    if LocalPlayer:FindFirstChild("Backpack") then
+        for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+            if item:IsA("Tool") and not CheckIgnore(item.Name) then total = total + 1 end
+        end
+    end
+    local char = LocalPlayer.Character
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") and not CheckIgnore(item.Name) then total = total + 1 end
+        end
+    end
+    return total
+end
+
+local function MainOperationLoop()
+    local savedPart, savedPrompt = nil, nil
+
+    while SystemSettings.Active do
+        if CountItems(UserConfig.TargetObj) < UserConfig.GoalLimit then
+            if not savedPart or not savedPart.Parent then
+                savedPart, savedPrompt = LocateTarget(UserConfig.TargetObj)
+            end
+
+            if savedPart then
+                EnterVehicle()
+                local reachedTarget, _ = MoveToDestination(savedPart.Position)
+                if reachedTarget then
+                    local timeoutCount = 0
+                    while SystemSettings.Active and CountItems(UserConfig.TargetObj) < UserConfig.GoalLimit and timeoutCount < 40 do
+                        ExecuteInteraction(savedPart, savedPrompt)
+                        task.wait(0.05)
+                        timeoutCount = timeoutCount + 1
+                    end
+                    EnterVehicle()
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+
+        if not SystemSettings.Active then break end
+        DriveThroughRoute(RouteBuy)
+        if not SystemSettings.Active then break end
+
+        if SystemSettings.AutoSell and CountItems(UserConfig.TargetObj) > 0 then
+            local lastPos = RouteBuy[#RouteBuy]
+            local sellPart, sellPrompt = LocateNearest(UserConfig.SellObj, lastPos)
+            if not sellPart then sellPart, sellPrompt = LocateNearest("Smuggle", lastPos) end
+
+            if sellPart then
+                EnterVehicle()
+                local reachedSell, _ = MoveToDestination(sellPart.Position)
+                if reachedSell then
+                    local sellTries = 0
+                    while SystemSettings.Active and CountItems(UserConfig.TargetObj) > 0 and sellTries < 35 do
+                        ExecuteInteraction(sellPart, sellPrompt)
+                        task.wait(0.08)
+                        sellTries = sellTries + 1
+                    end
+                    EnterVehicle()
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+
+        if not SystemSettings.Active then break end
+        DriveThroughRoute(RouteSell)
+        if not SystemSettings.Active then break end
+
+        if SystemSettings.AutoClean then
+            local cleanPart, cleanPrompt = LocateTarget(UserConfig.CleanObj)
+            if cleanPart then
+                EnterVehicle()
+                local reachedClean, _ = MoveToDestination(cleanPart.Position)
+                if reachedClean then
+                    local cleanTries = 0
+                    while SystemSettings.Active and CountCleanable() > 0 and cleanTries < 40 do
+                        ExecuteInteraction(cleanPart, cleanPrompt)
+                        task.wait(0.08)
+                        cleanTries = cleanTries + 1
+                    end
+                    task.wait(0.1)
+                    EnterVehicle()
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+
+        task.wait(0.1)
+    end
+    PurgeRoute()
+end
+
+-- واجهة مستخدم خاصة ومطورة | Al-Mubajjil Hub Interface
+local Window = OrionLib:MakeWindow({
+    Name = "🌴 Al-Mubajjil Ultimate Hub | سكريبت المبجل",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "AlMubajjilHubConfig",
+    IntroText = "Welcome Al-Mubajjil (المبجل)",
+    IntroEnabled = true
+})
+
+local TabInfo = Window:MakeTab({
+    Name = "الإشعارات / Notes",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local TabMain = Window:MakeTab({
+    Name = "التجميع / Automation",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local TabExtras = Window:MakeTab({
+    Name = "التحسينات / Enhancements",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+TabInfo:AddParagraph("⚠️ تنبيه مهم / Important Notice", "تم تطوير وبرمجة هذا السكريبت بالكامل بواسطة (المبجل). جميع الحقوق محفوظة.\nThis script is fully developed by Al-Mubajjil. All rights reserved.")
+TabInfo:AddParagraph("⚡ ملاحظة الأداء / Performance Note", "تأكد من استقرار اللعبة وقوة جهازك لتفادي أي مشاكل في الحركة السريعة.\nEnsure your device is capable to avoid fast-movement issues.")
+
+TabMain:AddToggle({
+    Name = "تشغيل التجميع الآلي / Auto Farm",
+    Default = SystemSettings.Active,
+    Callback = function(state)
+        SystemSettings.Active = state
+        if SystemSettings.Active then
+            task.spawn(MainOperationLoop)
+        else
+            PurgeRoute()
         end
     end
 })
 
-MainTab:Toggle({
-    Title = "بيع البضائع تلقائياً / Auto Sell Goods",
-    Desc = "بيع البضائع عند الامتلاء",
-    Icon = "store",
-    Type = "Toggle",
-    Value = autoSell,
+TabMain:AddToggle({
+    Name = "البيع التلقائي / Auto Sell",
+    Default = SystemSettings.AutoSell,
     Callback = function(state)
-        autoSell = state
+        SystemSettings.AutoSell = state
     end
 })
 
-MainTab:Toggle({
-    Title = "غسيل الأموال تلقائياً / Auto Launder Cash",
-    Desc = "تنظيف الأموال تلقائياً",
-    Icon = "banknote",
-    Type = "Toggle",
-    Value = autoLaunder,
+TabMain:AddToggle({
+    Name = "غسيل الأموال التلقائي / Auto Launder",
+    Default = SystemSettings.AutoClean,
     Callback = function(state)
-        autoLaunder = state
+        SystemSettings.AutoClean = state
     end
 })
 
-MainTab:Slider({
-    Title = "سرعة الطيران / Fly Speed",
-    Desc = "تعديل سرعة الانتقال",
-    Icon = "gauge",
-    Step = 5,
-    Value = {
-        Min = 150,
-        Max = 300,
-        Default = CONFIG.Speed,
-    },
-    Callback = function(value)
-        CONFIG.Speed = value
+TabMain:AddSlider({
+    Name = "سرعة الحركة / Speed",
+    Min = 150,
+    Max = 300,
+    Default = UserConfig.Velocity,
+    Color = Color3.fromRGB(0, 108, 53),
+    Increment = 5,
+    ValueName = "Speed",
+    Callback = function(val)
+        UserConfig.Velocity = val
     end
 })
 
-MainTab:Slider({
-    Title = "ارتفاع التوين / Tween Height (Y)",
-    Desc = "تعديل الارتفاع عن الأرض",
-    Icon = "arrow-up-right",
-    Step = 0.1,
-    Value = {
-        Min = 1,
-        Max = 5,
-        Default = CONFIG.Height,
-    },
-    Callback = function(value)
-        CONFIG.Height = value
+TabMain:AddSlider({
+    Name = "ارتفاع التوين / Height",
+    Min = 1,
+    Max = 5,
+    Default = UserConfig.Altitude,
+    Color = Color3.fromRGB(197, 160, 89),
+    Increment = 0.1,
+    ValueName = "Studs",
+    Callback = function(val)
+        UserConfig.Altitude = val
     end
 })
 
-MainTab:Slider({
-    Title = "الكمية المطلوبة / Target Amount",
-    Desc = "حدد كمية الأغراض المراد جمعها",
-    Icon = "boxes",
-    Step = 1,
-    Value = {
-        Min = 1,
-        Max = 5,
-        Default = CONFIG.Amount,
-    },
-    Callback = function(value)
-        CONFIG.Amount = value
+TabMain:AddSlider({
+    Name = "الكمية المطلوبة / Target Count",
+    Min = 1,
+    Max = 5,
+    Default = UserConfig.GoalLimit,
+    Color = Color3.fromRGB(0, 108, 53),
+    Increment = 1,
+    ValueName = "Items",
+    Callback = function(val)
+        UserConfig.GoalLimit = val
     end
 })
 
-MainTab:Slider({
-    Title = "تأخير التوين / Tween Delay (s)",
-    Desc = "تحديد الوقت الفاصل للتنقل",
-    Icon = "timer",
-    Step = 0.1,
-    Value = {
-        Min = 0,
-        Max = 5,
-        Default = CONFIG.TweenDelay,
-    },
-    Callback = function(value)
-        CONFIG.TweenDelay = value
-    end
-})
-
-MainTab:Dropdown({
-    Title = "اختر الغرض / Select Item",
-    Desc = "حدد نوع العنصر المراد شراؤه",
-    Icon = "package-search",
-    Values = {
+TabMain:AddDropdown({
+    Name = "اختيار الغرض / Select Item",
+    Default = UserConfig.TargetObj,
+    Options = {
         "Crate Of Avacados",
         "Wagyu Beef",
         "Witches Brew",
         "Fake Designer Sneakers",
         "Fake Diamond Ring"
     },
-    Value = CONFIG.ItemName,
-    Callback = function(selected)
-        CONFIG.ItemName = selected
+    Callback = function(choice)
+        UserConfig.TargetObj = choice
     end
 })
 
-MiscTab:Toggle({
-    Title = "تسريع اللعبة / Boost FPS",
-    Desc = "تقليل الجرافيك لرفع الفريمات",
-    Icon = "cpu",
-    Type = "Toggle",
-    Value = fpsBoostActive,
+TabExtras:AddToggle({
+    Name = "تعزيز الفريمات / Boost FPS",
+    Default = SystemSettings.TurboFPS,
     Callback = function(state)
-        applyFPSBoost(state)
-    end
-})
-
-MiscTab:Toggle({
-    Title = "منع التوقف التلقائي / Anti Gameplay Paused",
-    Desc = "منع توقف اللعبة عند خروج الماوس",
-    Icon = "shield-check",
-    Type = "Toggle",
-    Value = antiPauseActive,
-    Callback = function(state)
-        applyAntiPause(state)
-    end
-})
-
-MiscTab:Toggle({
-    Title = "إيقاف الرندر / No Render",
-    Desc = "إيقاف رسم العالم لزيادة الأداء",
-    Icon = "eye-off",
-    Type = "Toggle",
-    Value = noRenderActive,
-    Callback = function(state)
-        applyNoRender(state)
-    end
-})
-
-MiscTab:Toggle({
-    Title = "إظهار خط المسار / Show Path Line",
-    Desc = "تشغيل/إيقاف خطوط توجيه المسار البصرية",
-    Icon = "route",
-    Type = "Toggle",
-    Value = showPathLine,
-    Callback = function(state)
-        showPathLine = state
-        if not showPathLine then
-            clearWaylines()
+        SystemSettings.TurboFPS = state
+        if state then
+            Lighting.GlobalShadows = false
+            Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+        else
+            Lighting.GlobalShadows = true
         end
     end
 })
 
-MiscTab:Slider({
-    Title = "حجم إضاءة المسار / Path Glow Size",
-    Desc = "تعديل سماكة الخط وسطوعه",
-    Icon = "sparkles",
-    Step = 0.1,
-    Value = {
-        Min = 0.1,
-        Max = 3.0,
-        Default = pathGlowSize,
-    },
-    Callback = function(value)
-        pathGlowSize = value
-        updateActiveBeams()
+TabExtras:AddToggle({
+    Name = "منع الخمول / Anti Idle",
+    Default = SystemSettings.NoIdle,
+    Callback = function(state)
+        SystemSettings.NoIdle = state
+        if state then
+            pcall(function()
+                local core = CoreGui:FindFirstChild("RobloxGui")
+                if core then
+                    local pauseScript = core:FindFirstChild("CoreScripts/NetworkPause")
+                    if pauseScript then pauseScript:Destroy() end
+                end
+            end)
+        end
     end
 })
 
-MiscTab:Slider({
-    Title = "طول نمط المسار / Path Texture Length",
-    Desc = "تعديل طول نمط الخط",
-    Icon = "ruler",
-    Step = 0.1,
-    Value = {
-        Min = 1.0,
-        Max = 20.0,
-        Default = pathLength,
-    },
-    Callback = function(value)
-        pathLength = value
-        updateActiveBeams()
+TabExtras:AddToggle({
+    Name = "إظهار مسار الخطوط / Show Route",
+    Default = SystemSettings.ShowTrack,
+    Callback = function(state)
+        SystemSettings.ShowTrack = state
+        if not state then PurgeRoute() end
     end
 })
+
+OrionLib:Init()
