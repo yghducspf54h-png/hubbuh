@@ -13,14 +13,14 @@ end
 -- إعدادات الميزات
 local Settings = {
     SpeedEnabled = false,
-    WalkSpeed = 30,
+    SpeedPower = 0.5, -- سرعة آمنة لتفادي حماية الماب
     ESPEnabled = false,
     AimbotEnabled = false,
     FOVEnabled = false,
     FOVRadius = 120
 }
 
--- دائرة الـ FOV
+-- دائرة الـ FOV في منتصف الشاشة تماماً
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Transparency = 0.7
@@ -129,7 +129,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- شريط الحقوق في الأسفل
+-- شريط حقوق المبجل في الأسفل
 local CreditsLabel = Instance.new("TextLabel")
 CreditsLabel.Parent = MainFrame
 CreditsLabel.BackgroundTransparency = 1
@@ -172,7 +172,7 @@ local function CreateToggle(name, yPos, callback)
 end
 
 -- أزرار القائمة
-CreateToggle("تفعيل السرعة (Speed)", 50, function(state)
+CreateToggle("تفعيل السرعة الآمنة (Speed)", 50, function(state)
     Settings.SpeedEnabled = state
 end)
 
@@ -195,17 +195,18 @@ local function GetClosestPlayer()
     local shortestDist = Settings.FOVRadius
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-            local hrp = player.Character.HumanoidRootPart
-            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local head = player.Character.Head
+            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
             
             if onScreen then
-                local mousePos = UserInputService:GetMouseLocation()
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                local viewportSize = Camera.ViewportSize
+                local centerScreen = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerScreen).Magnitude
                 
                 if dist < shortestDist then
                     shortestDist = dist
-                    target = player.Character.Head
+                    target = head
                 end
             end
         end
@@ -215,14 +216,19 @@ end
 
 -- الحلقة الرئيسية لتشغيل الميزات بسلاسة
 RunService.RenderStepped:Connect(function()
-    -- تطبيق السرعة
-    if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeed
+    -- تطبيق السرعة الآمنة (CFrame) لتجنب حماية الماب
+    if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid and humanoid.MoveDirection.Magnitude > 0 then
+            hrp.CFrame = hrp.CFrame + (humanoid.MoveDirection * Settings.SpeedPower)
+        end
     end
     
-    -- تحديث دائرة الـ FOV
+    -- تثبيت دائرة الـ FOV في منتصف الشاشة بدقة
     if Settings.FOVEnabled then
-        FOVCircle.Position = UserInputService:GetMouseLocation()
+        local viewportSize = Camera.ViewportSize
+        FOVCircle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
         FOVCircle.Radius = Settings.FOVRadius
     end
     
@@ -252,7 +258,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    -- تشغيل الإيم بوت عند الضغط المستمر على زر الفأرة الأيمن
+    -- تشغيل الإيم بوت عند الضغط المستمر على زر الماوس الأيمن
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local aimTarget = GetClosestPlayer()
         if aimTarget then
