@@ -168,7 +168,7 @@ Tabs.Duel:AddButton({
             Fluent:Notify({
                 Title = "Duel Loader",
                 Content = "Executing: " .. SelectedDuel,
-                Duration = 3`
+                Duration = 3
             })
             task.spawn(function()
                 loadstring(game:HttpGet(Duel_Scripts[SelectedDuel]))()
@@ -225,7 +225,7 @@ Tabs.Settings:AddParagraph({
 })
 
 Tabs.Settings:AddButton({
-    Title = "Title = "Copy Discord Invite Link",",
+    Title = "Copy Discord Invite Link",
     Description = "Click to copy the Discord link to your clipboard",
     Callback = function()
         if setclipboard then
@@ -262,5 +262,3 @@ Fluent:Notify({
     Content = "Loader loaded successfully! Click the 'K' button to open/close menu.",
     Duration = 5
 })
-
-SaveManager:LoadAutoloadConfig()
