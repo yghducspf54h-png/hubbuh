@@ -4,7 +4,6 @@ local Camera = workspace.CurrentCamera
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
--- إعدادات السكربت المنظمة والمطورة
 local Settings = {
     ActiveFarm = false,
     CurrentJob = "None",
@@ -12,7 +11,6 @@ local Settings = {
     FOVSize = 130
 }
 
--- اسم عشوائي للواجهة لتجنب أي رصد
 local GUI_Name = HttpService:GenerateGUID(false)
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 if PlayerGui:FindFirstChild(GUI_Name) then PlayerGui[GUI_Name]:Destroy() end
@@ -22,7 +20,6 @@ ScreenGui.Name = GUI_Name
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
--- إطار الواجهة الرئيسي الاحترافي
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 440)
 MainFrame.Position = UDim2.new(0.03, 0, 0.15, 0)
@@ -34,7 +31,6 @@ MainFrame.Parent = ScreenGui
 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
--- رأس الواجهة (العنوان)
 local Header = Instance.new("TextLabel")
 Header.Size = UDim2.new(1, 0, 0.1, 0)
 Header.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
@@ -44,7 +40,6 @@ Header.TextSize, Header.Font = 12, Enum.Font.GothamBold
 Header.Parent = MainFrame
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 8)
 
--- شريط الحالة
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(0.9, 0, 0.06, 0)
 StatusLabel.Position = UDim2.new(0.05, 0, 0.11, 0)
@@ -54,18 +49,18 @@ StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 StatusLabel.TextSize, StatusLabel.Font = 11, Enum.Font.GothamBold
 StatusLabel.Parent = MainFrame
 
--- محرك التفاعل الواقعي والهادئ (بدون تلفيق أو باند)
+-- محرك التفاعل المحدث خصيصاً لمكونات الماب والوظائف
 task.spawn(function()
     while true do
         if Settings.ActiveFarm and Settings.CurrentJob ~= "None" then
             pcall(function()
-                for _, obj in pairs(workspace:GetChildren()) do
+                for _, obj in pairs(workspace:GetDescendants()) do
                     local name = obj.Name:lower()
                     local targetFound = false
 
-                    if Settings.CurrentJob == "ATM" and (name:find("atm") or name:find("register")) then
+                    if Settings.CurrentJob == "ATM" and (name:find("atm") or name:find("register") or name:find("cash")) then
                         targetFound = true
-                    elseif Settings.CurrentJob == "Grocery" and (name:find("grocery") or name:find("store") or name:find("market") or name:find("shelf")) then
+                    elseif Settings.CurrentJob == "Grocery" and (name:find("shelf") or name:find("stocker") or name:find("grocery") or name:find("job") or name:find("market")) then
                         targetFound = true
                     elseif Settings.CurrentJob == "Cases" and (name:find("case") or name:find("box") or name:find("crate")) then
                         targetFound = true
@@ -73,25 +68,21 @@ task.spawn(function()
 
                     if targetFound then
                         if obj:FindFirstChild("ProximityPrompt") then
-                            -- تفاعل هادئ ومناسب للبشر
                             fireproximityprompt(obj.ProximityPrompt)
                         elseif obj:IsA("BasePart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            -- تنقل سلس وواقعي تدريجي بدل الانتقال الفجائي لتجنب الحماية
-                            local char = LocalPlayer.Character
-                            local hrp = char.HumanoidRootPart
-                            if (hrp.Position - obj.Position).Magnitude < 25 then
-                                hrp.CFrame = hrp.CFrame:Lerp(obj.CFrame + Vector3.new(0, 3, 0), 0.1)
+                            local hrp = LocalPlayer.Character.HumanoidRootPart
+                            if (hrp.Position - obj.Position).Magnitude < 40 then
+                                hrp.CFrame = hrp.CFrame:Lerp(obj.CFrame + Vector3.new(0, 2, 0), 0.2)
                             end
                         end
                     end
                 end
             end)
         end
-        task.wait(1.5)
+        task.wait(0.8)
     end
 end)
 
--- دالة صناعة الأزرار بمرونة عالية
 local function createButton(text, jobKey, yPos)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0.08, 0)
@@ -124,12 +115,10 @@ local function createButton(text, jobKey, yPos)
     end)
 end
 
--- أزرار الوظائف مفصولة ومنظمة بدقة
 createButton("تهكير الصرافات (ATM)", "ATM", 0.18)
 createButton("وظيفة البقالة (Grocery)", "Grocery", 0.28)
 createButton("فتح الصناديق واللوت", "Cases", 0.38)
 
--- زر الآيمبوت للدفاع المنظم
 local AimbotBtn = Instance.new("TextButton")
 AimbotBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
 AimbotBtn.Position = UDim2.new(0.05, 0, 0.50, 0)
@@ -153,7 +142,6 @@ AimbotBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- محرك الآيمبوت الثابت والسلس
 RunService.RenderStepped:Connect(function()
     if Settings.AimbotEnabled then
         local closest, dist = nil, math.huge
@@ -179,7 +167,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- زر الإغلاق
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
 CloseBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
