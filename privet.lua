@@ -5,28 +5,27 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- إزالة الواجهة القديمة لمنع التداخل
 if CoreGui:FindFirstChild("AlMubajilGui") then
     CoreGui.AlMubajilGui:Destroy()
 end
 
 local Settings = {
     SpeedEnabled = false,
-    WalkSpeedValue = 40,
+    WalkSpeedValue = 22, -- سرعة آمنة تماماً تمنع طرد النظام أو الموت
     ESPEnabled = false,
     AimbotEnabled = false,
     FOVEnabled = false,
-    FOVRadius = 130,
+    FOVRadius = 150,
     AutoSmuggleEnabled = false,
     Language = "AR"
 }
 
 local Texts = {
     AR = {
-        Title = "سكربت المبجل - San Diego Border",
+        Title = "سكربت المبجل - San Diego",
         Speed = "السرعة الآمنة",
-        ESP = "كشف اللاعبين والأسماء",
-        Aimbot = "التصويب التلقائي (Aimbot)",
+        ESP = "كشف اللاعبين وأسماء مصغرة",
+        Aimbot = "التصويب التلقائي السلس (Aimbot)",
         FOV = "دائرة الرؤية (FOV)",
         AutoSmuggle = "فارم البضائع المهربة التلقائي",
         LangBtn = "English",
@@ -37,8 +36,8 @@ local Texts = {
     EN = {
         Title = "AlMubajil Script - San Diego",
         Speed = "Safe Speed",
-        ESP = "ESP & Names",
-        Aimbot = "Aimbot",
+        ESP = "ESP & Small Names",
+        Aimbot = "Smooth Aimbot",
         FOV = "FOV Circle",
         AutoSmuggle = "Auto Smuggling Farm",
         LangBtn = "عربي",
@@ -72,22 +71,17 @@ FOVStroke.Color = Color3.fromRGB(255, 255, 255)
 FOVStroke.Thickness = 1.5
 FOVStroke.Transparency = 0.3
 
--- نظام الـ ESP
+-- نظام الـ ESP بدون تظليل خلف الجدران مع أسماء بحجم صغير جداً
 local function ApplyESP(player)
     if player == LocalPlayer then return end
     
     local function CharacterAdded(char)
         if not char then return end
-        if char:FindFirstChild("AlMubajilHighlight") then char.AlMubajilHighlight:Destroy() end
         
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "AlMubajilHighlight"
-        highlight.Parent = char
-        highlight.FillColor = Color3.fromRGB(255, 0, 0)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 0
-        highlight.Enabled = Settings.ESPEnabled
+        -- إزالة أي تظليل قديم قد يُظهر اللاعب من خلف الجدران
+        if char:FindFirstChild("AlMubajilHighlight") then 
+            char.AlMubajilHighlight:Destroy() 
+        end
         
         local head = char:WaitForChild("Head", 5)
         if head and not head:FindFirstChild("AlMubajilName") then
@@ -95,8 +89,8 @@ local function ApplyESP(player)
             bb.Name = "AlMubajilName"
             bb.Parent = head
             bb.Adornee = head
-            bb.Size = UDim2.new(0, 100, 0, 30)
-            bb.StudsOffset = Vector3.new(0, 2, 0)
+            bb.Size = UDim2.new(0, 80, 0, 20)
+            bb.StudsOffset = Vector3.new(0, 1.8, 0)
             bb.AlwaysOnTop = true
             bb.Enabled = Settings.ESPEnabled
             
@@ -105,10 +99,10 @@ local function ApplyESP(player)
             lbl.Size = UDim2.new(1, 0, 1, 0)
             lbl.BackgroundTransparency = 1
             lbl.Text = player.Name
-            lbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-            lbl.TextStrokeTransparency = 0
+            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            lbl.TextStrokeTransparency = 0.5
             lbl.Font = Enum.Font.SourceSansBold
-            lbl.TextSize = 14
+            lbl.TextSize = 10 -- حجم اسم صغير جداً
         end
     end
     
@@ -158,7 +152,6 @@ TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.TextSize = 14
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- أزرار القائمة العلوية
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Parent = TopBar
 CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
@@ -178,7 +171,6 @@ CloseBtn.MouseButton1Click:Connect(function()
     FOVGui:Destroy()
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
-            if p.Character:FindFirstChild("AlMubajilHighlight") then p.Character.AlMubajilHighlight:Destroy() end
             if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
                 p.Character.Head.AlMubajilName:Destroy()
             end
@@ -258,14 +250,11 @@ local function CreateToggle(key, textKey, yPos, callback)
     end)
 end
 
--- إنشاء الأزرار مرتبة ومسؤولة عن الميزات المطلوبة
 CreateToggle("Speed", "Speed", 50, function(state) Settings.SpeedEnabled = state end)
 CreateToggle("ESP", "ESP", 95, function(state)
     Settings.ESPEnabled = state
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
-            local h = p.Character:FindFirstChild("AlMubajilHighlight")
-            if h then h.Enabled = state end
             if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
                 p.Character.Head.AlMubajilName.Enabled = state
             end
@@ -296,7 +285,7 @@ MinBtn.MouseButton1Click:Connect(function()
     CreditsLabel.Visible = not isMinimized
 end)
 
--- البحث عن أقرب لاعب للإيم بوت
+-- البحث عن أقرب لاعب للإيم بوت ضمن نطاق الـ FOV
 local function GetClosestPlayer()
     local target = nil
     local shortestDist = Settings.FOVRadius
@@ -320,30 +309,42 @@ local function GetClosestPlayer()
     return target
 end
 
--- حلقة لتنفيذ نظام فارم البقالة/التهريب الآمن وسرعة اللعبة والتصويب التلقائي
+-- حلقة لتشغيل الميزات مع تصويب سلس جداً (Interpolation) وفارم شامل لكل أنواع البرومبتات
 RunService.RenderStepped:Connect(function()
-    -- حماية من الموت عبر استخدام WalkSpeed آمن تماماً لا يفعل أنظمة فحص الموت السريع
+    -- حماية من الموت وسرعة آمنة
     if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeedValue
     end
     
-    -- نظام التصويب التلقائي (Aimbot) عند الضغط على زر الماوس الأيمن
+    -- نظام تصويب تلقائي سلس جداً (Smooth Aimbot) لسهولة التحكم وعدم الاهتزاز
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local targetHead = GetClosestPlayer()
         if targetHead then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.2) -- تدرج سلس في الحركة للتحكم الكامل
         end
     end
     
-    -- فارم البقالة / البضائع المهربة التلقائي (تفاعل آمن مع الـ ProximityPrompts المتاحة للبضائع والأسواق السوداء)
+    -- فارم تلقائي شامل للمهامات والبضائع والمشتريات (يغطي جميع الأجسام التفاعلية ProximityPrompt و ClickDetector)
     if Settings.AutoSmuggleEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             local hrp = LocalPlayer.Character.HumanoidRootPart
             for _, obj in ipairs(workspace:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") then
                     local parent = obj.Parent
-                    if parent and (parent.Position - hrp.Position).Magnitude < 15 then
-                        fireproximityprompt(obj)
+                    if parent then
+                        local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
+                        if pos and (pos - hrp.Position).Magnitude < 20 then
+                            fireproximityprompt(obj)
+                        end
+                    end
+                elseif obj:IsA("ClickDetector") then
+                    local parent = obj.Parent
+                    if parent then
+                        local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
+                        if pos and (pos - hrp.Position).Magnitude < 15 then
+                            fireclickdetector(obj)
+                        end
                     end
                 end
             end
