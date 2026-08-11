@@ -1,19 +1,20 @@
 local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- إزالة الواجهة القديمة إذا كانت موجودة لمنع التكرار
+-- إزالة الواجهة القديمة لمنع التكرار
 if CoreGui:FindFirstChild("BlockSpinHubGui") then
     CoreGui.BlockSpinHubGui:Destroy()
 end
 
--- بناء الواجهة الرئيسية (ScreenGui)
+-- بناء الواجهة الرئيسية
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BlockSpinHubGui"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- الإطار الرئيسي
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
@@ -27,7 +28,6 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
--- شريط العنوان العلوي
 local TopBar = Instance.new("Frame")
 TopBar.Parent = MainFrame
 TopBar.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
@@ -49,7 +49,6 @@ TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.TextSize = 16
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- زر إغلاق الواجهة (X)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Parent = TopBar
 CloseBtn.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
@@ -68,7 +67,6 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- شريط التبويبات الجانبي أو العلوي (Tabs)
 local TabBar = Instance.new("Frame")
 TabBar.Parent = MainFrame
 TabBar.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
@@ -76,7 +74,6 @@ TabBar.Position = UDim2.new(0, 0, 0, 35)
 TabBar.Size = UDim2.new(0, 120, 1, -35)
 TabBar.BorderSizePixel = 0
 
--- حاوية محتوى التبويبات
 local Container = Instance.new("Frame")
 Container.Parent = MainFrame
 Container.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
@@ -92,15 +89,6 @@ GroceryTabContent.CanvasSize = UDim2.new(0, 0, 0, 300)
 GroceryTabContent.Visible = true
 GroceryTabContent.BorderSizePixel = 0
 
-local JobsTabContent = Instance.new("ScrollingFrame")
-JobsTabContent.Parent = Container
-JobsTabContent.BackgroundTransparency = 1
-JobsTabContent.Size = UDim2.new(1, 0, 1, 0)
-JobsTabContent.CanvasSize = UDim2.new(0, 0, 0, 300)
-JobsTabContent.Visible = false
-JobsTabContent.BorderSizePixel = 0
-
--- زر تبويب البقالة
 local GroceryTabBtn = Instance.new("TextButton")
 GroceryTabBtn.Parent = TabBar
 GroceryTabBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
@@ -115,41 +103,6 @@ local GCorner = Instance.new("UICorner")
 GCorner.CornerRadius = UDim.new(0, 6)
 GCorner.Parent = GroceryTabBtn
 
--- زر تبويب الوظائف الأخرى
-local JobsTabBtn = Instance.new("TextButton")
-JobsTabBtn.Parent = TabBar
-JobsTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-JobsTabBtn.Position = UDim2.new(0.05, 0, 0.18, 0)
-JobsTabBtn.Size = UDim2.new(0.9, 0, 0, 35)
-JobsTabBtn.Font = Enum.Font.SourceSansBold
-JobsTabBtn.Text = "وظائف أخرى"
-JobsTabBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-JobsTabBtn.TextSize = 13
-
-local JCorner = Instance.new("UICorner")
-JCorner.CornerRadius = UDim.new(0, 6)
-JCorner.Parent = JobsTabBtn
-
--- التبديل بين الشاشات
-GroceryTabBtn.MouseButton1Click:Connect(function()
-    GroceryTabContent.Visible = true
-    JobsTabContent.Visible = false
-    GroceryTabBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    GroceryTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    JobsTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    JobsTabBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-end)
-
-JobsTabBtn.MouseButton1Click:Connect(function()
-    GroceryTabContent.Visible = false
-    JobsTabContent.Visible = true
-    JobsTabBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    JobsTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    GroceryTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    GroceryTabBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-end)
-
--- محتوى قسم البقالة (Shelf Stocker Farm)
 local GroceryTitle = Instance.new("TextLabel")
 GroceryTitle.Parent = GroceryTabContent
 GroceryTitle.BackgroundTransparency = 1
@@ -181,35 +134,86 @@ StatusDesc.BackgroundTransparency = 1
 StatusDesc.Position = UDim2.new(0.05, 0, 0.38, 0)
 StatusDesc.Size = UDim2.new(0.9, 0, 0, 50)
 StatusDesc.Font = Enum.Font.SourceSans
-StatusDesc.Text = "الحالة: جاهز للتشغيل (يقوم بالتقديم، حمل الصندوق، والتوصيل تلقائياً عند التفعيل)"
+StatusDesc.Text = "الحالة: جاهز للتشغيل"
 StatusDesc.TextColor3 = Color3.fromRGB(180, 180, 180)
-StatusDesc.TextSize:gsub(12, 12)
 StatusDesc.TextSize = 12
 StatusDesc.TextWrapped = true
 StatusDesc.TextXAlignment = Enum.TextXAlignment.Left
 
--- محتوى قسم الوظائف الأخرى
-local OtherTitle = Instance.new("TextLabel")
-OtherTitle.Parent = JobsTabContent
-OtherTitle.BackgroundTransparency = 1
-OtherTitle.Position = UDim2.new(0.05, 0, 0.05, 0)
-OtherTitle.Size = UDim2.new(0.9, 0, 0, 30)
-OtherTitle.Font = Enum.Font.SourceSansBold
-OtherTitle.Text = "باقي الوظائف (قريباً / عام)"
-OtherTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-OtherTitle.TextSize = 14
-OtherTitle.TextXAlignment = Enum.TextXAlignment.Left
-
--- ربط زر التشغيل والإيقاف لمنطق البقالة
+-- نظام تشغيل الفارم البرمجي المربوط بالزر
 local groceryRunning = false
+
 GroceryToggle.MouseButton1Click:Connect(function()
     groceryRunning = not groceryRunning
+    
     if groceryRunning then
         GroceryToggle.Text = "تشغيل فارم البقالة: شغال"
         GroceryToggle.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-        -- ضع كود اللوب أو السكربت الخاص بالفارم هنا أو شغله عبر task.spawn
+        StatusDesc.Text = "الحالة: يعمل (يتم أخذ الوظيفة، حمل الصندوق، والتوصيل تلقائياً)"
+        
+        -- حلقة التنفيذ (Farm Loop)
+        task.spawn(function()
+            while groceryRunning do
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char and char:FindFirstChild("Humanoid")
+                
+                if not hrp or not humanoid then
+                    task.wait(1)
+                    continue
+                end
+                
+                -- الخطوة 1: التقديم على الوظيفة إذا ظهر البرومبت الخاص بها
+                local promptApply = workspace:FindFirstChild("Apply", true)
+                if promptApply and promptApply:IsA("ProximityPrompt") then
+                    if (promptApply.Parent.Position - hrp.Position).Magnitude < 25 then
+                        humanoid:MoveTo(promptApply.Parent.Position)
+                        task.wait(0.5)
+                        pcall(function() fireproximityprompt(promptApply) end)
+                    end
+                end
+                
+                -- الخطوة 2: فحص هل الشخصية حاملة لصندوق أم لا
+                local carryingBox = char:FindFirstChild("Box") or LocalPlayer.Backpack:FindFirstChild("Box")
+                
+                if not carryingBox then
+                    -- البحث عن صندوق والتقاطه
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if not groceryRunning then break end
+                        if obj:IsA("ProximityPrompt") and (obj.ActionText:lower():find("pick") or obj.ObjectText:lower():find("box")) then
+                            if obj.Parent and (obj.Parent.Position - hrp.Position).Magnitude < 30 then
+                                humanoid:MoveTo(obj.Parent.Position)
+                                task.wait(0.5)
+                                pcall(function() fireproximityprompt(obj) end)
+                                task.wait(1)
+                                break
+                            end
+                        end
+                    end
+                else
+                    -- الخطوة 3: التوجه نحو السهم أو هدف التوصيل
+                    local targetIndicator = workspace:FindFirstChild("Arrow") or workspace:FindFirstChild("TargetShelf", true)
+                    
+                    if targetIndicator then
+                        local targetPos = targetIndicator.Position or (targetIndicator.PrimaryPart and targetIndicator.PrimaryPart.Position)
+                        if targetPos then
+                            humanoid:MoveTo(targetPos)
+                            if (hrp.Position - targetPos).Magnitude < 6 then
+                                task.wait(0.3)
+                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                                task.wait(0.1)
+                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                            end
+                        end
+                    end
+                end
+                
+                task.wait(1)
+            end
+        end)
     else
         GroceryToggle.Text = "تشغيل فارم البقالة: متوقف"
         GroceryToggle.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+        StatusDesc.Text = "الحالة: متوقف"
     end
 end)
