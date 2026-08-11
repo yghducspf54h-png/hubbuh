@@ -6,8 +6,8 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- إزالة الواجهة القديمة لمنع التكرار
-if CoreGui:FindFirstChild("BlockSpinProHub") then
-    CoreGui.BlockSpinProHub:Destroy()
+if CoreGui:FindFirstChild("AlMubajilHub") then
+    CoreGui.AlMubajilHub:Destroy()
 end
 
 -- إعدادات الميزات
@@ -68,7 +68,7 @@ Players.PlayerRemoving:Connect(RemoveESP)
 
 -- بناء واجهة المستخدم (GUI)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BlockSpinProHub"
+ScreenGui.Name = "AlMubajilHub"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
@@ -76,8 +76,8 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -175)
-MainFrame.Size = UDim2.new(0, 320, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -185)
+MainFrame.Size = UDim2.new(0, 320, 0, 380)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
@@ -101,9 +101,9 @@ TitleLabel.BackgroundTransparency = 1
 TitleLabel.Position = UDim2.new(0.05, 0, 0, 0)
 TitleLabel.Size = UDim2.new(0.8, 0, 1, 0)
 TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.Text = "Combat & Visuals Hub"
+TitleLabel.Text = "سكربت المبجل"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 15
+TitleLabel.TextSize = 16
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton")
@@ -128,6 +128,18 @@ CloseBtn.MouseButton1Click:Connect(function()
         data.Box:Remove()
     end
 end)
+
+-- شريط الحقوق في الأسفل
+local CreditsLabel = Instance.new("TextLabel")
+CreditsLabel.Parent = MainFrame
+CreditsLabel.BackgroundTransparency = 1
+CreditsLabel.Position = UDim2.new(0, 0, 1, -25)
+CreditsLabel.Size = UDim2.new(1, 0, 0, 20)
+CreditsLabel.Font = Enum.Font.SourceSansBold
+CreditsLabel.Text = "حقوق الملكية © المبجل"
+CreditsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+CreditsLabel.TextSize = 12
+CreditsLabel.TextAlignment = Enum.TextAlignment.Center
 
 -- وظيفة لإنشاء أزرار التفعيل داخل الواجهة
 local function CreateToggle(name, yPos, callback)
@@ -240,7 +252,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    -- تشغيل الإيم بوت عند الضغط المستمر على زر الفأرة الأيمن أو الزر الافتراضي
+    -- تشغيل الإيم بوت عند الضغط المستمر على زر الفأرة الأيمن
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local aimTarget = GetClosestPlayer()
         if aimTarget then
