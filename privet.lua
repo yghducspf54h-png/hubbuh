@@ -17,27 +17,30 @@ local Settings = {
     AimbotEnabled = false,
     FOVEnabled = false,
     FOVRadius = 130,
+    AutoSmuggleEnabled = false,
     Language = "AR"
 }
 
 local Texts = {
     AR = {
-        Title = "سكربت المبجل",
+        Title = "سكربت المبجل - San Diego Border",
         Speed = "السرعة الآمنة",
         ESP = "كشف اللاعبين والأسماء",
         Aimbot = "التصويب التلقائي (Aimbot)",
         FOV = "دائرة الرؤية (FOV)",
+        AutoSmuggle = "فارم البضائع المهربة التلقائي",
         LangBtn = "English",
         Running = "شغال",
         Stopped = "متوقف",
         Credits = "حقوق الملكية © المبجل"
     },
     EN = {
-        Title = "AlMubajil Script",
+        Title = "AlMubajil Script - San Diego",
         Speed = "Safe Speed",
         ESP = "ESP & Names",
         Aimbot = "Aimbot",
         FOV = "FOV Circle",
+        AutoSmuggle = "Auto Smuggling Farm",
         LangBtn = "عربي",
         Running = "ON",
         Stopped = "OFF",
@@ -126,8 +129,8 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Parent = MainGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -170)
-MainFrame.Size = UDim2.new(0, 300, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -195)
+MainFrame.Size = UDim2.new(0, 320, 0, 390)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
@@ -152,7 +155,7 @@ TitleLabel.Size = UDim2.new(0.4, 0, 1, 0)
 TitleLabel.Font = Enum.Font.SourceSansBold
 TitleLabel.Text = Texts[Settings.Language].Title
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 15
+TitleLabel.TextSize = 14
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 -- أزرار القائمة العلوية
@@ -228,7 +231,7 @@ local function CreateToggle(key, textKey, yPos, callback)
     btn.Parent = MainFrame
     btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     btn.Position = UDim2.new(0.06, 0, 0, yPos)
-    btn.Size = UDim2.new(0.88, 0, 0, 42)
+    btn.Size = UDim2.new(0.88, 0, 0, 38)
     btn.Font = Enum.Font.SourceSansBold
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.TextSize = 13
@@ -255,9 +258,9 @@ local function CreateToggle(key, textKey, yPos, callback)
     end)
 end
 
--- إنشاء الأزرار بمواقع مرتبة وواضحة داخل القائمة
-CreateToggle("Speed", "Speed", 55, function(state) Settings.SpeedEnabled = state end)
-CreateToggle("ESP", "ESP", 108, function(state)
+-- إنشاء الأزرار مرتبة ومسؤولة عن الميزات المطلوبة
+CreateToggle("Speed", "Speed", 50, function(state) Settings.SpeedEnabled = state end)
+CreateToggle("ESP", "ESP", 95, function(state)
     Settings.ESPEnabled = state
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
@@ -269,11 +272,12 @@ CreateToggle("ESP", "ESP", 108, function(state)
         end
     end
 end)
-CreateToggle("Aimbot", "Aimbot", 161, function(state) Settings.AimbotEnabled = state end)
-CreateToggle("FOV", "FOV", 214, function(state)
+CreateToggle("Aimbot", "Aimbot", 140, function(state) Settings.AimbotEnabled = state end)
+CreateToggle("FOV", "FOV", 185, function(state)
     Settings.FOVEnabled = state
     FOVFrame.Visible = state
 end)
+CreateToggle("AutoSmuggle", "AutoSmuggle", 230, function(state) Settings.AutoSmuggleEnabled = state end)
 
 LangBtn.MouseButton1Click:Connect(function()
     Settings.Language = Settings.Language == "AR" and "EN" or "AR"
@@ -286,7 +290,7 @@ end)
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
-    MainFrame:TweenSize(isMinimized and UDim2.new(0, 300, 0, 40) or UDim2.new(0, 300, 0, 340), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+    MainFrame:TweenSize(isMinimized and UDim2.new(0, 320, 0, 40) or UDim2.new(0, 320, 0, 390), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
     MinBtn.Text = isMinimized and "+" or "-"
     for _, t in ipairs(toggles) do t.Button.Visible = not isMinimized end
     CreditsLabel.Visible = not isMinimized
@@ -316,16 +320,33 @@ local function GetClosestPlayer()
     return target
 end
 
--- الحلقة التشغيلية
+-- حلقة لتنفيذ نظام فارم البقالة/التهريب الآمن وسرعة اللعبة والتصويب التلقائي
 RunService.RenderStepped:Connect(function()
+    -- حماية من الموت عبر استخدام WalkSpeed آمن تماماً لا يفعل أنظمة فحص الموت السريع
     if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeedValue
     end
     
+    -- نظام التصويب التلقائي (Aimbot) عند الضغط على زر الماوس الأيمن
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local targetHead = GetClosestPlayer()
         if targetHead then
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
         end
+    end
+    
+    -- فارم البقالة / البضائع المهربة التلقائي (تفاعل آمن مع الـ ProximityPrompts المتاحة للبضائع والأسواق السوداء)
+    if Settings.AutoSmuggleEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        pcall(function()
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    local parent = obj.Parent
+                    if parent and (parent.Position - hrp.Position).Magnitude < 15 then
+                        fireproximityprompt(obj)
+                    end
+                end
+            end
+        end)
     end
 end)
