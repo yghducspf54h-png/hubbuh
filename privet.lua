@@ -177,7 +177,6 @@ local function SetupCacheListeners(profile)
     table.insert(FarmEngine.GlobalConnections, removeConn)
 end
 
--- مصدر وحيد ومسؤول حصرياً عن زيادة PathRetries
 local function ComputePathSafe(pathObj, startPos, targetPos, meta)
     meta.CurrentPath = nil
     local success, err = pcall(function()
@@ -325,7 +324,6 @@ function FarmEngine:Start(profile)
                     continue
                 end
                 
-                -- مراقبة الحد الأقصى لزمن الرحلة بالكامل لمنع التعليق الطويل
                 local maxJourneyTime = profile.TotalJourneyTimeout or 45
                 if currentTime - meta.JourneyStartTime > maxJourneyTime then
                     meta.Retries += 1
@@ -359,7 +357,6 @@ function FarmEngine:Start(profile)
                         meta.WaypointIndex += 1
                         meta.WaypointTime = currentTime
                     else
-                        -- إذا علق عند نقطة معينة، التوجيه لـ Repathing لحساب مسار سليم بدل القفز الأعمى
                         if currentTime - meta.WaypointTime > 4.0 then
                             self.State = "Repathing"
                             continue
@@ -421,7 +418,6 @@ function FarmEngine:Start(profile)
                     self.Metrics.Failed.Pathfinding += 1
                     meta.FallbackCount = (meta.FallbackCount or 0) + 1
                     
-                    -- Fallback مؤقت ومحدود جداً بعدد المحاولات الفعلية للـ Repath وليس الحلقات
                     if meta.FallbackCount <= 2 then
                         humanoid:MoveTo(targetPos)
                         self.State = "Moving"
@@ -443,7 +439,6 @@ function FarmEngine:Start(profile)
                     
                     local prompt = self.CurrentTarget:FindFirstChildWhichIsA("ProximityPrompt", true)
                     
-                    -- التحقق من وجود الـ Prompt وقت التفاعل منعاً للنجاح الوهمي
                     if not prompt or not prompt.Enabled then
                         self.Metrics.Failed.Verification += 1
                         local meta = self.TargetMeta[self.CurrentTarget]
@@ -463,7 +458,6 @@ function FarmEngine:Start(profile)
                         end)
                         
                         if not successInteract then
-                            -- عقوبة وحظر فورية عند فشل التفاعل البرمجي
                             self.Metrics.Failed.Interaction += 1
                             local meta = self.TargetMeta[self.CurrentTarget]
                             if meta then
@@ -531,4 +525,11 @@ function FarmEngine:Stop()
     end
 end
 
-return FarmEngine
+-- كود التشغيل المباشر:
+FarmEngine:Start({
+    Validator = function(obj)
+        -- استبدل "Coin" باسم الشيء أو الهدف في اللعبة لديك
+        return obj.Name == "Coin" 
+    end,
+    MaxDistance = 300,
+})
