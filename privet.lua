@@ -1,396 +1,1127 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
-if CoreGui:FindFirstChild("AlMubajilGui") then
-    CoreGui.AlMubajilGui:Destroy()
-end
-if CoreGui:FindFirstChild("AlMubajilFOV") then
-    CoreGui.AlMubajilFOV:Destroy()
-end
+-- 🇸🇦 Custom Theme: Saudi Green & Gold Edition (خلفية ونمط مستوحى من السعودية)
+WindUI:AddTheme({
+    Name = "SaudiTheme",
+    
+    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
+    Background = Color3.fromHex("#0A0F0D"),
+    BackgroundTransparency = 0,
+    Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
+    Text = Color3.fromHex("#FFFFFF"),
+    Placeholder = Color3.fromHex("#7a7a7a"),
+    Button = Color3.fromHex("#132219"),
+    Icon = Color3.fromHex("#C5A059"),
+    
+    Hover = Color3.fromHex("#1B3B2B"),
+    
+    WindowBackground = Color3.fromHex("#0A0F0D"),
+    WindowShadow = Color3.fromHex("#006C35"),
+    
+    DialogBackground = Color3.fromHex("#0A0F0D"),
+    DialogBackgroundTransparency = 0,
+    DialogTitle = Color3.fromHex("#C5A059"),
+    DialogContent = Color3.fromHex("#FFFFFF"),
+    DialogIcon = Color3.fromHex("#006C35"),
+    
+    WindowTopbarButtonIcon = Color3.fromHex("#C5A059"),
+    WindowTopbarTitle = Color3.fromHex("#FFFFFF"),
+    WindowTopbarAuthor = Color3.fromHex("#C5A059"),
+    WindowTopbarIcon = Color3.fromHex("#006C35"),
+    
+    TabBackground = Color3.fromHex("#0A0F0D"),
+    TabTitle = Color3.fromHex("#FFFFFF"),
+    TabIcon = Color3.fromHex("#C5A059"),
+    
+    ElementBackground = Color3.fromHex("#111A14"),
+    ElementTitle = Color3.fromHex("#FFFFFF"),
+    ElementDesc = Color3.fromHex("#A1A1AA"),
+    ElementIcon = Color3.fromHex("#C5A059"),
+    
+    PopupBackground = Color3.fromHex("#0A0F0D"),
+    PopupBackgroundTransparency = 0,
+    PopupTitle = Color3.fromHex("#C5A059"),
+    PopupContent = Color3.fromHex("#FFFFFF"),
+    PopupIcon = Color3.fromHex("#006C35"),
+    
+    Toggle = Color3.fromHex("#006C35"),
+    ToggleBar = Color3.fromHex("#C5A059"),
+    
+    Checkbox = Color3.fromHex("#1B3B2B"),
+    CheckboxIcon = Color3.fromHex("#C5A059"),
+    
+    Slider = Color3.fromHex("#006C35"),
+    SliderThumb = Color3.fromHex("#C5A059"),
+})
 
-local Settings = {
-    SpeedEnabled = false,
-    WalkSpeedValue = 20,
-    ESPEnabled = false,
-    AimbotEnabled = false,
-    FOVEnabled = false,
-    FOVRadius = 150,
-    AutoSmuggleEnabled = false,
-    Language = "AR"
-}
-
-local Texts = {
-    AR = {
-        Title = "سكربت المبجل - San Diego",
-        Speed = "السرعة الآمنة (بدون موت)",
-        ESP = "كشف اللاعبين (أسماء مصغرة)",
-        Aimbot = "الايم بوت (على دائرة FOV)",
-        FOV = "دائرة الرؤية (FOV)",
-        AutoSmuggle = "فارم البضائع المهربة الشامل",
-        LangBtn = "English",
-        Running = "شغال",
-        Stopped = "متوقف",
-        Credits = "حقوق الملكية © المبجل"
+-- 🪟 نافذة السكريبت مع حقوق "المبجل"
+local Window = WindUI:CreateWindow({
+    Title = "🌴 San Diego Auto Farm | المبجل",
+    Icon = "monitor",
+    Author = "By: المبجل",
+    Folder = "SanDiegoFarmSaudi",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = false,
+    Theme = "SaudiTheme",
+    SideBarWidth = 170,
+    HasOutline = true,
+    User = {
+        Enabled = true,
+        Anonymous = false,
+        Callback = function() print("المبجل - تم النقر") end,
     },
-    EN = {
-        Title = "AlMubajil Script - San Diego",
-        Speed = "Safe Speed",
-        ESP = "ESP (Small Names)",
-        Aimbot = "FOV Aimbot",
-        FOV = "FOV Circle",
-        AutoSmuggle = "Advanced Auto Farm",
-        LangBtn = "عربي",
-        Running = "ON",
-        Stopped = "OFF",
-        Credits = "Copyright © AlMubajil"
-    }
+})
+
+Window:EditOpenButton({
+    Title = "🌴 San Diego Auto Farm",
+    Icon = "monitor",
+    CornerRadius = UDim.new(0,16),
+    StrokeThickness = 2,
+    Color = ColorSequence.new(
+        Color3.fromHex("006C35"), 
+        Color3.fromHex("C5A059")
+    ),
+    OnlyMobile = false,
+    Enabled = true,
+    Draggable = true,
+})
+
+Window:Tag({
+    Title = "v1.2 | حقوق المبجل",
+    Icon = "shield-check",
+    Color = Color3.fromHex("#C5A059"),
+    Radius = 10,
+})
+
+-- 📑 Tabs (الأقسام بالعربي والانجليزي)
+local ReadTab = Window:Tab({
+    Title = "التنبيهات / Read",
+    Icon = "triangle-alert",
+})
+
+local MainTab = Window:Tab({
+    Title = "التجميع الآلي / Auto Farm",
+    Icon = "bot",
+})
+
+local MiscTab = Window:Tab({
+    Title = "إضافات / Misc",
+    Icon = "sliders-horizontal",
+})
+
+--------------------------------------------------------------------
+-- ⚙️ VARIABLES & CONFIGS
+--------------------------------------------------------------------
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+
+local isRunning = false
+local autoSell = true
+local autoLaunder = true
+local fpsBoostActive = false
+local antiPauseActive = false
+local noRenderActive = false
+local showPathLine = true
+local pathColor1 = Color3.fromHex("#006C35")
+local pathColor2 = Color3.fromHex("#C5A059")
+
+local pathGlowSize = 1.2
+local pathLength = 6.5
+local pathSpeed = 0
+
+local lastVehicle = nil
+local lastVehicleCFrame = nil
+
+local CONFIG = {
+	Speed = 250,
+	Height = 2.5,
+	Amount = 5,
+	TweenDelay = 0.1, 
+	ItemName = "Fake Diamond Ring",
+	SellName = "Smuggle Goods Seller",
+	LaunderName = "Launder Cash"
 }
 
--- دائرة الـ FOV المرنة
-local FOVGui = Instance.new("ScreenGui")
-FOVGui.Name = "AlMubajilFOV"
-FOVGui.Parent = CoreGui
-FOVGui.ResetOnSpawn = false
+local PROTECTED_ITEMS = {
+	["fists"] = true,
+	["passport"] = true
+}
 
-local FOVFrame = Instance.new("Frame")
-FOVFrame.Parent = FOVGui
-FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
-FOVFrame.BackgroundTransparency = 1
-FOVFrame.Visible = false
-
-local FOVCorner = Instance.new("UICorner")
-FOVCorner.CornerRadius = UDim.new(1, 0)
-FOVCorner.Parent = FOVFrame
-
-local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Parent = FOVFrame
-FOVStroke.Color = Color3.fromRGB(255, 255, 255)
-FOVStroke.Thickness = 1.5
-FOVStroke.Transparency = 0.3
-
--- نظام الـ ESP بأسماء مصغرة بدون كشف خلف الجدران
-local function ApplyESP(player)
-    if player == LocalPlayer then return end
-    
-    local function CharacterAdded(char)
-        if not char then return end
-        if char:FindFirstChild("AlMubajilHighlight") then 
-            char.AlMubajilHighlight:Destroy() 
-        end
-        
-        local head = char:WaitForChild("Head", 5)
-        if head and not head:FindFirstChild("AlMubajilName") then
-            local bb = Instance.new("BillboardGui")
-            bb.Name = "AlMubajilName"
-            bb.Parent = head
-            bb.Adornee = head
-            bb.Size = UDim2.new(0, 80, 0, 20)
-            bb.StudsOffset = Vector3.new(0, 1.8, 0)
-            bb.AlwaysOnTop = false
-            bb.Enabled = Settings.ESPEnabled
-            
-            local lbl = Instance.new("TextLabel")
-            lbl.Parent = bb
-            lbl.Size = UDim2.new(1, 0, 1, 0)
-            lbl.BackgroundTransparency = 1
-            lbl.Text = player.Name
-            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-            lbl.TextStrokeTransparency = 0.5
-            lbl.Font = Enum.Font.SourceSansBold
-            lbl.TextSize = 10
-        end
-    end
-    
-    if player.Character then CharacterAdded(player.Character) end
-    player.CharacterAdded:Connect(CharacterAdded)
+local function isProtectedItem(itemName)
+	return PROTECTED_ITEMS[string.lower(itemName)] == true
 end
 
-for _, p in ipairs(Players:GetPlayers()) do ApplyESP(p) end
-Players.PlayerAdded:Connect(ApplyESP)
-
--- الواجهة الرئيسية والتحكم الكامل
-local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "AlMubajilGui"
-MainGui.Parent = CoreGui
-MainGui.ResetOnSpawn = false
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = MainGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -210)
-MainFrame.Size = UDim2.new(0, 320, 0, 420)
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
-MainCorner.Parent = MainFrame
-
-local TopBar = Instance.new("Frame")
-TopBar.Parent = MainFrame
-TopBar.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-
-local TopCorner = Instance.new("UICorner")
-TopCorner.CornerRadius = UDim.new(0, 8)
-TopCorner.Parent = TopBar
-
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Parent = TopBar
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Position = UDim2.new(0.04, 0, 0, 0)
-TitleLabel.Size = UDim2.new(0.4, 0, 1, 0)
-TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.Text = Texts[Settings.Language].Title
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 14
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Parent = TopBar
-CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-CloseBtn.Position = UDim2.new(1, -32, 0.2, 0)
-CloseBtn.Size = UDim2.new(0, 24, 0, 24)
-CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 12
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 4)
-CloseCorner.Parent = CloseBtn
-
-CloseBtn.MouseButton1Click:Connect(function()
-    MainGui:Destroy()
-    FOVGui:Destroy()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
-            p.Character.Head.AlMubajilName:Destroy()
-        end
-    end
-end)
-
-local MinBtn = Instance.new("TextButton")
-MinBtn.Parent = TopBar
-MinBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
-MinBtn.Position = UDim2.new(1, -62, 0.2, 0)
-MinBtn.Size = UDim2.new(0, 24, 0, 24)
-MinBtn.Font = Enum.Font.SourceSansBold
-MinBtn.Text = "-"
-MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinBtn.TextSize = 12
-
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 4)
-MinCorner.Parent = MinBtn
-
-local LangBtn = Instance.new("TextButton")
-LangBtn.Parent = TopBar
-LangBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 160)
-LangBtn.Position = UDim2.new(1, -125, 0.2, 0)
-LangBtn.Size = UDim2.new(0, 58, 0, 24)
-LangBtn.Font = Enum.Font.SourceSansBold
-LangBtn.Text = Texts[Settings.Language].LangBtn
-LangBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-LangBtn.TextSize = 11
-
-local LangCorner = Instance.new("UICorner")
-LangCorner.CornerRadius = UDim.new(0, 4)
-LangCorner.Parent = LangBtn
-
-local CreditsLabel = Instance.new("TextLabel")
-CreditsLabel.Parent = MainFrame
-CreditsLabel.BackgroundTransparency = 1
-CreditsLabel.Position = UDim2.new(0, 0, 1, -25)
-CreditsLabel.Size = UDim2.new(1, 0, 0, 20)
-CreditsLabel.Font = Enum.Font.SourceSansBold
-CreditsLabel.Text = Texts[Settings.Language].Credits
-CreditsLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
-CreditsLabel.TextSize = 11
-
-local toggles = {}
-
-local function CreateToggle(textKey, yPos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Parent = MainFrame
-    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    btn.Position = UDim2.new(0.06, 0, 0, yPos)
-    btn.Size = UDim2.new(0.88, 0, 0, 36)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 13
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = btn
-    
-    local state = false
-    local function updateText()
-        local t = Texts[Settings.Language][textKey]
-        local s = state and Texts[Settings.Language].Running or Texts[Settings.Language].Stopped
-        btn.Text = t .. " : " .. s
-    end
-    
-    updateText()
-    table.insert(toggles, {Update = updateText, Button = btn})
-    
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.BackgroundColor3 = state and Color3.fromRGB(40, 160, 70) or Color3.fromRGB(35, 35, 45)
-        updateText()
-        callback(state)
-    end)
+local function applyAntiPause(state)
+	antiPauseActive = state
+	if state then
+		pcall(function()
+			local pauseScript = game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui").RobloxGui:FindFirstChild("CoreScripts/NetworkPause")
+			if pauseScript then
+				pauseScript:Destroy()
+			end
+		end)
+	end
 end
 
-CreateToggle("Speed", 50, function(state) Settings.SpeedEnabled = state end)
-CreateToggle("ESP", 92, function(state)
-    Settings.ESPEnabled = state
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("AlMubajilName") then
-            p.Character.Head.AlMubajilName.Enabled = state
-        end
-    end
-end)
-CreateToggle("Aimbot", 134, function(state) Settings.AimbotEnabled = state end)
-CreateToggle("FOV", 176, function(state)
-    Settings.FOVEnabled = state
-    FOVFrame.Visible = state
-end)
-CreateToggle("AutoSmuggle", 218, function(state) Settings.AutoSmuggleEnabled = state end)
-
--- أزرار تحكم حجم الـ FOV
-local FOVText = Instance.new("TextLabel")
-FOVText.Parent = MainFrame
-FOVText.BackgroundTransparency = 1
-FOVText.Position = UDim2.new(0.06, 0, 0, 262)
-FOVText.Size = UDim2.new(0.88, 0, 0, 20)
-FOVText.Font = Enum.Font.SourceSansBold
-FOVText.Text = "FOV Size: " .. Settings.FOVRadius
-FOVText.TextColor3 = Color3.fromRGB(200, 200, 200)
-FOVText.TextSize = 12
-
-local MinusFOV = Instance.new("TextButton")
-MinusFOV.Parent = MainFrame
-MinusFOV.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
-MinusFOV.Position = UDim2.new(0.06, 0, 0, 286)
-MinusFOV.Size = UDim2.new(0.42, 0, 0, 28)
-MinusFOV.Font = Enum.Font.SourceSansBold
-MinusFOV.Text = "[-] تصغير FOV"
-MinusFOV.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinusFOV.TextSize = 12
-local MinFCorner = Instance.new("UICorner") MinFCorner.CornerRadius = UDim.new(0, 6) MinFCorner.Parent = MinusFOV
-
-local PlusFOV = Instance.new("TextButton")
-PlusFOV.Parent = MainFrame
-PlusFOV.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
-PlusFOV.Position = UDim2.new(0.52, 0, 0, 286)
-PlusFOV.Size = UDim2.new(0.42, 0, 0, 28)
-PlusFOV.Font = Enum.Font.SourceSansBold
-PlusFOV.Text = "[+] تكبير FOV"
-PlusFOV.TextColor3 = Color3.fromRGB(255, 255, 255)
-PlusFOV.TextSize = 12
-local PlusFCorner = Instance.new("UICorner") PlusFCorner.CornerRadius = UDim.new(0, 6) PlusFCorner.Parent = PlusFOV
-
-MinusFOV.MouseButton1Click:Connect(function()
-    if Settings.FOVRadius > 50 then
-        Settings.FOVRadius = Settings.FOVRadius - 25
-        FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
-        FOVText.Text = "FOV Size: " .. Settings.FOVRadius
-    end
-end)
-
-PlusFOV.MouseButton1Click:Connect(function()
-    if Settings.FOVRadius < 400 then
-        Settings.FOVRadius = Settings.FOVRadius + 25
-        FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
-        FOVText.Text = "FOV Size: " .. Settings.FOVRadius
-    end
-end)
-
-LangBtn.MouseButton1Click:Connect(function()
-    Settings.Language = Settings.Language == "AR" and "EN" or "AR"
-    TitleLabel.Text = Texts[Settings.Language].Title
-    LangBtn.Text = Texts[Settings.Language].LangBtn
-    CreditsLabel.Text = Texts[Settings.Language].Credits
-    for _, t in ipairs(toggles) do t.Update() end
-end)
-
-local isMinimized = false
-MinBtn.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    MainFrame:TweenSize(isMinimized and UDim2.new(0, 320, 0, 40) or UDim2.new(0, 320, 0, 420), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-    MinBtn.Text = isMinimized and "+" or "-"
-end)
-
--- دالة لتحديد اللاعب المستهدف داخل دائرة الـ FOV بدقة
-local function GetClosestPlayerInFOV()
-    local target = nil
-    local shortestDist = Settings.FOVRadius
-    local centerScreen = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-            local head = player.Character.Head
-            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            
-            if onScreen then
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerScreen).Magnitude
-                if dist < shortestDist then
-                    shortestDist = dist
-                    target = head
-                end
-            end
-        end
-    end
-    return target
+local function applyNoRender(state)
+	noRenderActive = state
+	if state then
+		RunService:Set3dRenderingEnabled(false)
+	else
+		RunService:Set3dRenderingEnabled(true)
+	end
 end
 
--- حلقة التشغيل الرئيسية المعالجة لكل المشاكل
-RunService.RenderStepped:Connect(function()
-    -- سرعة آمنة تمنع الموت نهائياً
-    if Settings.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeedValue
-    end
-    
-    -- إيم بوت داخل دائرة الـ FOV فقط عند الضغط على زر الماوس الأيمن
-    if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local targetHead = GetClosestPlayerInFOV()
-        if targetHead then
-            local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.25)
+local postBuyWaypoints = {
+	Vector3.new(6837.8, 17.2, 30.7),
+	Vector3.new(6843.8, 17.2, 101.4),
+	Vector3.new(2785.6, 17.2, 94.8),
+	Vector3.new(2669.2, 17.2, 111.6),
+	Vector3.new(97.4, 17.2, 112.9),
+	Vector3.new(54.6, 17.2, 341.1),
+	Vector3.new(-124.1, 17.2, 394.1),
+	Vector3.new(-101.3, 17.2, 505.4),
+	Vector3.new(13.0, 17.2, 494.9),
+	Vector3.new(44.5, 17.2, 431.0),
+	Vector3.new(47.6, 33.3, 563.5),
+	Vector3.new(29.3, 33.3, 424.0),
+	Vector3.new(42.9, 49.3, 561.7),
+	Vector3.new(-80.5, 49.3, 428.5)
+}
+
+local postSellWaypoints = {
+    Vector3.new(-33.5, 49.3, 429.2),
+	Vector3.new(-24.6, 53.5, 405.4),
+	Vector3.new(23.4, 17.2, 348.7),
+	Vector3.new(169.1, 17.2, 148.7),
+	Vector3.new(2848.5, 17.2, 159.6),
+	Vector3.new(6867.7, 17.2, 133.0),
+	Vector3.new(6832.1, 17.4, -41.5),
+	Vector3.new(6805.6, 17.4, -34.4)
+}
+
+--------------------------------------------------------------------
+-- 🛣️ WAYPOINT SYSTEM
+--------------------------------------------------------------------
+local pathFolder = workspace:FindFirstChild("AutoFarm_PathFolder") or Instance.new("Folder")
+pathFolder.Name = "AutoFarm_PathFolder"
+pathFolder.Parent = workspace
+
+local activePathObjects = {}
+local activeBeamsList = {}
+local pathAnimConnection = nil
+
+local function clearWaylines()
+	if pathAnimConnection then
+		pathAnimConnection:Disconnect()
+		pathAnimConnection = nil
+	end
+	for _, obj in ipairs(activePathObjects) do
+		if obj and obj.Parent then
+			obj:Destroy()
+		end
+	end
+	activePathObjects = {}
+	activeBeamsList = {}
+	pathFolder:ClearAllChildren()
+end
+
+local function updateActiveBeams()
+	for _, item in ipairs(activeBeamsList) do
+		if item.Beam and item.Beam.Parent then
+			item.Beam.Width0 = pathGlowSize
+			item.Beam.Width1 = pathGlowSize
+			item.Beam.TextureLength = pathLength
+			item.Beam.TextureSpeed = pathSpeed
+		end
+	end
+end
+
+local function drawForwardPath(waypoints, currentIndex)
+	clearWaylines()
+	if not showPathLine or not waypoints or currentIndex > #waypoints then return end
+
+	local char = player.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local pointsToDraw = {}
+	table.insert(pointsToDraw, hrp.Position)
+
+	for i = currentIndex, #waypoints do
+		table.insert(pointsToDraw, waypoints[i])
+	end
+
+	activeBeamsList = {}
+
+	for i = 1, #pointsToDraw - 1 do
+		local pA = pointsToDraw[i]
+		local pB = pointsToDraw[i+1]
+
+		local partA = Instance.new("Part")
+		partA.Size = Vector3.new(0.1, 0.1, 0.1)
+		partA.Position = pA
+		partA.Anchored = true
+		partA.CanCollide = false
+		partA.Transparency = 1
+		partA.Parent = pathFolder
+
+		local partB = Instance.new("Part")
+		partB.Size = Vector3.new(0.1, 0.1, 0.1)
+		partB.Position = pB
+		partB.Anchored = true
+		partB.CanCollide = false
+		partB.Transparency = 1
+		partB.Parent = pathFolder
+
+		local attA = Instance.new("Attachment", partA)
+		local attB = Instance.new("Attachment", partB)
+
+		local beam = Instance.new("Beam")
+		beam.Attachment0 = attA
+		beam.Attachment1 = attB
+		
+		beam.Texture = "rbxassetid://446111271"
+		beam.TextureMode = Enum.TextureMode.Wrap
+		beam.TextureLength = pathLength
+		beam.TextureSpeed = pathSpeed
+		
+		beam.Width0 = pathGlowSize
+		beam.Width1 = pathGlowSize
+		beam.Transparency = NumberSequence.new(0)
+		beam.FaceCamera = true
+		beam.LightEmission = 1
+		beam.LightInfluence = 0
+		beam.Parent = pathFolder
+
+		table.insert(activePathObjects, partA)
+		table.insert(activePathObjects, partB)
+		table.insert(activePathObjects, beam)
+		table.insert(activeBeamsList, {Beam = beam, Index = i})
+	end
+
+	pathAnimConnection = RunService.RenderStepped:Connect(function()
+		local speed = 0.5
+		local offset = (tick() * speed) % 1
+
+		for _, item in ipairs(activeBeamsList) do
+			if item.Beam and item.Beam.Parent then
+				local factorA = math.sin((offset + (item.Index * 0.1)) * math.pi * 2) * 0.5 + 0.5
+				local factorB = math.sin((offset + ((item.Index + 1) * 0.1)) * math.pi * 2) * 0.5 + 0.5
+
+				local cA = pathColor1:Lerp(pathColor2, factorA)
+				local cB = pathColor1:Lerp(pathColor2, factorB)
+
+				item.Beam.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, cA),
+					ColorSequenceKeypoint.new(1, cB)
+				})
+			end
+		end
+	end)
+end
+
+--------------------------------------------------------------------
+-- ⚡ FPS BOOST
+--------------------------------------------------------------------
+local originalLightingSettings = {}
+local fpsConnections = {}
+
+local function stripCharacter(char)
+	if not char then return end
+	local children = char:GetChildren()
+	for i = #children, 1, -1 do
+		local item = children[i]
+		if item:IsA("Accessory") or item:IsA("Clothing") or item:IsA("ShirtGraphic") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("CharacterMesh") then
+			pcall(function() item:Destroy() end)
+		end
+	end
+end
+
+local function optimizeInst(v)
+	if not v then return end
+	pcall(function()
+		if v:IsA("BasePart") then
+			v.Material = Enum.Material.SmoothPlastic
+			v.CastShadow = false
+			v.Reflectance = 0
+		elseif v:IsA("Decal") or v:IsA("Texture") then
+			v:Destroy()
+		elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+			v.Enabled = false
+		elseif v:IsA("Light") then
+			v.Enabled = false
+		end
+	end)
+end
+
+local function applyFPSBoost(state)
+	fpsBoostActive = state
+	if state then
+		originalLightingSettings.GlobalShadows = Lighting.GlobalShadows
+		originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
+		originalLightingSettings.Ambient = Lighting.Ambient
+		originalLightingSettings.FogEnd = Lighting.FogEnd
+		originalLightingSettings.Technology = Lighting.Technology
+
+		Lighting.GlobalShadows = false
+		Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+		Lighting.Ambient = Color3.fromRGB(15, 15, 15)
+		Lighting.FogEnd = 9e9
+		
+		pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
+
+		local lightingChildren = Lighting:GetChildren()
+		for i = #lightingChildren, 1, -1 do
+			local child = lightingChildren[i]
+			if child:IsA("Sky") or child:IsA("Atmosphere") or child:IsA("PostEffect") or child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect") then
+				pcall(function() child:Destroy() end)
+			end
+		end
+		
+		local darkSky = Instance.new("Sky")
+		darkSky.Name = "FPSBoostSky"
+		darkSky.SkyboxBk = "rbxassetid://0"
+		darkSky.SkyboxDn = "rbxassetid://0"
+		darkSky.SkyboxFt = "rbxassetid://0"
+		darkSky.SkyboxLf = "rbxassetid://0"
+		darkSky.SkyboxRt = "rbxassetid://0"
+		darkSky.SkyboxUp = "rbxassetid://0"
+		darkSky.SkyboxColor = Color3.fromRGB(10, 10, 10)
+		darkSky.Parent = Lighting
+
+		local descendants = workspace:GetDescendants()
+		for i = 1, #descendants do optimizeInst(descendants[i]) end
+
+		local connAdded = workspace.DescendantAdded:Connect(function(v)
+			if fpsBoostActive then task.wait() optimizeInst(v) end
+		end)
+		table.insert(fpsConnections, connAdded)
+
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p.Character then stripCharacter(p.Character) end
+			local connChar = p.CharacterAdded:Connect(function(char)
+				if fpsBoostActive then
+					char:WaitForChild("Humanoid", 5)
+					task.wait(0.2)
+					stripCharacter(char)
+				end
+			end)
+			table.insert(fpsConnections, connChar)
+		end
+	else
+		for _, conn in ipairs(fpsConnections) do if conn then conn:Disconnect() end end
+		fpsConnections = {}
+		Lighting.GlobalShadows = originalLightingSettings.GlobalShadows or true
+		Lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient or Color3.fromRGB(128, 128, 128)
+		Lighting.Ambient = originalLightingSettings.Ambient or Color3.fromRGB(128, 128, 128)
+		local currentSky = Lighting:FindFirstChild("FPSBoostSky")
+		if currentSky then currentSky:Destroy() end
+	end
+end
+
+--------------------------------------------------------------------
+-- 🧠 TARGET & ROUTING HELPERS
+--------------------------------------------------------------------
+local function findTarget(keyword)
+	local key = string.lower(keyword)
+	for _, prompt in ipairs(workspace:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			local objText = string.lower(prompt.ObjectText or "")
+			local actText = string.lower(prompt.ActionText or "")
+			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
+			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
+				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
+				if targetPart:IsA("BasePart") then return targetPart, prompt
+				elseif targetPart:IsA("Model") then
+					local part = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
+					if part then return part, prompt end
+				end
+			end
+		end
+	end
+	return nil, nil
+end
+
+local function findNearestTargetToPos(keyword, pos)
+	local key = string.lower(keyword)
+	local nearestPart, nearestPrompt = nil, nil
+	local minDistance = math.huge
+	for _, prompt in ipairs(workspace:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			local objText = string.lower(prompt.ObjectText or "")
+			local actText = string.lower(prompt.ActionText or "")
+			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
+			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
+				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
+				if targetPart then
+					local part = targetPart:IsA("BasePart") and targetPart or targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
+					if part then
+						local dist = (pos - part.Position).Magnitude
+						if dist < minDistance then minDistance = dist nearestPart = part nearestPrompt = prompt end
+					end
+				end
+			end
+		end
+	end
+	return nearestPart, nearestPrompt
+end
+
+local function getVehicleModel(seat)
+	if not seat then return nil end
+	local current = seat
+	local vehicleModel = nil
+	while current and current ~= workspace do
+		if current:IsA("Model") then vehicleModel = current end
+		current = current.Parent
+	end
+	return vehicleModel
+end
+
+local function dismountVehicle()
+	local char = player.Character
+	if not char then return end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	
+	if humanoid and humanoid.SeatPart then
+		lastVehicle = getVehicleModel(humanoid.SeatPart)
+		if lastVehicle then
+			for _, part in ipairs(lastVehicle:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
+				end
+			end
+			
+			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
+			if primary then
+				primary.Anchored = true
+			end
+		end
+		
+		if hrp then
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+
+		humanoid.Sit = false
+		task.wait(0.1)
+		
+		if hrp and lastVehicle then
+			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
+			if primary then
+				hrp.CFrame = primary.CFrame * CFrame.new(0, 5, 0)
+			end
+		end
+	end
+end
+
+local function getInVehicle()
+	if not lastVehicle or not lastVehicle.Parent then return end
+	local char = player.Character
+	if not char then return end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp or not humanoid then return end
+	
+	local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
+	if primary then
+		primary.Anchored = false
+	end
+
+	if humanoid.SeatPart then return end
+	
+	local seat = lastVehicle:FindFirstChildWhichIsA("VehicleSeat", true) or lastVehicle:FindFirstChildWhichIsA("Seat", true)
+	if seat then
+		hrp.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
+		task.wait(0.1)
+		seat:Sit(humanoid)
+		task.wait(0.2)
+	end
+end
+
+local function getNearestWaypointIndex(waypoints, currentPos)
+	local closestIdx = 1
+	local minDist = math.huge
+	for i, wp in ipairs(waypoints) do
+		local dist = (Vector3.new(currentPos.X, wp.Y, currentPos.Z) - wp).Magnitude
+		if dist < minDist then
+			minDist = dist
+			closestIdx = i
+		end
+	end
+	return closestIdx
+end
+
+local function moveToPositionVelocity(targetPos)
+	local char = player.Character
+	if not char then return false, false end
+	
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp or not humanoid then return false, false end
+
+	local seat = humanoid.SeatPart
+	local vehicleModel = getVehicleModel(seat)
+	
+	local movePart = (seat and vehicleModel) and (vehicleModel.PrimaryPart or seat) or hrp
+	if not movePart then return false, false end
+
+	local floatPart = Instance.new("Part")
+	floatPart.Name = "AntiFall_FloatPlatform"
+	floatPart.Size = Vector3.new(30, 1, 30)
+	floatPart.Anchored = true
+	floatPart.CanCollide = true
+	floatPart.Transparency = 1
+	floatPart.Parent = workspace
+
+	local bodyVel = Instance.new("BodyVelocity")
+	bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+	bodyVel.Velocity = Vector3.zero
+	bodyVel.Parent = movePart
+
+	local bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+	bodyGyro.P = 10000
+	bodyGyro.CFrame = movePart.CFrame
+	bodyGyro.Parent = movePart
+
+	local noclipConnection = RunService.Stepped:Connect(function()
+		if not isRunning then return end
+		if movePart and movePart.Parent then 
+			floatPart.CFrame = movePart.CFrame * CFrame.new(0, -3.5, 0) 
+		end
+		if player.Character then
+			for _, part in ipairs(player.Character:GetDescendants()) do
+				if part:IsA("BasePart") and part ~= floatPart then 
+					part.CanCollide = false 
+				end
+			end
+		end
+		if vehicleModel then
+			for _, part in ipairs(vehicleModel:GetDescendants()) do
+				if part:IsA("BasePart") and part ~= floatPart then 
+					part.CanCollide = false 
+				end
+			end
+		end
+	end)
+
+	local targetPosWithHeight = Vector3.new(targetPos.X, targetPos.Y + CONFIG.Height, targetPos.Z)
+	local arrived = false
+	local rubberbandDetected = false
+	local previousPos = movePart.Position
+
+	local stopThreshold = math.clamp(CONFIG.Speed * 0.04, 6, 15)
+
+	local renderConnection = RunService.Heartbeat:Connect(function()
+		if not isRunning or not movePart or not movePart.Parent then arrived = false return end
+
+		local currentPos = movePart.Position
+		local moveDelta = (currentPos - previousPos).Magnitude
+		local distToTarget = (targetPosWithHeight - currentPos).Magnitude
+
+		if moveDelta > 45 and distToTarget > 20 then
+			rubberbandDetected = true
+			bodyVel.Velocity = Vector3.zero
+			return
+		end
+		
+		previousPos = currentPos
+
+		if distToTarget <= stopThreshold then
+			arrived = true
+			return
+		end
+
+		local speedFactor = math.clamp(distToTarget / 40, 0.25, 1)
+		local currentSpeed = CONFIG.Speed * speedFactor
+		local direction = (targetPosWithHeight - currentPos)
+		
+		bodyVel.Velocity = direction.Unit * currentSpeed
+		bodyGyro.CFrame = CFrame.lookAt(currentPos, Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z))
+	end)
+
+	while isRunning and not arrived and not rubberbandDetected do
+		task.wait(0.01)
+	end
+
+	if noclipConnection then noclipConnection:Disconnect() end
+	if renderConnection then renderConnection:Disconnect() end
+	bodyVel:Destroy()
+	bodyGyro:Destroy()
+	floatPart:Destroy()
+
+	if movePart and movePart.Parent then
+		movePart.AssemblyLinearVelocity = Vector3.zero
+		movePart.AssemblyAngularVelocity = Vector3.zero
+	end
+
+	if player.Character then
+		for _, part in ipairs(player.Character:GetDescendants()) do
+			if part:IsA("BasePart") then part.CanCollide = true end
+		end
+	end
+
+	return arrived, rubberbandDetected
+end
+
+local function moveToTargetVelocity(targetPart)
+	if not targetPart then return false end
+	local arrived, rubberband = moveToPositionVelocity(targetPart.Position)
+	return arrived
+end
+
+local function tweenToInteract(targetPart)
+	local char = player.Character
+	if not char then return false end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp or not humanoid then return false end
+
+	local seat = humanoid.SeatPart
+	local vehicleModel = getVehicleModel(seat)
+	local groundTargetCFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+
+	if seat and vehicleModel then
+		local duration = math.clamp((vehicleModel.PrimaryPart.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
+		local cframeValue = Instance.new("CFrameValue")
+		cframeValue.Value = vehicleModel:GetPivot()
+
+		local tween = TweenService:Create(cframeValue, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Value = groundTargetCFrame})
+		local conn = cframeValue.Changed:Connect(function(newCFrame)
+			if vehicleModel and vehicleModel.Parent then vehicleModel:PivotTo(newCFrame) end
+		end)
+
+		tween:Play()
+		task.wait(duration)
+		conn:Disconnect()
+		cframeValue:Destroy()
+
+		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
+		dismountVehicle()
+		return true
+	else
+		local duration = math.clamp((hrp.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
+		local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = groundTargetCFrame})
+		tween:Play()
+		task.wait(duration)
+
+		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
+		return true
+	end
+end
+
+local function goToTarget(targetPart)
+	local reached = moveToTargetVelocity(targetPart)
+	if not reached or not isRunning then return false end
+	return tweenToInteract(targetPart)
+end
+
+local function processWaypoints(waypoints, labelPrefix)
+	local currentIndex = 1
+
+	while isRunning and currentIndex <= #waypoints do
+		if currentIndex == 1 then getInVehicle() end
+		
+		drawForwardPath(waypoints, currentIndex)
+		
+		local targetPos = waypoints[currentIndex]
+		local arrived, rubberbandDetected = moveToPositionVelocity(targetPos)
+
+		if rubberbandDetected then
+			task.wait(0.3)
+
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			
+			if hrp then
+				local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
+				currentIndex = nearestIdx
+				
+				local safeTargetPos = waypoints[nearestIdx] + Vector3.new(0, CONFIG.Height, 0)
+				local movePart = hrp
+				
+				local humanoid = char:FindFirstChildOfClass("Humanoid")
+				if humanoid and humanoid.SeatPart then
+					local vModel = getVehicleModel(humanoid.SeatPart)
+					if vModel then movePart = vModel.PrimaryPart or humanoid.SeatPart end
+				end
+
+				local recoverTween = TweenService:Create(movePart, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(safeTargetPos)})
+				recoverTween:Play()
+				recoverTween.Completed:Wait()
+				task.wait(0.1)
+			end
+		elseif arrived then
+			currentIndex = currentIndex + 1
+		end
+	end
+	clearWaylines()
+end
+
+--------------------------------------------------------------------
+-- ⚙️ INTERACT LOGIC
+--------------------------------------------------------------------
+local function interactWith(targetPart, prompt)
+	local activePrompt = prompt 
+		or (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt")) 
+		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt")) 
+		or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
+
+	if activePrompt then
+		activePrompt.HoldDuration = 0
+		
+		if fireproximityprompt then
+			fireproximityprompt(activePrompt)
+		else
+			pcall(function()
+				activePrompt:InputHoldBegin()
+				task.wait(0.01)
+				activePrompt:InputHoldEnd()
+			end)
+		end
+		return true
+	end
+
+	local clickDetector = (targetPart and targetPart:FindFirstChildOfClass("ClickDetector")) 
+		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ClickDetector")) 
+		or (targetPart and targetPart:FindFirstChildWhichIsA("ClickDetector", true))
+
+	if clickDetector and fireclickdetector then
+		fireclickdetector(clickDetector)
+		return true
+	end
+
+	return false
+end
+
+local function getProcessableItemCount()
+	local count = 0
+	if player:FindFirstChild("Backpack") then
+		for _, item in ipairs(player.Backpack:GetChildren()) do
+			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
+		end
+	end
+	local char = player.Character
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
+		end
+	end
+	return count
+end
+
+local function getItemCount(itemName)
+	local count = 0
+	local key = string.lower(itemName)
+	if player:FindFirstChild("Backpack") then
+		for _, item in ipairs(player.Backpack:GetChildren()) do
+			if string.find(string.lower(item.Name), key) then count = count + 1 end
+		end
+	end
+	local char = player.Character
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if string.find(string.lower(item.Name), key) then count = count + 1 end
+		end
+	end
+	return count
+end
+
+--------------------------------------------------------------------
+-- 🔄 MAIN LOOP
+--------------------------------------------------------------------
+local function mainLoop()
+	local savedBuyPart, savedBuyPrompt = nil, nil
+
+	while isRunning do
+		if getItemCount(CONFIG.ItemName) < CONFIG.Amount then
+			if not savedBuyPart or not savedBuyPart.Parent then 
+				savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName) 
+			end
+
+			if savedBuyPart then
+				getInVehicle()
+				if goToTarget(savedBuyPart) then
+					local buyTimeout = 0
+					while isRunning and getItemCount(CONFIG.ItemName) < CONFIG.Amount and buyTimeout < 40 do
+						interactWith(savedBuyPart, savedBuyPrompt)
+						task.wait(0.05)
+						buyTimeout = buyTimeout + 1
+					end
+					getInVehicle()
+				end
+			else
+				task.wait(0.5)
+			end
+		end
+
+		if not isRunning then break end
+		processWaypoints(postBuyWaypoints, "Post-Buy Route")
+		if not isRunning then break end
+
+		if autoSell and getItemCount(CONFIG.ItemName) > 0 then
+			local lastBuyPos = postBuyWaypoints[#postBuyWaypoints]
+			local sellPart, sellPrompt = findNearestTargetToPos(CONFIG.SellName, lastBuyPos)
+			if not sellPart then 
+				sellPart, sellPrompt = findNearestTargetToPos("Smuggle", lastBuyPos) 
+			end
+
+			if sellPart then
+				getInVehicle()
+				if goToTarget(sellPart) then
+					local sellAttempts = 0
+					while isRunning and getItemCount(CONFIG.ItemName) > 0 and sellAttempts < 35 do
+						interactWith(sellPart, sellPrompt)
+						task.wait(0.08)
+						sellAttempts = sellAttempts + 1
+					end
+					getInVehicle()
+				end
+			else
+				task.wait(0.5)
+			end
+		end
+
+		if not isRunning then break end
+		processWaypoints(postSellWaypoints, "Post-Sell Route")
+		if not isRunning then break end
+
+		if autoLaunder then
+			local launderPart, launderPrompt = findTarget(CONFIG.LaunderName)
+			if launderPart then
+				getInVehicle()
+				if goToTarget(launderPart) then
+					local launderAttempts = 0
+					while isRunning and getProcessableItemCount() > 0 and launderAttempts < 40 do
+						interactWith(launderPart, launderPrompt)
+						task.wait(0.08)
+						launderAttempts = launderAttempts + 1
+					end
+					task.wait(0.1)
+					getInVehicle()
+				end
+			else
+				task.wait(0.5)
+			end
+		end
+		
+		task.wait(0.1)
+	end
+	clearWaylines()
+end
+
+--------------------------------------------------------------------
+-- 🎛️ WINDUI ELEMENTS & CONTROLS (عربي / إنجليزي)
+--------------------------------------------------------------------
+
+ReadTab:Paragraph({
+    Title = "⚠️ تنبيه هام / Warning",
+    Content = "تم تطوير وتعديل هذا السكريبت بواسطة (المبجل)."
+})
+
+ReadTab:Paragraph({
+    Title = "ℹ️ ملاحظة الأداء / Performance",
+    Content = "إذا واجهت تقطيعاً، فلا تلوم السكريبت بل جهازك! / If you're laggy don't blame the script!!"
+})
+
+MainTab:Toggle({
+    Title = "التجميع الآلي / Auto Farm",
+    Desc = "تشغيل أو إيقاف التجميع الآلي",
+    Icon = "power",
+    Type = "Toggle",
+    Value = isRunning,
+    Callback = function(state)
+        isRunning = state
+        if isRunning then
+            task.spawn(mainLoop)
+        else
+            clearWaylines()
         end
     end
-    
-    -- فارم شامل ودقيق لجميع البضائع والبرومبتات التفاعلية في الماب
-    if Settings.AutoSmuggleEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        pcall(function()
-            local hrp = LocalPlayer.Character.HumanoidRootPart
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("ProximityPrompt") then
-                    local parent = obj.Parent
-                    if parent then
-                        local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
-                        if pos and (pos - hrp.Position).Magnitude <= (obj.MaxActivationDistance or 25) then
-                            fireproximityprompt(obj)
-                        end
-                    end
-                elseif obj:IsA("ClickDetector") then
-                    local parent = obj.Parent
-                    if parent then
-                        local pos = parent:IsA("BasePart") and parent.Position or (parent:IsA("Model") and parent.PrimaryPart and parent.PrimaryPart.Position)
-                        if pos and (pos - hrp.Position).Magnitude <= 20 then
-                            fireclickdetector(obj)
-                        end
-                    end
-                end
-            end
-        end)
+})
+
+MainTab:Toggle({
+    Title = "بيع البضائع تلقائياً / Auto Sell Goods",
+    Desc = "بيع البضائع عند الامتلاء",
+    Icon = "store",
+    Type = "Toggle",
+    Value = autoSell,
+    Callback = function(state)
+        autoSell = state
     end
-end)
+})
+
+MainTab:Toggle({
+    Title = "غسيل الأموال تلقائياً / Auto Launder Cash",
+    Desc = "تنظيف الأموال تلقائياً",
+    Icon = "banknote",
+    Type = "Toggle",
+    Value = autoLaunder,
+    Callback = function(state)
+        autoLaunder = state
+    end
+})
+
+MainTab:Slider({
+    Title = "سرعة الطيران / Fly Speed",
+    Desc = "تعديل سرعة الانتقال",
+    Icon = "gauge",
+    Step = 5,
+    Value = {
+        Min = 150,
+        Max = 300,
+        Default = CONFIG.Speed,
+    },
+    Callback = function(value)
+        CONFIG.Speed = value
+    end
+})
+
+MainTab:Slider({
+    Title = "ارتفاع التوين / Tween Height (Y)",
+    Desc = "تعديل الارتفاع عن الأرض",
+    Icon = "arrow-up-right",
+    Step = 0.1,
+    Value = {
+        Min = 1,
+        Max = 5,
+        Default = CONFIG.Height,
+    },
+    Callback = function(value)
+        CONFIG.Height = value
+    end
+})
+
+MainTab:Slider({
+    Title = "الكمية المطلوبة / Target Amount",
+    Desc = "حدد كمية الأغراض المراد جمعها",
+    Icon = "boxes",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 5,
+        Default = CONFIG.Amount,
+    },
+    Callback = function(value)
+        CONFIG.Amount = value
+    end
+})
+
+MainTab:Slider({
+    Title = "تأخير التوين / Tween Delay (s)",
+    Desc = "تحديد الوقت الفاصل للتنقل",
+    Icon = "timer",
+    Step = 0.1,
+    Value = {
+        Min = 0,
+        Max = 5,
+        Default = CONFIG.TweenDelay,
+    },
+    Callback = function(value)
+        CONFIG.TweenDelay = value
+    end
+})
+
+MainTab:Dropdown({
+    Title = "اختر الغرض / Select Item",
+    Desc = "حدد نوع العنصر المراد شراؤه",
+    Icon = "package-search",
+    Values = {
+        "Crate Of Avacados",
+        "Wagyu Beef",
+        "Witches Brew",
+        "Fake Designer Sneakers",
+        "Fake Diamond Ring"
+    },
+    Value = CONFIG.ItemName,
+    Callback = function(selected)
+        CONFIG.ItemName = selected
+    end
+})
+
+MiscTab:Toggle({
+    Title = "تسريع اللعبة / Boost FPS",
+    Desc = "تقليل الجرافيك لرفع الفريمات",
+    Icon = "cpu",
+    Type = "Toggle",
+    Value = fpsBoostActive,
+    Callback = function(state)
+        applyFPSBoost(state)
+    end
+})
+
+MiscTab:Toggle({
+    Title = "منع التوقف التلقائي / Anti Gameplay Paused",
+    Desc = "منع توقف اللعبة عند خروج الماوس",
+    Icon = "shield-check",
+    Type = "Toggle",
+    Value = antiPauseActive,
+    Callback = function(state)
+        applyAntiPause(state)
+    end
+})
+
+MiscTab:Toggle({
+    Title = "إيقاف الرندر / No Render",
+    Desc = "إيقاف رسم العالم لزيادة الأداء",
+    Icon = "eye-off",
+    Type = "Toggle",
+    Value = noRenderActive,
+    Callback = function(state)
+        applyNoRender(state)
+    end
+})
+
+MiscTab:Toggle({
+    Title = "إظهار خط المسار / Show Path Line",
+    Desc = "تشغيل/إيقاف خطوط توجيه المسار البصرية",
+    Icon = "route",
+    Type = "Toggle",
+    Value = showPathLine,
+    Callback = function(state)
+        showPathLine = state
+        if not showPathLine then
+            clearWaylines()
+        end
+    end
+})
+
+MiscTab:Slider({
+    Title = "حجم إضاءة المسار / Path Glow Size",
+    Desc = "تعديل سماكة الخط وسطوعه",
+    Icon = "sparkles",
+    Step = 0.1,
+    Value = {
+        Min = 0.1,
+        Max = 3.0,
+        Default = pathGlowSize,
+    },
+    Callback = function(value)
+        pathGlowSize = value
+        updateActiveBeams()
+    end
+})
+
+MiscTab:Slider({
+    Title = "طول نمط المسار / Path Texture Length",
+    Desc = "تعديل طول نمط الخط",
+    Icon = "ruler",
+    Step = 0.1,
+    Value = {
+        Min = 1.0,
+        Max = 20.0,
+        Default = pathLength,
+    },
+    Callback = function(value)
+        pathLength = value
+        updateActiveBeams()
+    end
+})
