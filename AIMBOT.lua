@@ -1,5 +1,5 @@
 -- // ==================================================================== \\ --
--- //   Time Bomb Ultimate - PhantomXPro UI Style & Auto-Give Bomb Engine  \\ --
+-- //   Time Bomb  - almbjl UI Style & Auto-Give Bomb Engine  \\ --
 -- // ==================================================================== --
 
 local Players = game:GetService("Players")
@@ -39,8 +39,8 @@ local function Cleanup()
     end
     ESPObjects = {}
 
-    if CoreGui:FindFirstChild("PhantomXProTimeBomb") then
-        CoreGui.PhantomXProTimeBomb:Destroy()
+    if CoreGui:FindFirstChild("almbjl TimeBomb") then
+        CoreGui.almbjl TimeBomb:Destroy()
     end
 
     local char = LocalPlayer.Character
@@ -246,9 +246,9 @@ table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
     end
 end))
 
--- // 6. واجهة مستخدم مشابهة تماماً لـ PhantomXPro \\ --
+-- // 6. واجهة مستخدم مشابهة تماماً لـ almbjl \\ --
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "PhantomXProTimeBomb"
+ScreenGui.Name = "almbjlTimeBomb"
 ScreenGui.Parent = CoreGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -272,7 +272,7 @@ local Title = Instance.new("TextLabel", TopBar)
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.Font = Enum.Font.GothamBold
-Title.Text = "PhantomXPro"
+Title.Text = "almbjl"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.TextXAlignment = Enum.TextXAlignment.Left
