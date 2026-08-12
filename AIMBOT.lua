@@ -2,21 +2,21 @@
 -- //          تم الصنع بواسطة: المبجّل            \\ --
 -- // ========================================== \\ --
 
-local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- منع تكرار الواجهة إذا كانت مفتوحة مسبقاً
-if CoreGui:FindFirstChild("AlMubajjalUI") then
-    CoreGui.AlMubajjalUI:Destroy()
+if PlayerGui:FindFirstChild("AlMubajjalUI") then
+    PlayerGui.AlMubajjalUI:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AlMubajjalUI"
-ScreenGui.Parent = CoreGui
+ScreenGui.Parent = PlayerGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ResetOnSpawn = false
 
 -- النافذة الرئيسية
 local MainFrame = Instance.new("Frame")
