@@ -1,27 +1,22 @@
 -- // ====================================================== \\ --
--- //   Time Bomb Ultimate Pro System - 10/10 Architecture   \\ --
+-- //   Time Bomb Ultimate Pro System - Fixed & Optimized    \\ --
 -- // ====================================================== --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- // 1. منع تكرار التشغيل وتنظيف النسخ السابقة \\ --
 if getgenv().TimeBombCleanup then
     getgenv().TimeBombCleanup()
 end
 
 local Settings = {
-    AutoChaseEnabled = true,     -- تتبع واستهداف أقرب لاعب يحمل القنبلة
-    NoclipEnabled = true,        -- المشي من خلال الجدران والعوائق
-    SpeedBoostEnabled = true,    -- سرعة خارقة لتجاوز الجميع
-    CustomSpeed = 32,            -- معدل السرعة الفائق
-    ESPEnabled = true,           -- كشف اللاعبين والقنبلة
-    SafeDistance = 3,            -- المسافة المثالية لتسليم القنبلة
-    DebugMode = false
+    AutoChaseEnabled = true,
+    NoclipEnabled = true,
+    SpeedBoostEnabled = true,
+    CustomSpeed = 35,
+    ESPEnabled = true,
 }
 
 local ActiveConnections = {}
@@ -50,7 +45,7 @@ end
 getgenv().TimeBombCleanup = Cleanup
 getgenv().TimeBombLoaded = true
 
--- // 2. نظام الـ Noclip (المشي من ورا الجدران) \\ --
+-- // 1. نظام الـ Noclip (المشي من ورا الجدران) \\ --
 table.insert(ActiveConnections, RunService.Stepped:Connect(function()
     if not Settings.NoclipEnabled then return end
     local char = LocalPlayer.Character
@@ -63,7 +58,7 @@ table.insert(ActiveConnections, RunService.Stepped:Connect(function()
     end
 end))
 
--- // 3. نظام السرعة الفائقة \\ --
+-- // 2. نظام السرعة الفائقة \\ --
 table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
     if not Settings.SpeedBoostEnabled then return end
     local char = LocalPlayer.Character
@@ -76,7 +71,7 @@ table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
     end
 end))
 
--- // 4. كشف اللاعبين والتحقق من حاملي القنبلة (ESP) \\ --
+-- // 3. كشف اللاعبين (ESP) \\ --
 local function RemoveESP(char)
     if ESPObjects[char] then
         if ESPObjects[char].Highlight then ESPObjects[char].Highlight:Destroy() end
@@ -143,8 +138,8 @@ table.insert(ActiveConnections, Players.PlayerRemoving:Connect(function(p)
     if p.Character then RemoveESP(p.Character) end
 end))
 
--- // 5. نظام التتبع الآلي الذكي (Auto-Chase Target System) \\ --
-local function GetClosestTargetWithBomb()
+-- // 4. المطاردة والتتبع الآلي \\ --
+local function GetClosestTarget()
     local closestTarget = nil
     local shortestDist = math.huge
     local myChar = LocalPlayer.Character
@@ -155,20 +150,6 @@ local function GetClosestTargetWithBomb()
         if player ~= LocalPlayer then
             local char = player.Character
             if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") and char.Humanoid.Health > 0 then
-                -- الكشف التلقائي عن القنبلة (سواء كانت أداة في اليد أو خاصية في الجسم)
-                local hasBomb = char:FindFirstChildOfClass("Tool") or char:FindFirstChild("Bomb") or char:FindFirstChild("TimeBomb")
-                
-                -- إذا لم تكن الأداة مرئية كـ Tool، نتحقق من حقيبة اللاعب أو أي مظهر مرتبط بالقنبلة
-                if not hasBomb and player.Character then
-                    for _, child in ipairs(player.Character:GetChildren()) do
-                        if child:NameLower():find("bomb") or child:NameLower():find("dynamite") or child:NameLower():find("tnt") then
-                            hasBomb = true
-                            break
-                        end
-                    end
-                end
-
-                -- نحدد الهدف بغض النظر عن وجود القنبلة أو إذا أردت مطاردة أقرب لاعب لتسليمها
                 local dist = (char.HumanoidRootPart.Position - myRoot.Position).Magnitude
                 if dist < shortestDist then
                     shortestDist = dist
@@ -184,19 +165,16 @@ table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
     if not Settings.AutoChaseEnabled then return end
     local myChar = LocalPlayer.Character
     if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
-    local myRoot = myChar.HumanoidRootPart
     local humanoid = myChar:FindFirstChildOfClass("Humanoid")
 
-    local targetRoot = GetClosestTargetWithBomb()
+    local targetRoot = GetClosestTarget()
     if targetRoot and humanoid then
-        -- الانتقال والتوجيه المباشر نحو الهدف بسرعة خيالية متخطياً الجدران
         humanoid:MoveTo(targetRoot.Position)
         
-        -- تغيير لون الـ ESP لتوضيح الهدف المستهدف حالياً
         for char, objs in pairs(ESPObjects) do
             if char == targetRoot.Parent then
                 objs.Highlight.FillColor = Color3.fromRGB(255, 50, 50)
-                objs.Text.Text = "[ هدف القنبلة ]"
+                objs.Text.Text = "[ الهدف ]"
             else
                 objs.Highlight.FillColor = Color3.fromRGB(0, 150, 255)
             end
@@ -204,14 +182,14 @@ table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
     end
 end))
 
--- // 6. واجهة التحكم الاحترافية (Modern GUI) \\ --
+-- // 5. واجهة التحكم (GUI) \\ --
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "TimeBombProHub"
 ScreenGui.Parent = CoreGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 280, 0, 340)
+MainFrame.Size = UDim2.new(0, 280, 0, 310)
 MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 MainFrame.BorderSizePixel = 0
@@ -273,7 +251,7 @@ local function BuildToggle(name, initState, callback)
     yPos = yPos + 46
 end
 
-BuildToggle("المطاردة الآلية للقنبلة", Settings.AutoChaseEnabled, function(state)
+BuildToggle("المطاردة الآلية", Settings.AutoChaseEnabled, function(state)
     Settings.AutoChaseEnabled = state
 end)
 
