@@ -15,8 +15,11 @@ local Settings = {
     Aimbot = false,
     FOVSize = 120,
     ESP = false,
-    Names = false
+    Names = false,
+    Smoothness = 5 -- سرعة السلاسة (كل ما زاد الرقم صار أبطأ وأعمم، الأفضل بين 3 إلى 8)
 }
+
+local LockedTarget = nil -- لتثبيت الإيم على نفس اللاعب وما يحول فجأة
 
 -- // إنشاء دائرة الـ FOV \\ --
 local FOVCircle = Drawing.new("Circle")
@@ -71,7 +74,6 @@ local function SetupPlayerESP(player)
     if player == LocalPlayer then return end
 
     local function applyVisuals(char)
-        -- الشوف من ورا الجدران (Highlight أحمر)
         local hl = char:FindFirstChild("AlMubajjalHL") or Instance.new("Highlight", char)
         hl.Name = "AlMubajjalHL"
         hl.FillColor = Color3.fromRGB(255, 0, 0)
@@ -80,7 +82,6 @@ local function SetupPlayerESP(player)
         hl.OutlineTransparency = 0
         hl.Enabled = Settings.ESP
 
-        -- إظهار الأسماء فوق الرأس
         local head = char:WaitForChild("Head", 5)
         if head then
             local bill = head:FindFirstChild("AlMubajjalName") or Instance.new("BillboardGui", head)
@@ -126,6 +127,7 @@ Instance.new("UICorner", AimbotBtn).CornerRadius = UDim.new(0, 6)
 AimbotBtn.MouseButton1Click:Connect(function()
     Settings.Aimbot = not Settings.Aimbot
     FOVCircle.Visible = Settings.Aimbot
+    if not Settings.Aimbot then LockedTarget = nil end
     AimbotBtn.Text = "الإيم بوت: " .. (Settings.Aimbot and "ON" or "OFF")
     AimbotBtn.BackgroundColor3 = Settings.Aimbot and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(50, 50, 60)
 end)
@@ -194,11 +196,9 @@ end)
 
 -- // حلقة التحديث المستمرة للوظائف \\ --
 RunService.RenderStepped:Connect(function()
-    -- تحديث الـ FOV ودائرته
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     FOVCircle.Radius = Settings.FOVSize
 
-    -- تطبيق الـ ESP والأسماء في الوقت الفعلي
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             local hl = p.Character:FindFirstChild("AlMubajjalHL")
@@ -212,30 +212,48 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- تشغيل الإيم بوت إذا تم تفعيله
     if Settings.Aimbot then
-        local closestTarget = nil
-        local shortestDist = Settings.FOVSize
+        -- التأكد من أن الهدف الحالي ما زال صالحاً (حي وموجود ضمن نطاق الرؤية)
+        if LockedTarget and LockedTarget.Parent and LockedTarget.Parent:FindFirstChild("Humanoid") and LockedTarget.Parent.Humanoid.Health > 0 then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(LockedTarget.Position)
+            local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+            
+            -- إذا طلع الهدف برا الـ FOV أو اختفى، فك القفل عنه
+            if not onScreen or dist > Settings.FOVSize * 1.5 then
+                LockedTarget = nil
+            end
+        else
+            LockedTarget = nil
+        end
 
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                local head = p.Character.Head
-                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        -- إذا ما فيه هدف مقفول، ابحث عن أقرب لاعب داخل الـ FOV واقفل عليه
+        if not LockedTarget then
+            local shortestDist = Settings.FOVSize
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                    local head = p.Character.Head
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
 
-                if onScreen then
-                    local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if onScreen then
+                        local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
 
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestTarget = head
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            LockedTarget = head
+                        end
                     end
                 end
             end
         end
 
-        if closestTarget then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestTarget.Position)
+        -- التوجيه بسلاسة وثبات نحو الهدف المقفول بدون تنطيط
+        if LockedTarget then
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, LockedTarget.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 1 / Settings.Smoothness)
         end
+    else
+        LockedTarget = nil
     end
 end)
