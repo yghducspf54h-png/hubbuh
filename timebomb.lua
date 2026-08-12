@@ -1,5 +1,5 @@
 -- // ==================================================================== \\ --
--- //   Time Bomb  - almbjl UI Style & Auto-Give Bomb Engine  \\ --
+-- //   Time Bomb  - almbjl UI Style & Auto-Give Bomb Engine ادري ياقفطة ماني مشفره \\ --
 -- // ==================================================================== --
 
 local Players = game:GetService("Players")
