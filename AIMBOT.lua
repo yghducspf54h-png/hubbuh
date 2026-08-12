@@ -1,64 +1,82 @@
 -- // ====================================================== \\ --
--- //     نظام المبجّل المعماري - Camera Aimbot & ESP         \\ --
+-- //   Time Bomb Ultimate Pro System - 10/10 Architecture   \\ --
 -- // ====================================================== --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
-if getgenv().AlMubajjalCleanup then
-    getgenv().AlMubajjalCleanup()
+-- // 1. منع تكرار التشغيل وتنظيف النسخ السابقة \\ --
+if getgenv().TimeBombCleanup then
+    getgenv().TimeBombCleanup()
 end
 
 local Settings = {
-    AimbotEnabled = false,
-    ESPEnabled = true,
-    NamesEnabled = true,
-    TeamCheck = false,
-    FOVRadius = 150,
-    Smoothness = 4, -- سرعة سلاسة الإيم بوت
-    TargetPart = "Head"
+    AutoChaseEnabled = true,     -- تتبع واستهداف أقرب لاعب يحمل القنبلة
+    NoclipEnabled = true,        -- المشي من خلال الجدران والعوائق
+    SpeedBoostEnabled = true,    -- سرعة خارقة لتجاوز الجميع
+    CustomSpeed = 32,            -- معدل السرعة الفائق
+    ESPEnabled = true,           -- كشف اللاعبين والقنبلة
+    SafeDistance = 3,            -- المسافة المثالية لتسليم القنبلة
+    DebugMode = false
 }
 
 local ActiveConnections = {}
 local ESPObjects = {}
-local LockedTarget = nil
 
 local function Cleanup()
-    for _, conn in ipairs(ActiveConnections) do conn:Disconnect() end
+    for _, conn in ipairs(ActiveConnections) do
+        if conn and conn.Connected then conn:Disconnect() end
+    end
+    ActiveConnections = {}
+
     for _, objs in pairs(ESPObjects) do
         if objs.Highlight then objs.Highlight:Destroy() end
         if objs.Billboard then objs.Billboard:Destroy() end
     end
-    if CoreGui:FindFirstChild("AlMubajjalHub") then CoreGui.AlMubajjalHub:Destroy() end
-    if CoreGui:FindFirstChild("FOV_Drawing") then CoreGui.FOV_Drawing:Destroy() end
-    getgenv().AlMubajjalCleanup = nil
+    ESPObjects = {}
+
+    if CoreGui:FindFirstChild("TimeBombProHub") then
+        CoreGui.TimeBombProHub:Destroy()
+    end
+
+    getgenv().TimeBombCleanup = nil
+    getgenv().TimeBombLoaded = false
 end
-getgenv().AlMubajjalCleanup = Cleanup
 
--- // 1. دائرة الـ FOV المرئية \\ --
-local FOVGui = Instance.new("ScreenGui", CoreGui)
-FOVGui.Name = "FOV_Drawing"
-local FOVFrame = Instance.new("Frame", FOVGui)
-FOVFrame.BackgroundTransparency = 1
-FOVFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-local FOVStroke = Instance.new("UIStroke", FOVFrame)
-FOVStroke.Color = Color3.fromRGB(255, 255, 255)
-FOVStroke.Thickness = 1.5
-local FOVCorner = Instance.new("UICorner", FOVFrame)
-FOVCorner.CornerRadius = UDim.new(1, 0)
+getgenv().TimeBombCleanup = Cleanup
+getgenv().TimeBombLoaded = true
 
-local function UpdateFOVCircle()
-    FOVFrame.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
-    FOVFrame.Visible = Settings.AimbotEnabled
-end
-UpdateFOVCircle()
+-- // 2. نظام الـ Noclip (المشي من ورا الجدران) \\ --
+table.insert(ActiveConnections, RunService.Stepped:Connect(function()
+    if not Settings.NoclipEnabled then return end
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end))
 
--- // 2. نظام الـ ESP والأسماء \\ --
+-- // 3. نظام السرعة الفائقة \\ --
+table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
+    if not Settings.SpeedBoostEnabled then return end
+    local char = LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        if humanoid and rootPart and humanoid.MoveDirection.Magnitude > 0 then
+            rootPart.CFrame = rootPart.CFrame + (humanoid.MoveDirection * (Settings.CustomSpeed / 50))
+        end
+    end
+end))
+
+-- // 4. كشف اللاعبين والتحقق من حاملي القنبلة (ESP) \\ --
 local function RemoveESP(char)
     if ESPObjects[char] then
         if ESPObjects[char].Highlight then ESPObjects[char].Highlight:Destroy() end
@@ -74,35 +92,41 @@ local function SetupESP(char)
     local head = char:WaitForChild("Head", 3)
     if not head then return end
 
-    local hl = Instance.new("Highlight", char)
-    hl.Name = "EspHL"
-    hl.FillColor = Color3.fromRGB(255, 0, 0)
-    hl.FillTransparency = 0.5
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-    hl.Enabled = Settings.ESPEnabled
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "TimeBombHL"
+    highlight.FillColor = Color3.fromRGB(0, 150, 255)
+    highlight.FillTransparency = 0.6
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.Enabled = Settings.ESPEnabled
+    highlight.Parent = char
 
-    local bb = Instance.new("BillboardGui", head)
-    bb.Name = "NameTag"
-    bb.Size = UDim2.new(0, 200, 0, 50)
-    bb.StudsOffset = Vector3.new(0, 2.5, 0)
-    bb.AlwaysOnTop = true
-    bb.Enabled = Settings.NamesEnabled
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "TimeBombTag"
+    billboard.Size = UDim2.new(0, 200, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Enabled = Settings.ESPEnabled
+    billboard.Parent = head
 
-    local txt = Instance.new("TextLabel", bb)
-    txt.Size = UDim2.new(1, 0, 1, 0)
-    txt.BackgroundTransparency = 1
-    txt.Font = Enum.Font.GothamBold
-    txt.TextSize = 14
-    txt.TextColor3 = Color3.fromRGB(255, 255, 255)
-    txt.TextStrokeTransparency = 0
-    local p = Players:GetPlayerFromCharacter(char)
-    txt.Text = p and p.Name or "اللاعب"
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextSize = 13
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextStrokeTransparency = 0
+    
+    local player = Players:GetPlayerFromCharacter(char)
+    textLabel.Text = player and player.Name or "لاعب"
+    textLabel.Parent = billboard
 
-    ESPObjects[char] = {Highlight = hl, Billboard = bb}
+    ESPObjects[char] = {Highlight = highlight, Billboard = billboard, Text = textLabel}
 
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        table.insert(ActiveConnections, hum.Died:Connect(function() RemoveESP(char) end))
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        table.insert(ActiveConnections, humanoid.Died:Connect(function()
+            RemoveESP(char)
+        end))
     end
 end
 
@@ -114,142 +138,157 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 table.insert(ActiveConnections, Players.PlayerAdded:Connect(function(p)
     table.insert(ActiveConnections, p.CharacterAdded:Connect(SetupESP))
-end)))
+end))
+table.insert(ActiveConnections, Players.PlayerRemoving:Connect(function(p)
+    if p.Character then RemoveESP(p.Character) end
+end))
 
--- // 3. اختيار الهدف الثابت داخل الـ FOV \\ --
-local function GetClosestTarget()
-    if LockedTarget and LockedTarget.Parent and LockedTarget.Parent:FindFirstChildOfClass("Humanoid") then
-        if LockedTarget.Parent.Humanoid.Health > 0 then
-            local pos, onScreen = Camera:WorldToViewportPoint(LockedTarget.Position)
-            local mousePos = UserInputService:GetMouseLocation()
-            if onScreen and (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude <= Settings.FOVRadius * 1.5 then
-                return LockedTarget
-            end
-        end
-    end
+-- // 5. نظام التتبع الآلي الذكي (Auto-Chase Target System) \\ --
+local function GetClosestTargetWithBomb()
+    local closestTarget = nil
+    local shortestDist = math.huge
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local myRoot = myChar.HumanoidRootPart
 
-    local closest = nil
-    local shortestDist = Settings.FOVRadius
-    local mousePos = UserInputService:GetMouseLocation()
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            if not Settings.TeamCheck or (p.Team ~= LocalPlayer.Team) then
-                local char = p.Character
-                if char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
-                    local part = char:FindFirstChild(Settings.TargetPart) or char:FindFirstChild("HumanoidRootPart")
-                    if part then
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                        if onScreen then
-                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                            if dist < shortestDist then
-                                shortestDist = dist
-                                closest = part
-                            end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") and char.Humanoid.Health > 0 then
+                -- الكشف التلقائي عن القنبلة (سواء كانت أداة في اليد أو خاصية في الجسم)
+                local hasBomb = char:FindFirstChildOfClass("Tool") or char:FindFirstChild("Bomb") or char:FindFirstChild("TimeBomb")
+                
+                -- إذا لم تكن الأداة مرئية كـ Tool، نتحقق من حقيبة اللاعب أو أي مظهر مرتبط بالقنبلة
+                if not hasBomb and player.Character then
+                    for _, child in ipairs(player.Character:GetChildren()) do
+                        if child:NameLower():find("bomb") or child:NameLower():find("dynamite") or child:NameLower():find("tnt") then
+                            hasBomb = true
+                            break
                         end
                     end
+                end
+
+                -- نحدد الهدف بغض النظر عن وجود القنبلة أو إذا أردت مطاردة أقرب لاعب لتسليمها
+                local dist = (char.HumanoidRootPart.Position - myRoot.Position).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closestTarget = char.HumanoidRootPart
                 end
             end
         end
     end
-
-    LockedTarget = closest
-    return LockedTarget
+    return closestTarget
 end
 
--- // 4. حلقة التوجيه السلس للكاميرا \\ --
 table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
-    if Settings.AimbotEnabled then
-        local target = GetClosestTarget()
-        if target then
-            local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 1 / Settings.Smoothness)
+    if not Settings.AutoChaseEnabled then return end
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+    local myRoot = myChar.HumanoidRootPart
+    local humanoid = myChar:FindFirstChildOfClass("Humanoid")
+
+    local targetRoot = GetClosestTargetWithBomb()
+    if targetRoot and humanoid then
+        -- الانتقال والتوجيه المباشر نحو الهدف بسرعة خيالية متخطياً الجدران
+        humanoid:MoveTo(targetRoot.Position)
+        
+        -- تغيير لون الـ ESP لتوضيح الهدف المستهدف حالياً
+        for char, objs in pairs(ESPObjects) do
+            if char == targetRoot.Parent then
+                objs.Highlight.FillColor = Color3.fromRGB(255, 50, 50)
+                objs.Text.Text = "[ هدف القنبلة ]"
+            else
+                objs.Highlight.FillColor = Color3.fromRGB(0, 150, 255)
+            end
         end
-    else
-        LockedTarget = nil
     end
 end))
 
--- // 5. واجهة المستخدم (GUI) المنظمة \\ --
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "AlMubajjalHub"
+-- // 6. واجهة التحكم الاحترافية (Modern GUI) \\ --
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TimeBombProHub"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 260, 0, 310)
-Frame.Position = UDim2.new(0.05, 0, 0.2, 0)
-Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-Frame.Active = true
-Frame.Draggable = true
-Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 280, 0, 340)
+MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
-local Title = Instance.new("TextLabel", Frame)
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+local TopBar = Instance.new("Frame", MainFrame)
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+TopBar.BorderSizePixel = 0
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
+
+local Title = Instance.new("TextLabel", TopBar)
+Title.Size = UDim2.new(1, -50, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
 Title.Font = Enum.Font.GothamBold
-Title.Text = "لوحة التحكم - Aimbot & ESP"
+Title.Text = "Time Bomb Ultimate Hub"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 13
-Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.BackgroundTransparency = 1
 
-local y = 50
-local function AddBtn(text, initState, callback)
-    local btn = Instance.new("TextButton", Frame)
-    btn.Size = UDim2.new(0.9, 0, 0, 35)
-    btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = initState and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(40, 40, 50)
+local CloseBtn = Instance.new("TextButton", TopBar)
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -34, 0.5, -14)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 12
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+CloseBtn.MouseButton1Click:Connect(Cleanup)
+
+local Content = Instance.new("Frame", MainFrame)
+Content.Size = UDim2.new(1, -20, 1, -55)
+Content.Position = UDim2.new(0, 10, 0, 48)
+Content.BackgroundTransparency = 1
+
+local yPos = 5
+local function BuildToggle(name, initState, callback)
+    local btn = Instance.new("TextButton", Content)
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.Position = UDim2.new(0, 0, 0, yPos)
+    btn.BackgroundColor3 = initState and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(35, 35, 45)
     btn.Font = Enum.Font.GothamBold
+    btn.Text = name .. (initState and ": ON" or ": OFF")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.TextSize = 12
-    btn.Text = text .. (initState and ": ON" or ": OFF")
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
+
+    local active = initState
     btn.MouseButton1Click:Connect(function()
-        local state = callback()
-        btn.Text = text .. (state and ": ON" or ": OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(40, 40, 50)
+        active = not active
+        callback(active)
+        btn.Text = name .. (active and ": ON" or ": OFF")
+        btn.BackgroundColor3 = active and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(35, 35, 45)
     end)
-    y = y + 42
+    yPos = yPos + 46
 end
 
-AddBtn("الإيم بوت", Settings.AimbotEnabled, function()
-    Settings.AimbotEnabled = not Settings.AimbotEnabled
-    UpdateFOVCircle()
-    return Settings.AimbotEnabled
+BuildToggle("المطاردة الآلية للقنبلة", Settings.AutoChaseEnabled, function(state)
+    Settings.AutoChaseEnabled = state
 end)
 
-AddBtn("الـ ESP", Settings.ESPEnabled, function()
-    Settings.ESPEnabled = not Settings.ESPEnabled
+BuildToggle("مشاهدة من ورا الجدران (Noclip)", Settings.NoclipEnabled, function(state)
+    Settings.NoclipEnabled = state
+end)
+
+BuildToggle("السرعة الخارقة (Speed)", Settings.SpeedBoostEnabled, function(state)
+    Settings.SpeedBoostEnabled = state
+end)
+
+BuildToggle("كشف اللاعبين (ESP)", Settings.ESPEnabled, function(state)
+    Settings.ESPEnabled = state
     for _, objs in pairs(ESPObjects) do
-        if objs.Highlight then objs.Highlight.Enabled = Settings.ESPEnabled end
-    end
-    return Settings.ESPEnabled
-end)
-
-AddBtn("الأسماء", Settings.NamesEnabled, function()
-    Settings.NamesEnabled = not Settings.NamesEnabled
-    for _, objs in pairs(ESPObjects) do
-        if objs.Billboard then objs.Billboard.Enabled = Settings.NamesEnabled end
-    end
-    return Settings.NamesEnabled
-end)
-
-local FovBox = Instance.new("TextBox", Frame)
-FovBox.Size = UDim2.new(0.9, 0, 0, 35)
-FovBox.Position = UDim2.new(0.05, 0, 0, y)
-FovBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-FovBox.Font = Enum.Font.GothamBold
-FovBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-FovBox.TextSize = 12
-FovBox.Text = tostring(Settings.FOVRadius)
-FovBox.PlaceholderText = "حجم الـ FOV"
-Instance.new("UICorner", FovBox).CornerRadius = UDim.new(0, 6)
-
-FovBox.FocusLost:Connect(function()
-    local val = tonumber(FovBox.Text)
-    if val then
-        Settings.FOVRadius = val
-        UpdateFOVCircle()
-    else
-        FovBox.Text = tostring(Settings.FOVRadius)
+        if objs.Highlight then objs.Highlight.Enabled = state end
+        if objs.Billboard then objs.Billboard.Enabled = state end
     end
 end)
