@@ -1,5 +1,5 @@
 -- // ====================================================== \\ --
--- //     نظام المبجّل الاحترافي - Aimbot & ESP المباشر       \\ --
+-- //     نظام المبجّل المعماري - Camera Aimbot & ESP         \\ --
 -- // ====================================================== --
 
 local Players = game:GetService("Players")
@@ -9,23 +9,23 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- إزالة أي نسخة سابقة منعاً للتكرار
 if getgenv().AlMubajjalCleanup then
     getgenv().AlMubajjalCleanup()
 end
 
 local Settings = {
-    AimbotEnabled = true,
+    AimbotEnabled = false,
     ESPEnabled = true,
     NamesEnabled = true,
     TeamCheck = false,
-    FOVRadius = 300, -- حجم دائرة الـ FOV كبير لضمان التقاط الهدف
+    FOVRadius = 150,
+    Smoothness = 4, -- سرعة سلاسة الإيم بوت
     TargetPart = "Head"
 }
 
 local ActiveConnections = {}
 local ESPObjects = {}
-local LockedTarget = nil -- لتثبيت الهدف وعدم انتقاله لشخص آخر أثناء التصويب
+local LockedTarget = nil
 
 local function Cleanup()
     for _, conn in ipairs(ActiveConnections) do conn:Disconnect() end
@@ -39,7 +39,7 @@ local function Cleanup()
 end
 getgenv().AlMubajjalCleanup = Cleanup
 
--- // 1. رسم دائرة الـ FOV مرئية على الشاشة \\ --
+-- // 1. دائرة الـ FOV المرئية \\ --
 local FOVGui = Instance.new("ScreenGui", CoreGui)
 FOVGui.Name = "FOV_Drawing"
 local FOVFrame = Instance.new("Frame", FOVGui)
@@ -116,12 +116,15 @@ table.insert(ActiveConnections, Players.PlayerAdded:Connect(function(p)
     table.insert(ActiveConnections, p.CharacterAdded:Connect(SetupESP))
 end)))
 
--- // 3. اختيار الهدف وتثبيته (عدم الانتقال لشخص آخر) \\ --
-local function GetTarget()
-    -- إذا كان هناك هدف مسجل مسبقاً وما زال حياً، ابق عليه لكي لا ينط الأيم لشخص آخر
+-- // 3. اختيار الهدف الثابت داخل الـ FOV \\ --
+local function GetClosestTarget()
     if LockedTarget and LockedTarget.Parent and LockedTarget.Parent:FindFirstChildOfClass("Humanoid") then
         if LockedTarget.Parent.Humanoid.Health > 0 then
-            return LockedTarget
+            local pos, onScreen = Camera:WorldToViewportPoint(LockedTarget.Position)
+            local mousePos = UserInputService:GetMouseLocation()
+            if onScreen and (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude <= Settings.FOVRadius * 1.5 then
+                return LockedTarget
+            end
         end
     end
 
@@ -154,43 +157,20 @@ local function GetTarget()
     return LockedTarget
 end
 
--- إعادة تعيين الهدف عند إفلات زر الماوس أو النقر بزر الفأرة الأيمن/الأيسر
-UserInputService.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        LockedTarget = nil -- إعادة التثبيت عند الضغط للبحث عن هدف جديد بدقة
-    end
-end)
-
--- // 4. توجيه الطلقة بشكل كامل بغض النظر عن مكان الهدف (Raycast & Namecall Hook) \\ --
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = newcclosure(function(self, ...)
-    local args = {...}
-    local method = getnamecallmethod()
-
-    if Settings.AimbotEnabled and method == "FireServer" then
-        local target = GetTarget()
+-- // 4. حلقة التوجيه السلس للكاميرا \\ --
+table.insert(ActiveConnections, RunService.RenderStepped:Connect(function()
+    if Settings.AimbotEnabled then
+        local target = GetClosestTarget()
         if target then
-            for i, v in ipairs(args) do
-                if typeof(v) == "Vector3" then
-                    -- توجيه أي إحداثيات إطلاق نار مباشرة نحو رأس أو جسم الهدف مهما كان بعيداً
-                    args[i] = target.Position
-                    break
-                elseif typeof(v) == "Instance" and v:IsA("BasePart") then
-                    args[i] = target
-                    break
-                end
-            end
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 1 / Settings.Smoothness)
         end
+    else
+        LockedTarget = nil
     end
+end))
 
-    return oldNamecall(self, unpack(args))
-end)
-setreadonly(mt, true)
-
--- // 5. واجهة المستخدم (GUI) للتحكم الكامل \\ --
+-- // 5. واجهة المستخدم (GUI) المنظمة \\ --
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "AlMubajjalHub"
 
@@ -212,40 +192,47 @@ Title.TextSize = 13
 Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
 
 local y = 50
-local function AddBtn(text, callback)
+local function AddBtn(text, initState, callback)
     local btn = Instance.new("TextButton", Frame)
     btn.Size = UDim2.new(0.9, 0, 0, 35)
     btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    btn.BackgroundColor3 = initState and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(40, 40, 50)
     btn.Font = Enum.Font.GothamBold
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.TextSize = 12
-    btn.Text = text
+    btn.Text = text .. (initState and ": ON" or ": OFF")
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    btn.MouseButton1Click:Connect(callback)
+    
+    btn.MouseButton1Click:Connect(function()
+        local state = callback()
+        btn.Text = text .. (state and ": ON" or ": OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(40, 40, 50)
+    end)
     y = y + 42
 end
 
-AddBtn("تشغيل/إيقاف الإيم بوت: ON", function()
+AddBtn("الإيم بوت", Settings.AimbotEnabled, function()
     Settings.AimbotEnabled = not Settings.AimbotEnabled
     UpdateFOVCircle()
+    return Settings.AimbotEnabled
 end)
 
-AddBtn("تشغيل/إيقاف الـ ESP: ON", function()
+AddBtn("الـ ESP", Settings.ESPEnabled, function()
     Settings.ESPEnabled = not Settings.ESPEnabled
     for _, objs in pairs(ESPObjects) do
         if objs.Highlight then objs.Highlight.Enabled = Settings.ESPEnabled end
     end
+    return Settings.ESPEnabled
 end)
 
-AddBtn("تشغيل/إيقاف الأسماء: ON", function()
+AddBtn("الأسماء", Settings.NamesEnabled, function()
     Settings.NamesEnabled = not Settings.NamesEnabled
     for _, objs in pairs(ESPObjects) do
         if objs.Billboard then objs.Billboard.Enabled = Settings.NamesEnabled end
     end
+    return Settings.NamesEnabled
 end)
 
--- تحكم بحجم الـ FOV عبر الزر
 local FovBox = Instance.new("TextBox", Frame)
 FovBox.Size = UDim2.new(0.9, 0, 0, 35)
 FovBox.Position = UDim2.new(0.05, 0, 0, y)
@@ -253,16 +240,16 @@ FovBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 FovBox.Font = Enum.Font.GothamBold
 FovBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 FovBox.TextSize = 12
-FovBox.Text = "حجم دائرة FOV: " .. Settings.FOVRadius
+FovBox.Text = tostring(Settings.FOVRadius)
+FovBox.PlaceholderText = "حجم الـ FOV"
 Instance.new("UICorner", FovBox).CornerRadius = UDim.new(0, 6)
 
 FovBox.FocusLost:Connect(function()
-    local val = tonumber(FovBox.Text:match("%d+"))
+    local val = tonumber(FovBox.Text)
     if val then
         Settings.FOVRadius = val
-        FovBox.Text = "حجم دائرة FOV: " .. Settings.FOVRadius
         UpdateFOVCircle()
     else
-        FovBox.Text = "حجم دائرة FOV: " .. Settings.FOVRadius
+        FovBox.Text = tostring(Settings.FOVRadius)
     end
 end)
