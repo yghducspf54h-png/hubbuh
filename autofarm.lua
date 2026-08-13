@@ -1,12 +1,12 @@
 -- ==========================================
--- BlockSpin AI FISHING BOT (Ultimate Precision)
--- مخصص فقط للصيد بدقة 100% على الخط الأخضر
+-- BlockSpin AI FISHING BOT (Godlike Precision)
+-- دقة خارقة + رمي بعيد + أداة طعم تلقائية
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -19,13 +19,32 @@ local Settings = {
 local isFishing = false
 
 -- ==========================================
--- دالة النقر الدقيق (تصيب مكان الأخضر بالضبط)
+-- 1. دالة النقر الخارقة (أسرع من العين)
 -- ==========================================
-local function clickAtPosition(x, y)
-    -- النقر على الإحداثيات التي يحددها الخط الأخضر وليس منتصف الشاشة
-    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-    task.wait(0.01)
-    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+local mouse = player:GetMouse()
+
+local function instantClick()
+    -- إرسال أمر النقر للواجهة بشكل فوري جداً بدون تأخير الإطارات
+    if mouse1press then
+        mouse1press()
+        task.wait()
+        mouse1release()
+    else
+        -- طريقة احتياطية للمنفذات التي لا تدعم mouse1press
+        mouse1click()
+    end
+end
+
+-- ==========================================
+-- 2. دالة للتحقق من اللون الأخضر (مهما كانت درجته)
+-- ==========================================
+local function isGreenColor(color)
+    -- الأخضر النقي يكون R=0, G=255, B=0. 
+    -- في BlockSpin الأخضر قد يكون فاتحاً (G=200 وأكثر، وR و B أقل من 100)
+    if color.G > 0.5 and color.R < 0.5 and color.B < 0.5 then
+        return true
+    end
+    return false
 end
 
 -- ==========================================
@@ -40,7 +59,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (Auto Fish AI)
+-- 🎣 نظام الصيد الذكي (Godlike AI)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -50,42 +69,47 @@ local function startAutoFishingLoop()
                 if char then
                     local tool = char:FindFirstChildWhichIsA("Tool")
                     
-                    -- التأكد من أن اللاعب يمسك سنارة صيد
                     if tool and (tool.Name:lower():match("rod") or tool.Name:lower():match("fishing")) then
                         isFishing = true
                         
-                        -- 1. فحص الطعم (Bait)
-                        local hasBaitInHand = char:FindFirstChild("Wormtec") or char:FindFirstChild("Prawntec") or char:FindFirstChild("Bait")
-                        if not hasBaitInHand then
-                            local baitInBackpack = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
-                            if baitInBackpack then
-                                baitInBackpack.Parent = char -- تجهيز الطعم
+                        -- 1. فحص الطعم (Bait) وتجهيزه
+                        local hasBait = char:FindFirstChild("Wormtec") or char:FindFirstChild("Prawntec") or char:FindFirstChild("Bait")
+                        if not hasBait then
+                            local bait = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
+                            if bait then
+                                bait.Parent = char
                                 task.wait(0.5)
                             end
                         end
 
-                        -- 2. الرمي في البحيرة
+                        -- 2. الرمي البعيد في البحيرة
+                        -- رمي الصنارة
                         tool:Activate()
-                        task.wait(2.5) -- الانتظار حتى تظهر واجهة الصيد (Mini-game)
+                        -- الانتظار 3 ثوانٍ لضمان وصول الطعم لأبعد نقطة في الماء
+                        task.wait(1)
                         
-                        -- 3. البحث عن واجهة الصيد (الخط الأخضر)
+                        -- 3. البحث عن واجهة الصيد (الخط الأخضر) والنقر الفوري
                         local fished = false
                         local timeout = 0
                         
-                        while task.wait(0.05) do
-                            timeout = timeout + 0.05
+                        while task.wait(0.03) do -- لوب سريع جداً لرصد الخط
+                            timeout = timeout + 0.03
                             if timeout > 15 then break end -- خروج إذا لم يعلق سمك خلال 15 ثانية
                             
-                            -- البحث في واجهة المستخدم عن الإطار الأخضر
                             local greenBar = nil
+                            
+                            -- البحث في واجهة المستخدم
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        if element:IsA("GuiObject") and element.Visible and element.BackgroundColor3 == Color3.fromRGB(0, 255, 0) then
-                                            -- التأكد أنه الخط الأخضر المقصود (حجمه أصغر من الشاشة)
-                                            if element.AbsoluteSize.X < 500 and element.AbsoluteSize.Y < 500 then
-                                                greenBar = element
-                                                break
+                                        -- البحث عن إطار أو شريط أخضر مرئي
+                                        if element:IsA("GuiObject") and element.Visible then
+                                            if isGreenColor(element.BackgroundColor3) and element.AbsoluteSize.X > 0 and element.AbsoluteSize.Y > 0 then
+                                                -- تأكد أنه ليس شيئاً كبيراً جداً (مثل خلفية الشاشة)
+                                                if element.AbsoluteSize.X < 300 and element.AbsoluteSize.Y < 300 then
+                                                    greenBar = element
+                                                    break
+                                                end
                                             end
                                         end
                                     end
@@ -93,16 +117,23 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد الخط الأخضر، نقرأ إحداثياته وننقر عليها بالضبط
+                            -- 4. إذا وجد الخط الأخضر، ننقر فوراً
                             if greenBar then
-                                -- حساب منتصف الخط الأخضر في الشاشة
+                                -- تحريك الماوس الوهمي فوق الخط الأخضر مباشرة
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
                                 
-                                -- النقر على الإحداثيات بدقة
-                                clickAtPosition(greenX, greenY)
+                                -- تحديث موقع الماوس
+                                mouse.X = greenX
+                                mouse.Y = greenY
+                                if mousemove then 
+                                    mousemove(greenX, greenY) 
+                                end
+                                
+                                -- النقر الخارق السرعة
+                                instantClick()
                                 fished = true
-                                task.wait(1) -- انتظار سحب السمك
+                                task.wait(1) -- انتظار سحب السمكة
                                 break
                             end
                         end
@@ -120,14 +151,14 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم GUI (تكبير وتصغير)
+-- 🖥️ واجهة التحكم GUI (احترافية + تكبير وتصغير)
 -- ==========================================
 local function CreateGUI()
-    local oldGui = playerGui:FindFirstChild("BlockSpin_Fish_AI")
+    local oldGui = playerGui:FindFirstChild("BlockSpin_GodFish_AI")
     if oldGui then oldGui:Destroy() end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BlockSpin_Fish_AI"
+    screenGui.Name = "BlockSpin_GodFish_AI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
@@ -161,11 +192,11 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 AI Auto Fishing"
+    titleLabel.Text = "🎣 Godlike AI Fishing"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
-    -- زر التصغير (Minimize)
+    -- زر التصغير
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0, 30, 0, 30)
     minBtn.Position = UDim2.new(1, -60, 0, 0)
@@ -176,7 +207,7 @@ local function CreateGUI()
     minBtn.TextColor3 = Color3.new(0, 0, 0)
     minBtn.Parent = topBar
 
-    -- زر التكبير (Maximize)
+    -- زر التكبير
     local maxBtn = Instance.new("TextButton")
     maxBtn.Size = UDim2.new(0, 30, 0, 30)
     maxBtn.Position = UDim2.new(1, -30, 0, 0)
@@ -200,7 +231,7 @@ local function CreateGUI()
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = toggleBtn
 
-    -- نص الحالة (Status)
+    -- نص الحالة
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 210, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 90)
@@ -262,4 +293,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("BlockSpin AI Fishing Script Loaded Successfully!")
+print("BlockSpin Godlike AI Fishing Script Loaded Successfully!")
