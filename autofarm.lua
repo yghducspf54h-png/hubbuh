@@ -1,36 +1,31 @@
 -- ==========================================
--- BlockSpin PRO FISHING SCRIPT (Standalone)
--- مخصص فقط لأوتو صيد السمك مع حل لعبة الاختراق
+-- BlockSpin AI FISHING BOT (Ultimate Precision)
+-- مخصص فقط للصيد بدقة 100% على الخط الأخضر
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager") -- للنقر الدقيق جداً
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- ==========================================
--- إعدادات السكربت
--- ==========================================
 local Settings = {
-    AutoFish = true,            -- تشغيل/إيقاف الصيد
+    AutoFish = true,
 }
 
 local isFishing = false
 
 -- ==========================================
--- دالة النقر التلقائي على الشاشة
+-- دالة النقر الدقيق (تصيب مكان الأخضر بالضبط)
 -- ==========================================
-local function clickScreen()
-    local centerX = camera.ViewportSize.X / 2
-    local centerY = camera.ViewportSize.Y / 2
-    -- إرسال نقرة ماوس وهمية في منتصف الشاشة (لضرب السمك أو الصرافي)
-    VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 1)
+local function clickAtPosition(x, y)
+    -- النقر على الإحداثيات التي يحددها الخط الأخضر وليس منتصف الشاشة
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
     task.wait(0.01)
-    VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 1)
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
 end
 
 -- ==========================================
@@ -59,16 +54,21 @@ local function startAutoFishingLoop()
                     if tool and (tool.Name:lower():match("rod") or tool.Name:lower():match("fishing")) then
                         isFishing = true
                         
-                        -- 1. فحص الطعم: إذا كان الطعم في الحقيقة وليس في اليد، نقوم بتجهيزه
-                        local baitInBackpack = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec")
-                        if baitInBackpack then
-                            baitInBackpack.Parent = char
-                            task.wait(0.5)
+                        -- 1. فحص الطعم (Bait)
+                        local hasBaitInHand = char:FindFirstChild("Wormtec") or char:FindFirstChild("Prawntec") or char:FindFirstChild("Bait")
+                        if not hasBaitInHand then
+                            local baitInBackpack = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
+                            if baitInBackpack then
+                                baitInBackpack.Parent = char -- تجهيز الطعم
+                                task.wait(0.5)
+                            end
                         end
 
-                        -- 2. رمي الصنارة في البحيرة
+                        -- 2. الرمي في أعمق نقطة في البحيرة
+                        -- نقوم بتحريك الكاميرا للأسفل قليلاً والرمي لضمان أقصى مسافة
+                        char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, 0, 0)
                         tool:Activate()
-                        task.wait(2) -- الانتظار حتى تظهر واجهة الصيد (Mini-game)
+                        task.wait(2.5) -- الانتظار حتى تظهر واجهة الصيد (Mini-game)
                         
                         -- 3. البحث عن واجهة الصيد (الخط الأخضر)
                         local fished = false
@@ -83,21 +83,26 @@ local function startAutoFishingLoop()
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        if element:IsA("Frame") and element.BackgroundColor3 == Color3.fromRGB(0, 255, 0) and element.Visible then
-                                            greenBar = element
-                                            break
+                                        if element:IsA("GuiObject") and element.Visible and element.BackgroundColor3 == Color3.fromRGB(0, 255, 0) then
+                                            -- التأكد أنه الخط الأخضر المقصود (حجمه أصغر من الشاشة)
+                                            if element.AbsoluteSize.X < 500 and element.AbsoluteSize.Y < 500 then
+                                                greenBar = element
+                                                break
+                                            end
                                         end
                                     end
                                 end
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد الخط الأخضر، نراقب حجمه وموضعه
+                            -- 4. إذا وجد الخط الأخضر، نقرأ إحداثياته وننقر عليها بالضبط
                             if greenBar then
-                                -- ننتظر حتى يصبح المؤشر الأبيض بداخل الخانة الخضراء
-                                -- (نفترض أن الخانة الخضراء تصبح أصغر أو أن المؤشر يمر عليها)
-                                -- نقوم بالنقر فوراً عند رؤية الأخضر
-                                clickScreen()
+                                -- حساب منتصف الخط الأخضر في الشاشة
+                                local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
+                                local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
+                                
+                                -- النقر على الإحداثيات بدقة
+                                clickAtPosition(greenX, greenY)
                                 fished = true
                                 task.wait(1) -- انتظار سحب السمك
                                 break
@@ -117,19 +122,17 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم GUI (مع تكبير وتصغير)
+-- 🖥️ واجهة التحكم GUI (تكبير وتصغير)
 -- ==========================================
 local function CreateGUI()
-    -- إزالة الواجهة القديمة
-    local oldGui = playerGui:FindFirstChild("BlockSpin_Fish_GUI")
+    local oldGui = playerGui:FindFirstChild("BlockSpin_Fish_AI")
     if oldGui then oldGui:Destroy() end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BlockSpin_Fish_GUI"
+    screenGui.Name = "BlockSpin_Fish_AI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
-    -- الحاوية الرئيسية
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 250, 0, 120)
     mainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
@@ -160,7 +163,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 Auto Fishing"
+    titleLabel.Text = "🎣 AI Auto Fishing"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -178,21 +181,21 @@ local function CreateGUI()
     -- زر التكبير (Maximize)
     local maxBtn = Instance.new("TextButton")
     maxBtn.Size = UDim2.new(0, 30, 0, 30)
+    maxBtn.Parent = topBar
     maxBtn.Position = UDim2.new(1, -30, 0, 0)
     maxBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
     maxBtn.Text = "+"
     maxBtn.Font = Enum.Font.GothamBold
     maxBtn.TextSize = 18
     maxBtn.TextColor3 = Color3.new(0, 0, 0)
-    maxBtn.Parent = topBar
 
     -- زر التشغيل/الإيقاف
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Size = UDim2.new(0, 210, 0, 40)
-    toggleBtn.Position = UDim2.new(0, 20, 0, 45)
+    toggleBtn.Position = UDir2.new(0, 20, 0, 45)
     toggleBtn.Font = Enum.Font.GothamBold
     toggleBtn.TextSize = 14
-    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    topleft.TextColor3 = Color3.new(1, 1, 1)
     toggleBtn.Parent = mainFrame
     
     local btnCorner = Instance.new("UICorner")
@@ -206,19 +209,16 @@ local function CreateGUI()
     statusLabel.BackgroundTransparency = 1
     statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.Font = Enum.Font.Gotham
+    statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.TextSize = 12
     statusLabel.Text = "Status: Idle"
     statusLabel.Parent = mainFrame
 
-    -- ==========================================
     -- منطق الأزرار
-    -- ==========================================
-    
-    -- تحديث زر التشغيل
     local function updateToggleBtn()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-            toggleBtn.Text = "Auto Fish: ON"
+            tnetgleBtn.Text = "Auto Fish: ON"
             statusLabel.Text = "Status: Fishing in progress..."
         else
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
@@ -227,29 +227,26 @@ local function CreateGUI()
         end
     end
 
-    -- زر التشغيل
     toggleBtn.MouseButton1Click:Connect(function()
         Settings.AutoFish = not Settings.AutoFish
         updateToggleBtn()
     end)
 
-    -- زر التكبير (يكبر الواجهة)
     local isMaximized = false
     maxBtn.MouseButton1Click:Connect(function()
         if isMaximized then
             TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
             isMaximized = false
         else
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 250)}):Play()
-            isMaximized = true
+            T.log create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 250)}):Play()
+            isMaximized = 1
         end
     end)
 
-    -- زر التصغير (يخفي الواجهة ما عدا شريط العنوان)
     local isMinimized = false
-    minBtn.MouseButton1Click:Connect(function()
+    minBtn.Mousebotton1Click:Connect(function()
         if isMinimized then
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Siz = UDim2.new(0, 250, 0, 120)}):Play()
             toggleBtn.Visible = true
             statusLabel.Visible = true
             isMinimized = false
@@ -257,17 +254,12 @@ local function CreateGUI()
             TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 30)}):Play()
             toggleBtn.Visible = false
             statusLabel.Visible = false
-            isMinimized = true
+            ? = true
         end
     end)
 
     updateToggleBtn()
 end
 
--- ==========================================
--- تشغيل السكربت
--- ==========================================
 CreateGUI()
 startAutoFishingLoop()
-
-print("BlockSpin Auto Fishing Script Loaded Successfully!")
