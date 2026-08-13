@@ -175,11 +175,11 @@ local function CreateGUI()
 	espColorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	espColorLabel.Font = Enum.Font.Gotham
 	espColorLabel.TextSize = 14
-	espColorLabel.Text = "ESP Color: " .. Settings.ESP_Color.ToHex()
+	espColorLabel.Text = "ESP Color: " .. tostring(Settings.ESP_Color)
 	espColorLabel.Parent = espSection
 	
 	local function UpdateESPColor()
-		espColorLabel.Text = "ESP Color: " .. Settings.ESP_Color.ToHex()
+		espColorLabel.Text = "ESP Color: " .. tostring(Settings.ESP_Color)
 	end
 	
 	UpdateESPColor()
@@ -585,7 +585,8 @@ end
 -- FOV System - تعديل زاوية الرؤية
 -- ==========================================
 local function ApplyFOV()
-	local camera = player.Camera
+	local camera = workspace.CurrentCamera
+	if not camera then return end
 	local currentFOV = camera.FieldOfView
 	local targetFOV = currentFOV + Settings.FOV_Offset
 	
@@ -640,12 +641,12 @@ end
 local function StartATMFarm()
 	if not Settings.ATM_Hack_Active then return end
 	
-	local hackTool = localCharacter:FindFirstChildWhichIsA("Tool", "HackTool") or 
-	                 localCharacter:WaitForChild("HackTool", 5)
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hackTool = char:FindFirstChild("HackTool") or char:WaitForChild("HackTool", 5)
 	
 	remoteFishingFarm.OnClientEvent:Connect(function(position, angle)
 		if hackTool and Settings.ATM_Hack_Active then
-			hackTool.Activate()
+			hackTool:Activate()
 			
 			task.wait(2)
 			
@@ -658,8 +659,6 @@ local function StartATMFarm()
 			print("لا يوجد Hack Tool، ابحث عن أداة 'HackTool'")
 		end
 	end)
-	
-	StartATMFarm()
 end
 
 -- ==========================================
@@ -669,11 +668,11 @@ local function StartFishingFarm()
 	if not Settings.FishingFarm_Active then return end
 	
 	remoteFishingFarm.OnClientEvent:Connect(function(position, angle)
-		local fishingRod = localCharacter:FindFirstChildWhichIsA("Tool") or 
-		                    localCharacter:WaitForChild("FishingRod", 5)
+		local char = player.Character or player.CharacterAdded:Wait()
+		local fishingRod = char:FindFirstChild("FishingRod") or char:WaitForChild("FishingRod", 5)
 		
 		if fishingRod and Settings.FishingFarm_Active then
-			fishingRod.Activate()
+			fishingRod:Activate()
 			
 			task.wait(2)
 			
@@ -686,8 +685,6 @@ local function StartFishingFarm()
 			print("لا يوجد عصا صيد، ابحث عن أداة 'FishingRod'")
 		end
 	end)
-	
-	StartFishingFarm()
 end
 
 -- ==========================================
@@ -696,27 +693,33 @@ end
 local function StartItemBot()
 	if not Settings.ItemBot_Active then return end
 	
-	local remoteGetItemsEvent = player:FindFirstChildWhichIsA("RemoteEvent", "RemoteGetItems") or 
-	                            Instance.new("RemoteEvent")
+	local remoteGetItemsEvent = player:FindFirstChild("RemoteGetItems") or Instance.new("RemoteEvent")
 	remoteGetItemsEvent.Name = "RemoteGetItems"
 	remoteGetItemsEvent.Parent = player
 	
 	remoteGetItemsEvent.OnClientEvent:Connect(function(items)
+		local char = player.Character
+		if not char then return end
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if not hrp or not humanoid then return end
+		
 		for _, item in ipairs(items) do
-			local distance = (localHumanoidRootPart.Position - item.CFrame.Position).Magnitude
-			
-			if distance <= Settings.ItemBot_Range then
-				local direction = (item.CFrame.Position - localHumanoidRootPart.Position).Unit
+			if item and item:IsA("BasePart") then
+				local distance = (hrp.Position - item.Position).Magnitude
 				
-				localCharacter.Humanoid.WalkSpeed = 20
-				
-				task.delay(0.5, function()
-					if distance <= Settings.ItemBot_Range then
-						item:Activate()
-						
-						localCharacter.Humanoid.WalkSpeed = 16
-					end
-				end)
+				if distance <= Settings.ItemBot_Range then
+					humanoid.WalkSpeed = 20
+					
+					task.delay(0.5, function()
+						if item and item.Parent and (hrp.Position - item.Position).Magnitude <= Settings.ItemBot_Range then
+							if item:IsA("Tool") then
+								item:Activate()
+							end
+							humanoid.WalkSpeed = 16
+						end
+					end)
+				end
 			end
 		end
 	end)
@@ -763,11 +766,12 @@ end
 -- ==========================================
 -- Main Loop - حلقة رئيسية للسكربت
 -- ==========================================
-local function OnCharacterAdded()
-	if localHumanoidRootPart then
+local function OnCharacterAdded(newChar)
+	local hrp = newChar:WaitForChild("HumanoidRootPart", 5)
+	if hrp then
 		print("تم تحميل السكربت بنجاح!")
 		
-		local screenGui, mainFrame = CreateGUI()
+		CreateGUI()
 		
 		StartJanitorFarm()
 		StartCookFarm()
@@ -779,18 +783,11 @@ local function OnCharacterAdded()
 	end
 end
 
-local function OnCharacterDied()
-	local newCharacter = localCharacter:Clone()
-	newCharacter.Parent = localHumanoidRootPart.Parent
-	
-	task.delay(1, OnCharacterAdded)
-end
+player.CharacterAdded:Connect(OnCharacterAdded)
 
--- ==========================================
--- ربط السكربت عند إنشاء الشخصية
--- ==========================================
-local characterAddedEvent = player.CharacterAdded:Connect(OnCharacterAdded)
-local characterDiedEvent = localCharacter.Humanoid.Died:Connect(OnCharacterDied)
+if player.Character then
+	OnCharacterAdded(player.Character)
+end
 
 print("BlockSpin Master Cheat 2026 Ready!")
 print("اضغط على الأزرار في الواجهة لتفعيل/تعطيل الميزات")
