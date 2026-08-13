@@ -64,9 +64,7 @@ local function startAutoFishingLoop()
                             end
                         end
 
-                        -- 2. الرمي في أعمق نقطة في البحيرة
-                        -- نقوم بتحريك الكاميرا للأسفل قليلاً والرمي لضمان أقصى مسافة
-                        char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, 0, 0)
+                        -- 2. الرمي في البحيرة
                         tool:Activate()
                         task.wait(2.5) -- الانتظار حتى تظهر واجهة الصيد (Mini-game)
                         
@@ -181,21 +179,21 @@ local function CreateGUI()
     -- زر التكبير (Maximize)
     local maxBtn = Instance.new("TextButton")
     maxBtn.Size = UDim2.new(0, 30, 0, 30)
-    maxBtn.Parent = topBar
     maxBtn.Position = UDim2.new(1, -30, 0, 0)
     maxBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
     maxBtn.Text = "+"
     maxBtn.Font = Enum.Font.GothamBold
     maxBtn.TextSize = 18
     maxBtn.TextColor3 = Color3.new(0, 0, 0)
+    maxBtn.Parent = topBar
 
     -- زر التشغيل/الإيقاف
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Size = UDim2.new(0, 210, 0, 40)
-    toggleBtn.Position = UDir2.new(0, 20, 0, 45)
+    toggleBtn.Position = UDim2.new(0, 20, 0, 45)
     toggleBtn.Font = Enum.Font.GothamBold
     toggleBtn.TextSize = 14
-    topleft.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
     toggleBtn.Parent = mainFrame
     
     local btnCorner = Instance.new("UICorner")
@@ -209,7 +207,6 @@ local function CreateGUI()
     statusLabel.BackgroundTransparency = 1
     statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.Font = Enum.Font.Gotham
-    statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.TextSize = 12
     statusLabel.Text = "Status: Idle"
     statusLabel.Parent = mainFrame
@@ -218,7 +215,7 @@ local function CreateGUI()
     local function updateToggleBtn()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-            tnetgleBtn.Text = "Auto Fish: ON"
+            toggleBtn.Text = "Auto Fish: ON"
             statusLabel.Text = "Status: Fishing in progress..."
         else
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
@@ -238,15 +235,15 @@ local function CreateGUI()
             TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
             isMaximized = false
         else
-            T.log create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 250)}):Play()
-            isMaximized = 1
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 250)}):Play()
+            isMaximized = true
         end
     end)
 
     local isMinimized = false
-    minBtn.Mousebotton1Click:Connect(function()
+    minBtn.MouseButton1Click:Connect(function()
         if isMinimized then
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Siz = UDim2.new(0, 250, 0, 120)}):Play()
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
             toggleBtn.Visible = true
             statusLabel.Visible = true
             isMinimized = false
@@ -254,12 +251,15 @@ local function CreateGUI()
             TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 30)}):Play()
             toggleBtn.Visible = false
             statusLabel.Visible = false
-            ? = true
+            isMinimized = true
         end
     end)
 
     updateToggleBtn()
 end
 
+-- تشغيل السكربت
 CreateGUI()
 startAutoFishingLoop()
+
+print("BlockSpin AI Fishing Script Loaded Successfully!")
