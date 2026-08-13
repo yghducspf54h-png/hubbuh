@@ -1,189 +1,153 @@
 --!strict
---[[
-    BlockSpin Fishing Automation
-    Single-File Luau
-    ============================
-    GUI
-    Auto Rod
-    Auto Bait
-    Auto Cast
-    Auto Catch
-    Rarity Detection
-    Auto Sell
-    Start / Stop
-]]
 
---==================================================
--- SERVICES
---==================================================
+--========================================================
+-- BLOCKSPIN AUTO FISHER
+-- Single-file Luau
+--========================================================
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Backpack = Player:WaitForChild("Backpack")
 
---==================================================
+--========================================================
 -- SETTINGS
---==================================================
+--========================================================
 
 local Settings = {
-    AutoFarm = false,
+	Enabled = false,
 
-    AutoEquipRod = true,
-    AutoBait = true,
-    AutoCast = true,
-    AutoCatch = true,
-    AutoSell = true,
+	AutoRod = true,
+	AutoBait = true,
+	AutoCast = true,
+	AutoCatch = true,
+	AutoSell = true,
 
-    CatchDelay = 0.05,
-    CastDelay = 0.5,
-    RecastDelay = 0.4,
-    SellDelay = 0.5,
+	CastDistance = 500,
+	WaterSamples = 72,
 
-    Keep = {
-        Green = true,
-        Blue = true,
-        Purple = true,
-        Gold = true,
-        Red = true,
-    },
+	CatchTolerance = 0.15,
+	CatchTimeout = 20,
 
-    -- ألوان تقريبية للـFishing UI
-    Colors = {
-        Green = Color3.fromRGB(0, 255, 0),
-        Blue = Color3.fromRGB(0, 120, 255),
-        Purple = Color3.fromRGB(170, 0, 255),
-        Gold = Color3.fromRGB(255, 200, 0),
-        Red = Color3.fromRGB(255, 0, 0),
-    },
+	AfterCatchDelay = 0.4,
+	RecastDelay = 0.5,
+
+	Sell = {
+		Brown = true,
+		Green = true,
+		Blue = true,
+		Gold = true,
+		Red = true,
+	},
+
+	Debug = false,
 }
 
---==================================================
+--========================================================
 -- STATE
---==================================================
+--========================================================
 
 local State = {
-    Running = false,
-    Busy = false,
+	Running = false,
+	Busy = false,
 
-    Character = nil :: Model?,
-    Humanoid = nil :: Humanoid?,
-    Root = nil :: BasePart?,
+	Character = nil :: Model?,
+	Humanoid = nil :: Humanoid?,
+	Root = nil :: BasePart?,
 
-    Rod = nil :: Tool?,
-    Bait = nil :: Tool?,
+	Rod = nil :: Tool?,
+	Bait = nil :: Tool?,
 
-    LastFish = "Unknown",
-    TotalFish = 0,
+	LastRarity = "None",
+	FishCount = 0,
 
-    Connections = {} :: {RBXScriptConnection},
+	CurrentTarget = nil :: GuiObject?,
+	CurrentNeedle = nil :: GuiObject?,
+
+	Connections = {} :: {RBXScriptConnection},
 }
 
---==================================================
--- UTILITIES
---==================================================
+--========================================================
+-- UTIL
+--========================================================
 
-local function TrackConnection(connection: RBXScriptConnection)
-    table.insert(State.Connections, connection)
-    return connection
+local function Log(...)
+	if Settings.Debug then
+		print("[AutoFish]", ...)
+	end
 end
 
-local function DisconnectAll()
-    for _, connection in ipairs(State.Connections) do
-        pcall(function()
-            connection:Disconnect()
-        end)
-    end
-
-    table.clear(State.Connections)
+local function Lower(text: string): string
+	return string.lower(text)
 end
 
-local function GetCharacter()
-    local Character = Player.Character
-
-    if not Character then
-        return nil
-    end
-
-    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    local Root = Character:FindFirstChild("HumanoidRootPart")
-
-    if not Humanoid or not Root then
-        return nil
-    end
-
-    State.Character = Character
-    State.Humanoid = Humanoid
-    State.Root = Root
-
-    return Character
+local function Has(text: string, value: string): boolean
+	return string.find(Lower(text), Lower(value), 1, true) ~= nil
 end
 
-local function Lower(Text: string): string
-    return string.lower(Text)
+local function RefreshCharacter(): boolean
+	local character = Player.Character
+	if not character then
+		return false
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or not root then
+		return false
+	end
+
+	State.Character = character
+	State.Humanoid = humanoid
+	State.Root = root
+
+	return true
 end
 
-local function Contains(Text: string, Search: string): boolean
-    return string.find(
-        Lower(Text),
-        Lower(Search),
-        1,
-        true
-    ) ~= nil
-end
-
---==================================================
+--========================================================
 -- GUI
---==================================================
+--========================================================
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BlockSpinFishingGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = PlayerGui
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "BlockSpinAutoFish"
+Gui.ResetOnSpawn = false
+Gui.Parent = PlayerGui
 
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.fromOffset(420, 520)
-Main.Position = UDim2.new(0.5, -210, 0.5, -260)
-Main.BackgroundColor3 = Color3.fromRGB(28, 29, 34)
-Main.BorderSizePixel = 0
-Main.Parent = ScreenGui
+local Window = Instance.new("Frame")
+Window.Size = UDim2.fromOffset(400, 480)
+Window.Position = UDim2.new(0.5, -200, 0.5, -240)
+Window.BackgroundColor3 = Color3.fromRGB(25, 27, 32)
+Window.BorderSizePixel = 0
+Window.Parent = Gui
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = Main
+Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 14)
 
 local Stroke = Instance.new("UIStroke")
-Stroke.Color = Color3.fromRGB(75, 77, 88)
+Stroke.Color = Color3.fromRGB(70, 75, 85)
 Stroke.Thickness = 1
-Stroke.Parent = Main
-
---==================================================
--- HEADER
---==================================================
+Stroke.Parent = Window
 
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 55)
-Header.BackgroundColor3 = Color3.fromRGB(38, 40, 47)
+Header.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
 Header.BorderSizePixel = 0
-Header.Parent = Main
+Header.Parent = Window
 
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 12)
-HeaderCorner.Parent = Header
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -100, 1, 0)
-Title.Position = UDim2.fromOffset(18, 0)
+Title.Size = UDim2.new(1, -70, 1, 0)
+Title.Position = UDim2.fromOffset(16, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "🎣 BlockSpin Fishing"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 20
+Title.Text = "🎣 BLOCKSPIN AUTO FISH"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextSize = 18
 Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
@@ -192,65 +156,13 @@ local Close = Instance.new("TextButton")
 Close.Size = UDim2.fromOffset(35, 35)
 Close.Position = UDim2.new(1, -45, 0, 10)
 Close.BackgroundColor3 = Color3.fromRGB(190, 45, 45)
-Close.Text = "X"
+Close.Text = "×"
 Close.TextColor3 = Color3.new(1, 1, 1)
-Close.TextSize = 18
+Close.TextSize = 24
 Close.Font = Enum.Font.GothamBold
 Close.Parent = Header
 
 Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 8)
-
-Close.MouseButton1Click:Connect(function()
-    State.Running = false
-    ScreenGui:Destroy()
-end)
-
---==================================================
--- DRAG
---==================================================
-
-local Dragging = false
-local DragStart: Vector2
-local StartPosition: UDim2
-
-Header.InputBegan:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Dragging = true
-        DragStart = Input.Position
-        StartPosition = Main.Position
-    end
-end)
-
-Header.InputEnded:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Dragging = false
-    end
-end)
-
-TrackConnection(
-    UserInputService.InputChanged:Connect(function(Input)
-        if not Dragging then
-            return
-        end
-
-        if Input.UserInputType ~= Enum.UserInputType.MouseMovement then
-            return
-        end
-
-        local Delta = Input.Position - DragStart
-
-        Main.Position = UDim2.new(
-            StartPosition.X.Scale,
-            StartPosition.X.Offset + Delta.X,
-            StartPosition.Y.Scale,
-            StartPosition.Y.Offset + Delta.Y
-        )
-    end)
-)
-
---==================================================
--- CONTENT
---==================================================
 
 local Content = Instance.new("ScrollingFrame")
 Content.Size = UDim2.new(1, -20, 1, -70)
@@ -258,719 +170,780 @@ Content.Position = UDim2.fromOffset(10, 62)
 Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
 Content.ScrollBarThickness = 4
-Content.CanvasSize = UDim2.new(0, 0, 0, 0)
 Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Content.Parent = Main
+Content.Parent = Window
 
 local Layout = Instance.new("UIListLayout")
-Layout.Padding = UDim.new(0, 8)
+Layout.Padding = UDim.new(0, 7)
 Layout.Parent = Content
 
 local Padding = Instance.new("UIPadding")
-Padding.PaddingLeft = UDim.new(0, 6)
-Padding.PaddingRight = UDim.new(0, 6)
+Padding.PaddingLeft = UDim.new(0, 5)
+Padding.PaddingRight = UDim.new(0, 5)
 Padding.Parent = Content
 
---==================================================
--- STATUS
---==================================================
-
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -12, 0, 35)
-Status.BackgroundColor3 = Color3.fromRGB(35, 37, 43)
-Status.Text = "● STOPPED"
-Status.TextColor3 = Color3.fromRGB(255, 80, 80)
-Status.TextSize = 15
+Status.Size = UDim2.new(1, 0, 0, 38)
+Status.BackgroundColor3 = Color3.fromRGB(40, 43, 50)
+Status.Text = "● IDLE"
+Status.TextColor3 = Color3.fromRGB(255, 90, 90)
+Status.TextSize = 14
 Status.Font = Enum.Font.GothamBold
 Status.Parent = Content
 
 Instance.new("UICorner", Status).CornerRadius = UDim.new(0, 8)
 
-local FishStatus = Instance.new("TextLabel")
-FishStatus.Size = UDim2.new(1, -12, 0, 35)
-FishStatus.BackgroundColor3 = Color3.fromRGB(35, 37, 43)
-FishStatus.Text = "Fish: 0 | Last: None"
-FishStatus.TextColor3 = Color3.fromRGB(220, 220, 220)
-FishStatus.TextSize = 14
-FishStatus.Font = Enum.Font.Gotham
-FishStatus.Parent = Content
+local Stats = Instance.new("TextLabel")
+Stats.Size = UDim2.new(1, 0, 0, 38)
+Stats.BackgroundColor3 = Color3.fromRGB(40, 43, 50)
+Stats.Text = "Fish: 0  |  Last: None"
+Stats.TextColor3 = Color3.fromRGB(220, 220, 220)
+Stats.TextSize = 13
+Stats.Font = Enum.Font.Gotham
+Stats.Parent = Content
 
-Instance.new("UICorner", FishStatus).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", Stats).CornerRadius = UDim.new(0, 8)
 
---==================================================
--- BUTTON FACTORY
---==================================================
+local function Section(text: string)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 0, 25)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = Color3.fromRGB(140, 145, 155)
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = Content
+end
 
-local function CreateToggle(
-    Name: string,
-    Initial: boolean,
-    Callback: (boolean) -> ()
+local function Toggle(
+	text: string,
+	value: boolean,
+	callback: (boolean) -> ()
 )
-    local Button = Instance.new("TextButton")
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 0, 40)
+	button.TextSize = 13
+	button.Font = Enum.Font.GothamBold
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.TextXAlignment = Enum.TextXAlignment.Left
+	button.Parent = Content
 
-    Button.Size = UDim2.new(1, -12, 0, 42)
-    Button.BackgroundColor3 = Initial
-        and Color3.fromRGB(25, 125, 50)
-        or Color3.fromRGB(55, 57, 64)
+	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
 
-    Button.TextColor3 = Color3.new(1, 1, 1)
-    Button.TextSize = 14
-    Button.Font = Enum.Font.GothamBold
-    Button.TextXAlignment = Enum.TextXAlignment.Left
-    Button.Parent = Content
+	local enabled = value
 
-    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
+	local function update()
+		button.Text = "   " .. text .. "     [" .. (enabled and "ON" or "OFF") .. "]"
 
-    local Enabled = Initial
+		button.BackgroundColor3 = enabled
+			and Color3.fromRGB(30, 125, 55)
+			or Color3.fromRGB(50, 53, 60)
+	end
 
-    local function Refresh()
-        Button.Text =
-            "   " .. Name ..
-            (Enabled and "                         ON"
-                or "                         OFF")
+	update()
 
-        Button.BackgroundColor3 = Enabled
-            and Color3.fromRGB(25, 125, 50)
-            or Color3.fromRGB(55, 57, 64)
-    end
+	button.MouseButton1Click:Connect(function()
+		enabled = not enabled
+		update()
+		callback(enabled)
+	end)
 
-    Refresh()
-
-    Button.MouseButton1Click:Connect(function()
-        Enabled = not Enabled
-        Refresh()
-        Callback(Enabled)
-    end)
-
-    return Button
+	return button
 end
 
-local function CreateSection(Text: string)
-    local Label = Instance.new("TextLabel")
-
-    Label.Size = UDim2.new(1, -12, 0, 28)
-    Label.BackgroundTransparency = 1
-    Label.Text = Text
-    Label.TextColor3 = Color3.fromRGB(150, 155, 170)
-    Label.TextSize = 13
-    Label.Font = Enum.Font.GothamBold
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Content
-end
-
---==================================================
--- MAIN TOGGLES
---==================================================
-
-CreateSection("AUTOMATION")
-
-CreateToggle(
-    "Auto Farm",
-    false,
-    function(Value)
-        State.Running = Value
-
-        if Value then
-            Status.Text = "● RUNNING"
-            Status.TextColor3 = Color3.fromRGB(50, 255, 90)
-        else
-            Status.Text = "● STOPPED"
-            Status.TextColor3 = Color3.fromRGB(255, 80, 80)
-        end
-    end
-)
-
-CreateToggle(
-    "Auto Equip Rod",
-    Settings.AutoEquipRod,
-    function(Value)
-        Settings.AutoEquipRod = Value
-    end
-)
-
-CreateToggle(
-    "Auto Bait",
-    Settings.AutoBait,
-    function(Value)
-        Settings.AutoBait = Value
-    end
-)
-
-CreateToggle(
-    "Auto Cast",
-    Settings.AutoCast,
-    function(Value)
-        Settings.AutoCast = Value
-    end
-)
-
-CreateToggle(
-    "Auto Catch",
-    Settings.AutoCatch,
-    function(Value)
-        Settings.AutoCatch = Value
-    end
-)
-
-CreateToggle(
-    "Auto Sell",
-    Settings.AutoSell,
-    function(Value)
-        Settings.AutoSell = Value
-    end
-)
-
---==================================================
--- RARITY
---==================================================
-
-CreateSection("KEEP FISH")
-
-local RarityButtons = {}
-
-local function AddRarity(Name: string)
-    RarityButtons[Name] = CreateToggle(
-        "Keep " .. Name,
-        Settings.Keep[Name],
-        function(Value)
-            Settings.Keep[Name] = Value
-        end
-    )
-end
-
-AddRarity("Green")
-AddRarity("Blue")
-AddRarity("Purple")
-AddRarity("Gold")
-AddRarity("Red")
-
---==================================================
--- ROD FINDER
---==================================================
-
-local function FindRod(): Tool?
-    GetCharacter()
-
-    local Character = State.Character
-
-    if Character then
-        for _, Object in ipairs(Character:GetChildren()) do
-            if Object:IsA("Tool") then
-                local Name = Lower(Object.Name)
-
-                if
-                    Contains(Name, "rod")
-                    or Contains(Name, "fishing")
-                    or Contains(Name, "pole")
-                then
-                    return Object
-                end
-            end
-        end
-    end
-
-    for _, Object in ipairs(Backpack:GetChildren()) do
-        if Object:IsA("Tool") then
-            local Name = Lower(Object.Name)
-
-            if
-                Contains(Name, "rod")
-                or Contains(Name, "fishing")
-                or Contains(Name, "pole")
-            then
-                return Object
-            end
-        end
-    end
-
-    return nil
-end
-
-local function EquipRod(): Tool?
-    local Character = GetCharacter()
-
-    if not Character then
-        return nil
-    end
-
-    local Humanoid = State.Humanoid
-
-    if not Humanoid then
-        return nil
-    end
-
-    local Rod = FindRod()
-
-    if not Rod then
-        return nil
-    end
-
-    if Rod.Parent ~= Character then
-        Humanoid:EquipTool(Rod)
-        task.wait(0.2)
-    end
-
-    State.Rod = Rod
-
-    return Rod
-end
-
---==================================================
--- BAIT FINDER
---==================================================
-
-local function FindBait(): Tool?
-    local Character = State.Character
-
-    if Character then
-        for _, Object in ipairs(Character:GetChildren()) do
-            if Object:IsA("Tool") then
-                local Name = Lower(Object.Name)
-
-                if
-                    Contains(Name, "bait")
-                    or Contains(Name, "worm")
-                    or Contains(Name, "prawn")
-                then
-                    return Object
-                end
-            end
-        end
-    end
-
-    for _, Object in ipairs(Backpack:GetChildren()) do
-        if Object:IsA("Tool") then
-            local Name = Lower(Object.Name)
-
-            if
-                Contains(Name, "bait")
-                or Contains(Name, "worm")
-                or Contains(Name, "prawn")
-            then
-                return Object
-            end
-        end
-    end
-
-    return nil
-end
-
---==================================================
--- BAIT
---==================================================
-
-local function AttachBait()
-    local Rod = State.Rod
-
-    if not Rod then
-        return false
-    end
-
-    local Bait = FindBait()
-
-    if not Bait then
-        return false
-    end
-
-    State.Bait = Bait
-
-    -- دعم الأنظمة التي تستخدم Attributes
-    if Rod:GetAttribute("Bait") == nil then
-        pcall(function()
-            Rod:SetAttribute("Bait", Bait.Name)
-        end)
-    end
-
-    -- إذا كان الـBait نفسه يحتاج Activate
-    if Bait.Parent == State.Character then
-        pcall(function()
-            Bait:Activate()
-        end)
-    end
-
-    return true
-end
-
---==================================================
--- CAST
---==================================================
-
-local function CastRod()
-    local Rod = State.Rod
-
-    if not Rod then
-        return false
-    end
-
-    pcall(function()
-        Rod:Activate()
-    end)
-
-    return true
-end
-
---==================================================
--- MINIGAME DETECTION
---==================================================
-
-local function IsGreen(Color: Color3): boolean
-    return
-        Color.G > Color.R * 1.35
-        and Color.G > Color.B * 1.15
-        and Color.G > 0.35
-end
-
-local function FindFishingGui(): GuiObject?
-    local Best: GuiObject? = nil
-
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("GuiObject") and Object.Visible then
-            local Name = Lower(Object.Name)
-
-            if
-                Contains(Name, "fishing")
-                or Contains(Name, "fish")
-                or Contains(Name, "catch")
-                or Contains(Name, "reel")
-                or Contains(Name, "minigame")
-            then
-                Best = Object
-            end
-        end
-    end
-
-    return Best
-end
-
---==================================================
--- GREEN TARGET
---==================================================
-
-local function FindGreenTarget(): GuiObject?
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("GuiObject") and Object.Visible then
-
-            local Color = Object.BackgroundColor3
-
-            if IsGreen(Color) then
-                local Size = Object.AbsoluteSize
-
-                if Size.X > 15 and Size.Y > 5 then
-                    return Object
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
---==================================================
--- NEEDLE DETECTION
---==================================================
-
-local function GetGuiCenter(Object: GuiObject): Vector2
-    return Object.AbsolutePosition + Object.AbsoluteSize / 2
-end
-
-local function IsInsideTarget(
-    Needle: GuiObject,
-    Target: GuiObject
-): boolean
-
-    local NeedleCenter = GetGuiCenter(Needle)
-
-    local Position = Target.AbsolutePosition
-    local Size = Target.AbsoluteSize
-
-    return
-        NeedleCenter.X >= Position.X
-        and NeedleCenter.X <= Position.X + Size.X
-        and NeedleCenter.Y >= Position.Y
-        and NeedleCenter.Y <= Position.Y + Size.Y
-end
-
-local function FindNeedle(Target: GuiObject): GuiObject?
-    local TargetCenter = GetGuiCenter(Target)
-
-    local Best: GuiObject? = nil
-    local BestDistance = math.huge
-
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("GuiObject")
-            and Object.Visible
-            and Object ~= Target
-        then
-            local Center = GetGuiCenter(Object)
-
-            local Distance = math.abs(
-                Center.X - TargetCenter.X
-            )
-
-            if Distance < BestDistance
-                and Object.AbsoluteSize.X <= 30
-                and Object.AbsoluteSize.Y >= Target.AbsoluteSize.Y * 0.5
-            then
-                Best = Object
-                BestDistance = Distance
-            end
-        end
-    end
-
-    return Best
-end
-
---==================================================
--- CLICK MINIGAME
---==================================================
-
-local function FindCatchButton(): GuiButton?
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("GuiButton") and Object.Visible then
-            local Name = Lower(Object.Name)
-            local Text = Lower(Object.Text)
-
-            if
-                Contains(Name, "catch")
-                or Contains(Name, "reel")
-                or Contains(Name, "click")
-                or Contains(Text, "click")
-                or Contains(Text, "catch")
-            then
-                return Object
-            end
-        end
-    end
-
-    return nil
-end
-
-local function AutoCatch(): boolean
-    local Timeout = os.clock() + 15
-
-    while State.Running and os.clock() < Timeout do
-        local Target = FindGreenTarget()
-
-        if Target then
-            local Needle = FindNeedle(Target)
-
-            if Needle and IsInsideTarget(Needle, Target) then
-                local Button = FindCatchButton()
-
-                if Button then
-                    pcall(function()
-                        Button:Activate()
-                    end)
-
-                    task.wait(Settings.CatchDelay)
-
-                    return true
-                end
-            end
-        end
-
-        RunService.RenderStepped:Wait()
-    end
-
-    return false
-end
-
---==================================================
--- RARITY DETECTION
---==================================================
-
-local RarityNames = {
-    "Red",
-    "Gold",
-    "Purple",
-    "Blue",
-    "Green",
-}
-
-local function DetectRarity(): string
-    task.wait(0.2)
-
-    -- أولاً نبحث عن نصوص الواجهة
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("TextLabel") or Object:IsA("TextButton") then
-            if Object.Visible then
-                local Text = Object.Text
-
-                for _, Rarity in ipairs(RarityNames) do
-                    if Contains(Text, Rarity) then
-                        return Rarity
-                    end
-                end
-            end
-        end
-    end
-
-    -- ثانياً Attributes
-    local Character = State.Character
-
-    if Character then
-        local Fish = Character:FindFirstChild("Fish")
-
-        if Fish then
-            local Rarity = Fish:GetAttribute("Rarity")
-
-            if typeof(Rarity) == "string" then
-                return Rarity
-            end
-        end
-    end
-
-    return "Unknown"
-end
-
---==================================================
--- SELL
---==================================================
-
-local function ShouldKeep(Rarity: string): boolean
-    if Settings.Keep[Rarity] ~= nil then
-        return Settings.Keep[Rarity]
-    end
-
-    return true
-end
-
-local function FindSellButton(): GuiButton?
-    for _, Object in ipairs(PlayerGui:GetDescendants()) do
-        if Object:IsA("GuiButton") and Object.Visible then
-            local Name = Lower(Object.Name)
-            local Text = Lower(Object.Text)
-
-            if
-                Contains(Name, "sell")
-                or Contains(Text, "sell")
-                or Contains(Text, "discard")
-            then
-                return Object
-            end
-        end
-    end
-
-    return nil
-end
-
-local function SellFish()
-    local Button = FindSellButton()
-
-    if Button then
-        pcall(function()
-            Button:Activate()
-        end)
-
-        task.wait(Settings.SellDelay)
-    end
-end
-
---==================================================
--- FISHING CYCLE
---==================================================
-
-local function FishingCycle()
-    if State.Busy then
-        return
-    end
-
-    State.Busy = true
-
-    -- Character
-    if not GetCharacter() then
-        State.Busy = false
-        return
-    end
-
-    -- Rod
-    if Settings.AutoEquipRod then
-        EquipRod()
-    end
-
-    if not State.Rod then
-        State.Busy = false
-        return
-    end
-
-    -- Bait
-    if Settings.AutoBait then
-        AttachBait()
-    end
-
-    task.wait(Settings.RecastDelay)
-
-    -- Cast
-    if Settings.AutoCast then
-        CastRod()
-    end
-
-    task.wait(Settings.CastDelay)
-
-    -- Catch
-    if Settings.AutoCatch then
-        AutoCatch()
-    end
-
-    -- Rarity
-    local Rarity = DetectRarity()
-
-    State.LastFish = Rarity
-    State.TotalFish += 1
-
-    FishStatus.Text =
-        "Fish: "
-        .. tostring(State.TotalFish)
-        .. " | Last: "
-        .. Rarity
-
-    -- Sell
-    if Settings.AutoSell then
-        if not ShouldKeep(Rarity) then
-            SellFish()
-        end
-    end
-
-    State.Busy = false
-end
-
---==================================================
--- FARM LOOP
---==================================================
-
-task.spawn(function()
-    while ScreenGui.Parent do
-        if State.Running then
-            FishingCycle()
-        end
-
-        task.wait(0.1)
-    end
+Section("AUTOMATION")
+
+Toggle("Auto Farm", false, function(value)
+	Settings.Enabled = value
+	State.Running = value
+
+	if value then
+		Status.Text = "● RUNNING"
+		Status.TextColor3 = Color3.fromRGB(50, 255, 90)
+	else
+		Status.Text = "● STOPPED"
+		Status.TextColor3 = Color3.fromRGB(255, 90, 90)
+	end
 end)
 
---==================================================
+Toggle("Auto Rod", true, function(v)
+	Settings.AutoRod = v
+end)
+
+Toggle("Auto Bait", true, function(v)
+	Settings.AutoBait = v
+end)
+
+Toggle("Auto Cast", true, function(v)
+	Settings.AutoCast = v
+end)
+
+Toggle("Auto Catch", true, function(v)
+	Settings.AutoCatch = v
+end)
+
+Toggle("Auto Sell", true, function(v)
+	Settings.AutoSell = v
+end)
+
+Section("SELL / DISCARD")
+
+for _, rarity in ipairs({
+	"Brown",
+	"Green",
+	"Blue",
+	"Gold",
+	"Red",
+}) do
+	Toggle("Sell " .. rarity, true, function(v)
+		Settings.Sell[rarity] = v
+	end)
+end
+
+--========================================================
+-- ROD
+--========================================================
+
+local function FindRod(): Tool?
+	RefreshCharacter()
+
+	if State.Character then
+		for _, object in ipairs(State.Character:GetChildren()) do
+			if object:IsA("Tool") then
+				local name = Lower(object.Name)
+
+				if Has(name, "rod")
+					or Has(name, "fishing")
+					or Has(name, "pole")
+				then
+					return object
+				end
+			end
+		end
+	end
+
+	for _, object in ipairs(Backpack:GetChildren()) do
+		if object:IsA("Tool") then
+			local name = Lower(object.Name)
+
+			if Has(name, "rod")
+				or Has(name, "fishing")
+				or Has(name, "pole")
+			then
+				return object
+			end
+		end
+	end
+
+	return nil
+end
+
+local function EquipRod(): boolean
+	if not RefreshCharacter() then
+		return false
+	end
+
+	local humanoid = State.Humanoid
+	if not humanoid then
+		return false
+	end
+
+	local rod = FindRod()
+
+	if not rod then
+		Log("No rod found")
+		return false
+	end
+
+	if rod.Parent ~= State.Character then
+		humanoid:EquipTool(rod)
+		task.wait(0.2)
+	end
+
+	State.Rod = rod
+
+	return true
+end
+
+--========================================================
+-- BAIT
+--========================================================
+
+local function FindBait(): Tool?
+	local function search(container: Instance): Tool?
+		for _, object in ipairs(container:GetChildren()) do
+			if object:IsA("Tool") then
+				local name = Lower(object.Name)
+
+				if Has(name, "bait")
+					or Has(name, "worm")
+					or Has(name, "prawn")
+				then
+					return object
+				end
+			end
+		end
+
+		return nil
+	end
+
+	if State.Character then
+		local bait = search(State.Character)
+		if bait then
+			return bait
+		end
+	end
+
+	return search(Backpack)
+end
+
+local function AttachBait(): boolean
+	local rod = State.Rod
+
+	if not rod then
+		return false
+	end
+
+	local bait = FindBait()
+
+	if not bait then
+		Log("No bait found")
+		return false
+	end
+
+	State.Bait = bait
+
+	-- إذا كان نظام لعبتك يستخدم Tool لتجهيز الطعم
+	if bait.Parent ~= State.Character then
+		local humanoid = State.Humanoid
+
+		if humanoid then
+			humanoid:EquipTool(bait)
+			task.wait(0.15)
+		end
+	end
+
+	pcall(function()
+		bait:Activate()
+	end)
+
+	-- بعض أنظمة الصيد تضع الـBait كـAttribute
+	pcall(function()
+		rod:SetAttribute("Bait", bait.Name)
+	end)
+
+	task.wait(0.15)
+
+	return true
+end
+
+--========================================================
+-- FIND FARTHEST WATER
+--========================================================
+
+local function FindFarthestWater(): Vector3?
+	local root = State.Root
+
+	if not root then
+		return nil
+	end
+
+	local origin = root.Position
+	local bestPosition: Vector3? = nil
+	local bestDistance = 0
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = {
+		State.Character
+	}
+
+	for i = 0, Settings.WaterSamples - 1 do
+		local angle = (math.pi * 2 / Settings.WaterSamples) * i
+
+		local direction = Vector3.new(
+			math.cos(angle),
+			0,
+			math.sin(angle)
+		)
+
+		local result = Workspace:Raycast(
+			origin + Vector3.new(0, 3, 0),
+			direction * Settings.CastDistance,
+			rayParams
+		)
+
+		if result then
+			if result.Material == Enum.Material.Water then
+				local distance = (result.Position - origin).Magnitude
+
+				if distance > bestDistance then
+					bestDistance = distance
+					bestPosition = result.Position
+				end
+			end
+		end
+	end
+
+	return bestPosition
+end
+
+--========================================================
+-- AIM + CAST
+--========================================================
+
+local function AimAt(position: Vector3)
+	local root = State.Root
+
+	if not root then
+		return
+	end
+
+	local flatTarget = Vector3.new(
+		position.X,
+		root.Position.Y,
+		position.Z
+	)
+
+	root.CFrame = CFrame.lookAt(
+		root.Position,
+		flatTarget
+	)
+end
+
+local function Cast(): boolean
+	local rod = State.Rod
+
+	if not rod then
+		return false
+	end
+
+	local water = FindFarthestWater()
+
+	if water then
+		AimAt(water)
+		task.wait(0.15)
+	end
+
+	pcall(function()
+		rod:Activate()
+	end)
+
+	return true
+end
+
+--========================================================
+-- GREEN TARGET
+--========================================================
+
+local function IsGreen(color: Color3): boolean
+	return color.G > 0.35
+		and color.G > color.R * 1.35
+		and color.G > color.B * 1.15
+end
+
+local function FindGreenTarget(): GuiObject?
+	local best: GuiObject? = nil
+	local bestArea = math.huge
+
+	for _, object in ipairs(PlayerGui:GetDescendants()) do
+		if object:IsA("GuiObject") and object.Visible then
+
+			local color = object.BackgroundColor3
+
+			if IsGreen(color) then
+				local size = object.AbsoluteSize
+
+				if size.X > 8 and size.Y > 8 then
+					local area = size.X * size.Y
+
+					if area < bestArea then
+						bestArea = area
+						best = object
+					end
+				end
+			end
+		end
+	end
+
+	return best
+end
+
+--========================================================
+-- NEEDLE
+--========================================================
+
+local function FindNeedle(target: GuiObject): GuiObject?
+	local targetCenter =
+		target.AbsolutePosition
+		+ target.AbsoluteSize / 2
+
+	local best: GuiObject? = nil
+	local bestDistance = math.huge
+
+	for _, object in ipairs(PlayerGui:GetDescendants()) do
+		if object:IsA("GuiObject")
+			and object.Visible
+			and object ~= target
+		then
+
+			local size = object.AbsoluteSize
+
+			if size.X <= 20 or size.Y <= 20 then
+				local center =
+					object.AbsolutePosition
+					+ size / 2
+
+				local distance =
+					math.abs(center.X - targetCenter.X)
+
+				if distance < bestDistance then
+					bestDistance = distance
+					best = object
+				end
+			end
+		end
+	end
+
+	return best
+end
+
+--========================================================
+-- TARGET TEST
+--========================================================
+
+local function NeedleInside(
+	needle: GuiObject,
+	target: GuiObject
+): boolean
+
+	local point =
+		needle.AbsolutePosition
+		+ needle.AbsoluteSize / 2
+
+	local pos = target.AbsolutePosition
+	local size = target.AbsoluteSize
+
+	local tolerance = size.X * Settings.CatchTolerance
+
+	return point.X >= pos.X - tolerance
+		and point.X <= pos.X + size.X + tolerance
+end
+
+--========================================================
+-- CATCH BUTTON
+--========================================================
+
+local function FindCatchButton(): GuiButton?
+	for _, object in ipairs(PlayerGui:GetDescendants()) do
+		if object:IsA("GuiButton")
+			and object.Visible
+		then
+
+			local name = Lower(object.Name)
+			local text = Lower(object.Text)
+
+			if Has(name, "catch")
+				or Has(name, "reel")
+				or Has(name, "fish")
+				or Has(text, "catch")
+				or Has(text, "click")
+				or Has(text, "reel")
+			then
+				return object
+			end
+		end
+	end
+
+	return nil
+end
+
+local function PressCatch(): boolean
+	local button = FindCatchButton()
+
+	if button then
+		pcall(function()
+			button:Activate()
+		end)
+
+		return true
+	end
+
+	return false
+end
+
+--========================================================
+-- AUTO CATCH
+--========================================================
+
+local function AutoCatch(): boolean
+	local timeout = os.clock() + Settings.CatchTimeout
+
+	while State.Running
+		and Settings.AutoCatch
+		and os.clock() < timeout
+	do
+
+		-- نعيد البحث كل Frame لأن الـGreen يصغر ويتغير
+		local target = FindGreenTarget()
+
+		if target then
+			State.CurrentTarget = target
+
+			local needle = FindNeedle(target)
+
+			if needle then
+				State.CurrentNeedle = needle
+
+				if NeedleInside(needle, target) then
+					local clicked = PressCatch()
+
+					if clicked then
+						-- لا ننتظر وقتًا ثابتًا.
+						-- نرجع مباشرة نبحث عن Green الجديد.
+						task.wait(0.025)
+					end
+				end
+			end
+		end
+
+		RunService.RenderStepped:Wait()
+	end
+
+	return true
+end
+
+--========================================================
+-- RARITY
+--========================================================
+
+local function DetectFishRarity(): string
+	task.wait(Settings.AfterCatchDelay)
+
+	-- أولوية للنصوص التي تظهر بعد الصيد
+	for _, object in ipairs(PlayerGui:GetDescendants()) do
+		if object:IsA("TextLabel")
+			or object:IsA("TextButton")
+		then
+			if object.Visible then
+				local text = object.Text
+
+				for _, rarity in ipairs({
+					"Brown",
+					"Green",
+					"Blue",
+					"Purple",
+					"Gold",
+					"Red",
+				}) do
+					if Has(text, rarity) then
+						return rarity
+					end
+				end
+			end
+		end
+	end
+
+	-- دعم Attributes لو كانت لعبتك تستخدمها
+	if State.Character then
+		for _, object in ipairs(State.Character:GetDescendants()) do
+			local rarity = object:GetAttribute("Rarity")
+
+			if typeof(rarity) == "string" then
+				return rarity
+			end
+		end
+	end
+
+	return "Unknown"
+end
+
+--========================================================
+-- SELL
+--========================================================
+
+local function SellFish()
+	local button: GuiButton? = nil
+
+	for _, object in ipairs(PlayerGui:GetDescendants()) do
+		if object:IsA("GuiButton") and object.Visible then
+			local name = Lower(object.Name)
+			local text = Lower(object.Text)
+
+			if Has(name, "sell")
+				or Has(name, "discard")
+				or Has(text, "sell")
+				or Has(text, "discard")
+			then
+				button = object
+				break
+			end
+		end
+	end
+
+	if button then
+		pcall(function()
+			button:Activate()
+		end)
+	end
+end
+
+--========================================================
+-- FISH CYCLE
+--========================================================
+
+local function RunCycle()
+	if State.Busy then
+		return
+	end
+
+	State.Busy = true
+
+	Status.Text = "● PREPARING"
+	Status.TextColor3 = Color3.fromRGB(255, 210, 70)
+
+	if not RefreshCharacter() then
+		State.Busy = false
+		return
+	end
+
+	-- Rod
+	if Settings.AutoRod then
+		if not EquipRod() then
+			State.Busy = false
+			task.wait(1)
+			return
+		end
+	end
+
+	-- Bait
+	if Settings.AutoBait then
+		AttachBait()
+	end
+
+	task.wait(0.2)
+
+	-- Cast
+	if Settings.AutoCast then
+		Status.Text = "● CASTING"
+		Cast()
+	end
+
+	-- Catch
+	if Settings.AutoCatch then
+		Status.Text = "● CATCHING"
+		AutoCatch()
+	end
+
+	-- Result
+	local rarity = DetectFishRarity()
+
+	State.LastRarity = rarity
+	State.FishCount += 1
+
+	Stats.Text =
+		"Fish: "
+		.. tostring(State.FishCount)
+		.. "  |  Last: "
+		.. rarity
+
+	-- Sell only selected rarities
+	if Settings.AutoSell
+		and Settings.Sell[rarity] == true
+	then
+
+		Status.Text = "● SELLING"
+		SellFish()
+	end
+
+	task.wait(Settings.RecastDelay)
+
+	State.Busy = false
+end
+
+--========================================================
+-- MAIN LOOP
+--========================================================
+
+task.spawn(function()
+	while Gui.Parent do
+
+		if State.Running then
+			RunCycle()
+		end
+
+		task.wait(0.05)
+	end
+end)
+
+--========================================================
 -- CHARACTER RESET
---==================================================
+--========================================================
 
-TrackConnection(
-    Player.CharacterAdded:Connect(function()
-        task.wait(1)
+Player.CharacterAdded:Connect(function()
+	task.wait(1)
 
-        State.Character = nil
-        State.Humanoid = nil
-        State.Root = nil
-        State.Rod = nil
-        State.Bait = nil
+	State.Character = nil
+	State.Humanoid = nil
+	State.Root = nil
+	State.Rod = nil
+	State.Bait = nil
+	State.Busy = false
 
-        GetCharacter()
-    end)
-)
+	RefreshCharacter()
+end)
 
---==================================================
--- INITIALIZE
---==================================================
+--========================================================
+-- DRAG
+--========================================================
 
-GetCharacter()
+local dragging = false
+local dragStart: Vector2
+local startPosition: UDim2
 
-print("[BlockSpin] Fishing GUI loaded.")
-print("[BlockSpin] Ready.")
+Header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPosition = Window.Position
+	end
+end)
+
+Header.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging then
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+		return
+	end
+
+	local delta = input.Position - dragStart
+
+	Window.Position = UDim2.new(
+		startPosition.X.Scale,
+		startPosition.X.Offset + delta.X,
+		startPosition.Y.Scale,
+		startPosition.Y.Offset + delta.Y
+	)
+end)
+
+Close.MouseButton1Click:Connect(function()
+	State.Running = false
+	Gui:Destroy()
+end)
+
+--========================================================
+-- START
+--========================================================
+
+RefreshCharacter()
+
+print("[BlockSpin] Auto Fisher loaded.")
