@@ -1,16 +1,14 @@
 -- ==========================================
--- BlockSpin AI FISHING BOT (Godlike Precision)
--- دقة خارقة + رمي بعيد + أداة طعم تلقائية
+-- BlockSpin AI FISHING BOT (Direct Hit Edition)
+-- يقرأ أي عنصر أخضر وينقر عليه مباشرة بالإحداثيات
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local camera = Workspace.CurrentCamera
 
 local Settings = {
     AutoFish = true,
@@ -19,29 +17,33 @@ local Settings = {
 local isFishing = false
 
 -- ==========================================
--- 1. دالة النقر الخارقة (أسرع من العين)
+-- 1. دالة النقر المباشر على الإحداثيات
 -- ==========================================
-local mouse = player:GetMouse()
-
-local function instantClick()
-    -- إرسال أمر النقر للواجهة بشكل فوري جداً بدون تأخير الإطارات
-    if mouse1press then
+local function directClick(x, y)
+    -- استخدام أوامر المنفذ المباشرة للنقر على الإحداثيات بسرعة خارقة
+    if mouse1press and mouse1release then
+        if mousemove then mousemove(x, y) end
         mouse1press()
         task.wait()
         mouse1release()
-    else
-        -- طريقة احتياطية للمنفذات التي لا تدعم mouse1press
+    elseif mouse1click then
+        if mousemove then mousemove(x, y) end
         mouse1click()
+    else
+        -- طريقة VirtualInputManager الاحتياطية
+        local VirtualInputManager = game:GetService("VirtualInputManager")
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.01)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
     end
 end
 
 -- ==========================================
--- 2. دالة للتحقق من اللون الأخضر (مهما كانت درجته)
+-- 2. دالة للتحقق من اللون الأخضر
 -- ==========================================
 local function isGreenColor(color)
-    -- الأخضر النقي يكون R=0, G=255, B=0. 
-    -- في BlockSpin الأخضر قد يكون فاتحاً (G=200 وأكثر، وR و B أقل من 100)
-    if color.G > 0.5 and color.R < 0.5 and color.B < 0.5 then
+    -- فحص إذا كان اللون يحتوي على أخضر بشكل أساسي
+    if color and color.G > 0.5 and color.R < 0.6 and color.B < 0.6 then
         return true
     end
     return false
@@ -59,7 +61,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (Godlike AI)
+-- 🎣 نظام الصيد الذكي (Direct Hit AI)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -83,30 +85,29 @@ local function startAutoFishingLoop()
                         end
 
                         -- 2. الرمي البعيد في البحيرة
-                        -- رمي الصنارة
                         tool:Activate()
-                        -- الانتظار 3 ثوانٍ لضمان وصول الطعم لأبعد نقطة في الماء
-                        task.wait(1)
+                        task.wait(3) -- الانتظار لوصول الطعم لأبعد نقطة
                         
-                        -- 3. البحث عن واجهة الصيد (الخط الأخضر) والنقر الفوري
+                        -- 3. البحث عن واجهة الصيد والنقر المباشر
                         local fished = false
                         local timeout = 0
                         
-                        while task.wait(0.03) do -- لوب سريع جداً لرصد الخط
-                            timeout = timeout + 0.03
+                        -- لوب سريع جداً لرصد الخط الأخضر
+                        while task.wait(0.01) do 
+                            timeout = timeout + 0.01
                             if timeout > 15 then break end -- خروج إذا لم يعلق سمك خلال 15 ثانية
                             
                             local greenBar = nil
                             
-                            -- البحث في واجهة المستخدم
+                            -- البحث في جميع عناصر واجهة المستخدم
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        -- البحث عن إطار أو شريط أخضر مرئي
+                                        -- البحث عن أي عنصر مرئي (Frame أو ImageLabel إلخ)
                                         if element:IsA("GuiObject") and element.Visible then
-                                            if isGreenColor(element.BackgroundColor3) and element.AbsoluteSize.X > 0 and element.AbsoluteSize.Y > 0 then
-                                                -- تأكد أنه ليس شيئاً كبيراً جداً (مثل خلفية الشاشة)
-                                                if element.AbsoluteSize.X < 300 and element.AbsoluteSize.Y < 300 then
+                                            -- التأكد من حجمه (الخط الأخضر عادة صغير/متوسط)
+                                            if element.AbsoluteSize.X > 2 and element.AbsoluteSize.X < 300 and element.AbsoluteSize.Y > 2 and element.AbsoluteSize.Y < 300 then
+                                                if isGreenColor(element.BackgroundColor3) or isGreenColor(element.ImageColor3) then
                                                     greenBar = element
                                                     break
                                                 end
@@ -117,28 +118,21 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد الخط الأخضر، ننقر فوراً
+                            -- 4. إذا وجد الخط الأخضر، ننقر فوراً على منتصفه
                             if greenBar then
-                                -- تحريك الماوس الوهمي فوق الخط الأخضر مباشرة
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
                                 
-                                -- تحديث موقع الماوس
-                                mouse.X = greenX
-                                mouse.Y = greenY
-                                if mousemove then 
-                                    mousemove(greenX, greenY) 
-                                end
+                                -- النقر المباشر على الإحداثيات
+                                directClick(greenX, greenY)
                                 
-                                -- النقر الخارق السرعة
-                                instantClick()
                                 fished = true
                                 task.wait(1) -- انتظار سحب السمكة
                                 break
                             end
                         end
                         
-                        -- 5. إعادة السنارة للخلف (Deactivate)
+                        -- 5. إعادة السنارة للخلف
                         tool:Deactivate()
                         task.wait(0.5)
                         
@@ -151,14 +145,14 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم GUI (احترافية + تكبير وتصغير)
+-- 🖥️ واجهة التحكم GUI
 -- ==========================================
 local function CreateGUI()
-    local oldGui = playerGui:FindFirstChild("BlockSpin_GodFish_AI")
+    local oldGui = playerGui:FindFirstChild("BlockSpin_DirectFish_AI")
     if oldGui then oldGui:Destroy() end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BlockSpin_GodFish_AI"
+    screenGui.Name = "BlockSpin_DirectFish_AI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
@@ -192,7 +186,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 Godlike AI Fishing"
+    titleLabel.Text = "🎣 AI Auto Fishing"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -293,4 +287,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("BlockSpin Godlike AI Fishing Script Loaded Successfully!")
+print("BlockSpin Direct Hit AI Fishing Script Loaded Successfully!")
