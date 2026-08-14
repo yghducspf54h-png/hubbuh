@@ -1,6 +1,5 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (إصدار المحاصرة الصارم)
--- محاصر بالأبعاد واللون البني لمنع ضرب العشب
+-- سكربت الصيد الذكي لـ BlockSpin (الإصدار الأسود المحاصر بـ #191A1C)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -34,19 +33,19 @@ local function silentHold(duration)
 end
 
 -- ==========================================
--- 2. دوال فحص الألوان (الخضراء والبنية)
+-- 2. دوال فحص الألوان (الأخضر والحواف الداكنة #191A1C)
 -- ==========================================
 local function isGreenColor(c)
-    -- أخضر صريح: الأخضر هو الغالب بفارق كبير
+    -- فحص الأخضر بجميع درجاته (الغالب هو الأخضر)
     if c and c.G > 0.4 and c.G > (c.R * 2) and c.G > (c.B * 2) then
         return true
     end
     return false
 end
 
-local function isBrownColor(c)
-    -- بني صريح: أحمر متوسط، أخضر منخفض، أزرق شبه معدوم
-    if c and (c.R > 0.2 and c.R < 0.6) and (c.G > 0.1 and c.G < 0.4) and (c.B < 0.2) then
+local function isDarkEdgeColor(c)
+    -- فحص لون الحواف #191A1C (أحمر، أخضر، أزرمنخفضة جداً)
+    if c and c.R <= 0.15 and c.G <= 0.15 and c.B <= 0.15 then
         return true
     end
     return false
@@ -64,7 +63,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (المحاصر)
+-- 🎣 نظام الصيد الذكي (المحاصر بالأسود)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -87,14 +86,14 @@ local function startAutoFishingLoop()
                             end
                         end
 
-                        -- 2. الرمي البعيد (للأمام مباشرة بدون تغيير الكاميرا)
+                        -- 2. الرمي البعيد
                         local lookVector = char.HumanoidRootPart.CFrame.LookVector
                         char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
                         silentHold(1.5)
                         task.wait(0.5)
                         
-                        -- 3. البحث عن المستطيل الأخضر المحاصر بالشروط
+                        -- 3. البحث عن المستطيل الأخضر المحاصر بـ #191A1C
                         local fished = false
                         local timeout = 0
                         
@@ -116,15 +115,15 @@ local function startAutoFishingLoop()
                                             if isGreenColor(c) then
                                                 -- الشرط الثاني: الأبعاد صغيرة (مستطيل الصيد)
                                                 if w > 5 and w < 80 and h > 5 and h < 80 then
-                                                    -- الشرط الثالث (المحاصرة): يجب أن يكون له إخوة (Siblings) لونهم بني
-                                                    local hasBrownSibling = false
+                                                    -- الشرط الثالث (المحاصرة): يجب أن يكون له إخوة (Siblings) لونهم الحافة الداكنة
+                                                    local hasDarkEdge = false
                                                     local parent = element.Parent
                                                     if parent then
                                                         for _, sibling in pairs(parent:GetChildren()) do
-                                                            if sibling ~= element and sibling:IsA("Frame") and isBrownColor(sibling.BackgroundColor3) then
-                                                                -- نتأكد أن البني طويل (شريط الصيد)
+                                                            if sibling ~= element and sibling:IsA("Frame") and isDarkEdgeColor(sibling.BackgroundColor3) then
+                                                                -- نتأكد أن الحافة طويلة (شريط الصيد)
                                                                 if sibling.AbsoluteSize.X > 100 or sibling.AbsoluteSize.Y > 100 then
-                                                                    hasBrownSibling = true
+                                                                    hasDarkEdge = true
                                                                     break
                                                                 end
                                                             end
@@ -132,7 +131,7 @@ local function startAutoFishingLoop()
                                                     end
                                                     
                                                     -- إذا تحققت كل الشروط، هو الخط المطلوب!
-                                                    if hasBrownSibling then
+                                                    if hasDarkEdge then
                                                         greenBar = element
                                                         break
                                                     end
@@ -168,22 +167,23 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم (عربي)
+-- 🖥️ واجهة التحكم الأسود (بدون أي أخضر)
 -- ==========================================
 local function CreateGUI()
-    local oldGui = playerGui:FindFirstChild("BlockSpin_Arabic_Fish")
+    local oldGui = playerGui:FindFirstChild("BlockSpin_BlackFish")
     if oldGui then oldGui:Destroy() end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BlockSpin_Arabic_Fish"
+    screenGui.Name = "BlockSpin_BlackFish"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 280, 0, 120)
     mainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mainFrame.BorderSizePixel = 0
+    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- أسود بالكامل
+    mainFrame.BorderSizePixel = 1
+    mainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255) -- حواف بيضاء
     mainFrame.Active = true
     mainFrame.Draggable = true
     mainFrame.Parent = screenGui
@@ -194,7 +194,7 @@ local function CreateGUI()
 
     local topBar = Instance.new("Frame")
     topBar.Size = UDim2.new(1, 0, 0, 30)
-    topBar.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    topBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     topBar.BorderSizePixel = 0
     topBar.Parent = mainFrame
     
@@ -205,31 +205,31 @@ local function CreateGUI()
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- نص أبيض
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائيي محاصر"
+    titleLabel.Text = "🎣 صيد تلقائي أسود"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0, 30, 0, 30)
     minBtn.Position = UDim2.new(1, -60, 0, 0)
-    minBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
+    minBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     minBtn.Text = "-"
     minBtn.Font = Enum.Font.GothamBold
     minBtn.TextSize = 18
-    minBtn.TextColor3 = Color3.new(0, 0, 0)
+    minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     minBtn.Parent = topBar
 
     local maxBtn = Instance.new("TextButton")
     maxBtn.Size = UDim2.new(0, 30, 0, 30)
     maxBtn.Position = UDim2.new(1, -30, 0, 0)
-    maxBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    maxBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     maxBtn.Text = "+"
     maxBtn.Font = Enum.Font.GothamBold
     maxBtn.TextSize = 18
-    maxBtn.TextColor3 = Color3.new(0, 0, 0)
+    maxBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     maxBtn.Parent = topBar
 
     local toggleBtn = Instance.new("TextButton")
@@ -237,7 +237,7 @@ local function CreateGUI()
     toggleBtn.Position = UDim2.new(0, 20, 0, 45)
     toggleBtn.Font = Enum.Font.GothamBold
     toggleBtn.TextSize = 14
-    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleBtn.Parent = mainFrame
     
     local btnCorner = Instance.new("UICorner")
@@ -248,19 +248,22 @@ local function CreateGUI()
     statusLabel.Size = UDim2.new(0, 240, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextSize = 12
     statusLabel.Text = "الحالة: متوقف"
     statusLabel.Parent = mainFrame
 
+    -- منطق الأزرار (أحمر وأبيض فقط)
     local function updateToggleBtn()
         if Settings.AutoFish then
-            toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- أبيض
+            toggleBtn.TextColor3 = Color3.fromRGB(0, 0, 0) -- نص أسود
             toggleBtn.Text = "الصيد التلقائي: يعمل"
             statusLabel.Text = "الحالة: جاري الصيد..."
         else
-            toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- أسود
+            toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255) -- نص أبيض
             toggleBtn.Text = "الصيد التلقائي: متوقف"
             statusLabel.Text = "الحالة: متوقف"
         end
@@ -304,4 +307,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("تم تحميل سكربت الصيد المحاصر لـ BlockSpin بنجاح!")
+print("تم تحميل سكربت الصيد الأسود المحاصر لـ BlockSpin بنجاح!")
