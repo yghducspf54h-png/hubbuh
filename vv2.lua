@@ -1,7 +1,7 @@
 --!strict
 
 -- =====================================================================
--- ENTERPRISE UNIFIED KNOWLEDGE & EVIDENCE ENGINE v35.0 (AST & TOKENIZER SEMANTIC 2PASS)
+-- ENTERPRISE UNIFIED KNOWLEDGE & EVIDENCE ENGINE v35.0 (BOOTSTRAP FIXED)
 -- =====================================================================
 
 local Players = game:GetService("Players")
@@ -21,6 +21,9 @@ if existingGui then
     existingGui:Destroy()
 end
 
+-- =====================================================================
+-- [BOOTSTRAP & UI LIFECYCLE - v14 RELIABLE PATTERN]
+-- =====================================================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "EnterpriseBehaviorEnginev350"
 screenGui.ResetOnSpawn = false
@@ -68,6 +71,7 @@ terminalView.Name = "TerminalView"
 terminalView.Size = UDim2.new(1, -30, 1, -68)
 terminalView.Position = UDim2.new(0, 15, 0, 52)
 terminalView.BackgroundTransparency = 1
+terminalView.Visible = true
 terminalView.Parent = mainFrame
 
 local termScroll = Instance.new("ScrollingFrame")
@@ -229,7 +233,7 @@ rCorner.CornerRadius = UDim.new(0, 6)
 rCorner.Parent = retryBtn
 
 -- =====================================================================
--- PIPELINE EXECUTION (v35.0 AST & TOKENIZER ARCHITECTURE)
+-- TERMINAL LOGGING & PIPELINE EXECUTION
 -- =====================================================================
 local function logToTerminal(message: string, typeColor: Color3?)
     local lbl = Instance.new("TextLabel")
@@ -244,6 +248,13 @@ local function logToTerminal(message: string, typeColor: Color3?)
     termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
 end
 
+-- Immediate startup logs matching user requirements
+logToTerminal("[BOOT] Enterprise v35.0 GUI initialized", Color3.fromRGB(100, 255, 150))
+logToTerminal("[BOOT] Starting Enterprise v35.0", Color3.fromRGB(100, 200, 255))
+logToTerminal("[BOOT] GUI initialized", Color3.fromRGB(100, 200, 255))
+logToTerminal("[BOOT] Terminal initialized", Color3.fromRGB(100, 200, 255))
+logToTerminal("[BOOT] Pipeline starting", Color3.fromRGB(255, 220, 100))
+
 local generatedXMLFinal = ""
 
 local function runPipeline()
@@ -255,6 +266,12 @@ local function runPipeline()
     resultsView.Visible = false
     errorView.Visible = false
     
+    logToTerminal("[BOOT] Enterprise v35.0 GUI initialized", Color3.fromRGB(100, 255, 150))
+    logToTerminal("[BOOT] Starting Enterprise v35.0", Color3.fromRGB(100, 200, 255))
+    logToTerminal("[BOOT] GUI initialized", Color3.fromRGB(100, 200, 255))
+    logToTerminal("[BOOT] Terminal initialized", Color3.fromRGB(100, 200, 255))
+    logToTerminal("[BOOT] Pipeline starting", Color3.fromRGB(255, 220, 100))
+
     local function executeStage(stageName: string, stageFunc: () -> ())
         logToTerminal(string.format("[>] Starting stage: %s ...", stageName), Color3.fromRGB(100, 200, 255))
         task.wait(0.01)
@@ -457,7 +474,6 @@ local function runPipeline()
                 for _, line in ipairs(lines) do
                     lineNum += 1
                     
-                    -- Detect function start
                     local funcName = line:match("function%s+([%w_:]+)%s*%(") or line:match("local%s+function%s+([%w_]+)%s*%(")
                     if funcName then
                         local funcId = generateNodeId("FUNC")
@@ -467,14 +483,13 @@ local function runPipeline()
                             name = funcName,
                             path = scr.path .. "." .. funcName,
                             startLine = lineNum,
-                            endLine = lineNum -- initial
+                            endLine = lineNum
                         }
                         table.insert(functionsRegistry, funcEntry)
                         table.insert(funcStack, funcEntry)
                         currentFuncId = funcId
                     end
 
-                    -- Detect function end (end keyword)
                     if line:match("^%s*end%s*$") and #funcStack > 0 then
                         local popped = table.remove(funcStack)
                         popped.endLine = lineNum
@@ -485,7 +500,6 @@ local function runPipeline()
                         end
                     end
 
-                    -- Detect function call within current stack scope
                     local calledName = line:match("([%w_]+)%s*%(")
                     if calledName and calledName ~= "if" and calledName ~= "while" and calledName ~= "for" and calledName ~= "print" and calledName ~= "require" then
                         local resolvedTargetFuncId = "UNRESOLVED"
@@ -519,7 +533,6 @@ local function runPipeline()
             for _, scr in ipairs(scriptsRegistry) do
                 local lines = scriptTokensMap[scr.id] or {}
                 for _, line in ipairs(lines) do
-                    -- Context-Aware WaitForChild with parsed Receiver and Child
                     local receiver, childName = line:match("([%w_%.]+)%s*:%s*WaitForChild%s*%(%s*[\"']([%w_]+)[\"']%s*%)")
                     if receiver and childName then
                         local resolvedTargetId = nil
@@ -540,7 +553,6 @@ local function runPipeline()
                         end
                     end
 
-                    -- AST Path Evaluator for require()
                     local reqPath = line:match("require%s*%(%s*([%w_%.]+)%s*%)")
                     if reqPath then
                         local resolvedModuleId = nil
@@ -569,7 +581,6 @@ local function runPipeline()
                 for _, scr in ipairs(scriptsRegistry) do
                     local lines = scriptTokensMap[scr.id] or {}
                     for _, line in ipairs(lines) do
-                        -- AST Expression match ensuring method call happens on the exact receiver/remote expression
                         if line:find(escapedName) and (line:find("FireServer") or line:find("FireClient") or line:find("OnServerEvent") or line:find("OnClientEvent")) then
                             local methodType = line:find("FireServer") and "FireServer" or (line:find("FireClient") and "FireClient" or (line:find("OnServerEvent") and "OnServerEvent" or "OnClientEvent"))
                             local flowType = (methodType == "OnServerEvent" or methodType == "OnClientEvent") and "ServerHandlerConnection" or "RemoteMethodCall"
@@ -584,7 +595,6 @@ local function runPipeline()
                             })
                             table.insert(evidenceGraph, { subject = rem.id, target = scr.id, level = "VERIFIED", score = 98, independenceGroup = scr.id })
 
-                            -- Exact 5-Tier Boundary Flow (Client ↔ Remote ↔ Server)
                             if (scr.context == "CLIENT" and methodType == "FireServer") then
                                 table.insert(clientServerFlows, {
                                     flowType = "ClientServerCrossBoundary",
@@ -614,7 +624,6 @@ local function runPipeline()
             for _, scr in ipairs(scriptsRegistry) do
                 local lines = scriptTokensMap[scr.id] or {}
                 for _, line in ipairs(lines) do
-                    -- True assignment parsing: target.Value = expression
                     local writeTarget = line:match("^%s*([%w_]+)%s*%.%s*Value%s*=%s*[^=]+")
                     if writeTarget then
                         table.insert(stateGraph, { scriptId = scr.id, operation = "WRITE", targetName = writeTarget })
@@ -639,7 +648,6 @@ local function runPipeline()
             table.insert(out, "<!-- Enterprise Unified Knowledge Graph v35.0 AST & Tokenizer Semantic Engine -->\n")
             table.insert(out, "<EnterpriseProjectReport version=\"35.0\">\n")
 
-            -- Inventory
             table.insert(out, "    <ProjectInventory>\n")
             for _, node in ipairs(nodes) do
                 table.insert(out, string.format("        <Node id=\"%s\" category=\"%s\" class=\"%s\" name=\"%s\" path=\"%s\" context=\"%s\"/>\n",
@@ -647,7 +655,6 @@ local function runPipeline()
             end
             table.insert(out, "    </ProjectInventory>\n")
 
-            -- Modules Registry
             table.insert(out, "    <ModulesRegistry>\n")
             for _, mod in ipairs(modulesRegistry) do
                 table.insert(out, string.format("        <Module id=\"%s\" name=\"%s\" path=\"%s\" context=\"%s\"/>\n",
@@ -655,7 +662,6 @@ local function runPipeline()
             end
             table.insert(out, "    </ModulesRegistry>\n")
 
-            -- Remotes Registry
             table.insert(out, "    <RemotesRegistry>\n")
             for _, rem in ipairs(remotesRegistry) do
                 table.insert(out, string.format("        <Remote id=\"%s\" name=\"%s\" class=\"%s\" path=\"%s\" context=\"%s\"/>\n",
@@ -663,7 +669,6 @@ local function runPipeline()
             end
             table.insert(out, "    </RemotesRegistry>\n")
 
-            -- Bindables Registry
             table.insert(out, "    <BindablesRegistry>\n")
             for _, bind in ipairs(bindablesRegistry) do
                 table.insert(out, string.format("        <Bindable id=\"%s\" name=\"%s\" class=\"%s\" path=\"%s\" context=\"%s\"/>\n",
@@ -671,7 +676,6 @@ local function runPipeline()
             end
             table.insert(out, "    </BindablesRegistry>\n")
 
-            -- Function Registry
             table.insert(out, "    <FunctionRegistry>\n")
             for _, fn in ipairs(functionsRegistry) do
                 table.insert(out, string.format("        <Function id=\"%s\" scriptId=\"%s\" name=\"%s\" path=\"%s\" startLine=\"%d\" endLine=\"%d\"/>\n",
@@ -679,7 +683,6 @@ local function runPipeline()
             end
             table.insert(out, "    </FunctionRegistry>\n")
 
-            -- Call Graph
             table.insert(out, "    <CallGraph>\n")
             for _, edge in ipairs(callGraphEdges) do
                 table.insert(out, string.format("        <CallEdge callerScript=\"%s\" callerFunction=\"%s\" targetFunc=\"%s\" name=\"%s\" status=\"%s\"/>\n",
@@ -687,7 +690,6 @@ local function runPipeline()
             end
             table.insert(out, "    </CallGraph>\n")
 
-            -- Behavior Flows
             table.insert(out, "    <BehaviorFlows>\n")
             for _, bf in ipairs(behaviorFlows) do
                 table.insert(out, string.format("        <BehaviorFlow type=\"%s\" source=\"%s\" handler=\"%s\" confidence=\"%d\"/>\n",
@@ -695,7 +697,6 @@ local function runPipeline()
             end
             table.insert(out, "    </BehaviorFlows>\n")
 
-            -- Data Flows
             table.insert(out, "    <DataFlows>\n")
             for _, df in ipairs(dataFlows) do
                 table.insert(out, string.format("        <DataFlow source=\"%s\" target=\"%s\" flow=\"%s\"/>\n",
@@ -703,7 +704,6 @@ local function runPipeline()
             end
             table.insert(out, "    </DataFlows>\n")
 
-            -- State Graph
             table.insert(out, "    <StateGraph>\n")
             for _, st in ipairs(stateGraph) do
                 table.insert(out, string.format("        <StateOperation scriptId=\"%s\" operation=\"%s\" target=\"%s\"/>\n",
@@ -711,7 +711,6 @@ local function runPipeline()
             end
             table.insert(out, "    </StateGraph>\n")
 
-            -- Evidence Graph
             table.insert(out, "    <EvidenceGraph>\n")
             for _, ev in ipairs(evidenceGraph) do
                 table.insert(out, string.format("        <Evidence subject=\"%s\" target=\"%s\" level=\"%s\" score=\"%d\" independenceGroup=\"%s\"/>\n",
@@ -719,7 +718,6 @@ local function runPipeline()
             end
             table.insert(out, "    </EvidenceGraph>\n")
 
-            -- Client/Server Flows
             table.insert(out, "    <ClientServerFlows>\n")
             for _, cs in ipairs(clientServerFlows) do
                 table.insert(out, string.format("        <BoundaryFlow type=\"%s\" direction=\"%s\" confidence=\"%d\">%s</BoundaryFlow>\n",
@@ -727,7 +725,6 @@ local function runPipeline()
             end
             table.insert(out, "    </ClientServerFlows>\n")
 
-            -- Unknowns
             table.insert(out, "    <UnknownsAndLimitations>\n")
             for _, unk in ipairs(unknownsRegistry) do
                 table.insert(out, string.format("        <Unknown path=\"%s\" reason=\"%s\">%s</Unknown>\n",
@@ -739,7 +736,6 @@ local function runPipeline()
             generatedXMLFinal = table.concat(out)
         end)
 
-        -- True Mathematical Coverage Calculation (resolved / eligible per subsystem)
         local totalEligibleCalls = #callGraphEdges > 0 and #callGraphEdges or 1
         local resolvedCallsCount = 0
         for _, ce in ipairs(callGraphEdges) do
@@ -753,7 +749,7 @@ local function runPipeline()
         local srcCov = #scriptsRegistry > 0 and 100 or 0
         local refCov = #edges > 0 and 95 or 50
         local funcCov = math.floor((resolvedCallsCount / totalEligibleCalls) * 100)
-        local evCov = math.min(100, math.floor((resolvedEventsCount / totalEligibleEvents) * 100) + 75) -- calibrated to true item ratio
+        local evCov = math.min(100, math.floor((resolvedEventsCount / totalEligibleEvents) * 100) + 75)
         local overallMathematicalCoverage = math.floor((invCov + srcCov + refCov + funcCov + evCov) / 5)
 
         statNodes.Text = tostring(#nodes)
