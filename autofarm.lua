@@ -1,11 +1,10 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (إصدار الرمي البعيد والنقر الدقيق)
+-- سكربت الصيد الذكي لـ BlockSpin (إصلاح زر الواجهة)
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -50,7 +49,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (الإصدار النهائي)
+-- 🎣 نظام الصيد الذكي
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -74,7 +73,6 @@ local function startAutoFishingLoop()
                         end
 
                         -- 2. الرمي البعيد في البحيرة (بدون لمس الكاميرا)
-                        -- جعل اللاعب ينظر للأمام مباشرة (حيث توجد البحيرة عادة)
                         local lookVector = char.HumanoidRootPart.CFrame.LookVector
                         char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
@@ -91,25 +89,22 @@ local function startAutoFishingLoop()
                         
                         task.wait(1) -- انتظار وصول الطعم للماء
                         
-                        -- 3. البحث عن المستطيل الأخضر (كما في الصورة المرسلة)
+                        -- 3. البحث عن المستطيل الأخضر
                         local fished = false
                         local timeout = 0
                         
                         while task.wait(0.01) do 
                             timeout = timeout + 0.01
-                            if timeout > 15 then break end -- خروج إذا لم يعلق سمك خلال 15 ثانية
+                            if timeout > 15 then break end
                             
                             local greenBar = nil
                             
-                            -- البحث في واجهة المستخدم عن المستطيل الأخضر
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
                                         if element:IsA("GuiObject") and element.Visible then
-                                            -- فحص اللون الأخضر الصريح (0, 255, 0) أو درجاته القريبة جداً
                                             local c = element.BackgroundColor3
                                             if c.G > 0.9 and c.R < 0.2 and c.B < 0.2 then
-                                                -- التأكد أنه مستطيل صغير (الخط الأخضر المطلوب)
                                                 if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 100 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 100 then
                                                     greenBar = element
                                                     break
@@ -121,21 +116,20 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد المستطيل الأخضر، ننقر فوراً على منتصفه
+                            -- 4. النقر على الأخضر
                             if greenBar then
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
                                 
-                                -- النقر المباشر على الإحداثيات
                                 directClick(greenX, greenY)
                                 
                                 fished = true
-                                task.wait(1.5) -- انتظار سحب السمكة
+                                task.wait(1.5)
                                 break
                             end
                         end
                         
-                        -- 5. إعادة السنارة للخلف
+                        -- 5. إعادة السنارة
                         tool:Deactivate()
                         task.wait(0.5)
                         
@@ -148,7 +142,7 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم (عربي)
+-- 🖥️ واجهة التحكم (مصححة)
 -- ==========================================
 local function CreateGUI()
     local oldGui = playerGui:FindFirstChild("BlockSpin_Arabic_Fish")
@@ -172,7 +166,6 @@ local function CreateGUI()
     uiCorner.CornerRadius = UDim.new(0, 8)
     uiCorner.Parent = mainFrame
 
-    -- شريط العنوان
     local topBar = Instance.new("Frame")
     topBar.Size = UDim2.new(1, 0, 0, 30)
     topBar.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
@@ -189,11 +182,10 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائي لابوبو ذكي"
+    titleLabel.Text = "🎣 صيد تلقائيييي ذكي"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
-    -- زر التصغير
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0, 30, 0, 30)
     minBtn.Position = UDim2.new(1, -60, 0, 0)
@@ -204,7 +196,6 @@ local function CreateGUI()
     minBtn.TextColor3 = Color3.new(0, 0, 0)
     minBtn.Parent = topBar
 
-    -- زر التكبير
     local maxBtn = Instance.new("TextButton")
     maxBtn.Size = UDim2.new(0, 30, 0, 30)
     maxBtn.Position = UDim2.new(1, -30, 0, 0)
@@ -215,7 +206,6 @@ local function CreateGUI()
     maxBtn.TextColor3 = Color3.new(0, 0, 0)
     maxBtn.Parent = topBar
 
-    -- زر التشغيل/الإيقاف
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Size = UDim2.new(0, 240, 0, 40)
     toggleBtn.Position = UDim2.new(0, 20, 0, 45)
@@ -228,23 +218,22 @@ local function CreateGUI()
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = toggleBtn
 
-    -- نص الحالة
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 240, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.TitleColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextSize = 12
     statusLabel.Text = "الحالة: متوقف"
     statusLabel.Parent = mainFrame
 
-    -- منطق الأزرار
+    -- منطق الأزرار (تم الإصلاح)
     local function updateToggleBtn()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
             toggleBtn.Text = "الصيد التلقائي: يعمل"
-            roleLabel.Text = "الحالة: جاري الصيد..."
+            statusLabel.Text = "الحالة: جاري الصيد..."
         else
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
             toggleBtn.Text = "الصيد التلقائي: متوقف"
