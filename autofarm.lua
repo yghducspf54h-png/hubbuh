@@ -1,6 +1,6 @@
 -- ==========================================
--- BlockSpin AI FISHING BOT (Direct Hit Edition)
--- يقرأ أي عنصر أخضر وينقر عليه مباشرة بالإحداثيات
+-- سكربت الصيد الذكي لـ BlockSpin (الإصدار العربي النهائي)
+-- ميزات: تعبئة طعم تلقائية، رمي بعيد بدون ماوس، دقة نقر 100% على الأخضر
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -9,9 +9,10 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local camera = Workspace.CurrentCamera
 
 local Settings = {
-    AutoFish = true,
+    AutoFish = true, -- تشغيل الصيد
 }
 
 local isFishing = false
@@ -39,10 +40,18 @@ local function directClick(x, y)
 end
 
 -- ==========================================
--- 2. دالة للتحقق من اللون الأخضر
+-- 2. دوال فحص الألوان (للبني والأخضر)
 -- ==========================================
+-- دالة للتحقق من اللون البني (أطراف الشريط)
+local function isBrownColor(color)
+    if color and (color.R > 0.3 and color.R < 0.6) and (color.G > 0.2 and color.G < 0.5) and (color.B > 0.1 and color.B < 0.3) then
+        return true
+    end
+    return false
+end
+
+-- دالة للتحقق من اللون الأخضر (المنتصف)
 local function isGreenColor(color)
-    -- فحص إذا كان اللون يحتوي على أخضر بشكل أساسي
     if color and color.G > 0.5 and color.R < 0.6 and color.B < 0.6 then
         return true
     end
@@ -61,7 +70,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (Direct Hit AI)
+-- 🎣 نظام الصيد الذكي
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -74,21 +83,25 @@ local function startAutoFishingLoop()
                     if tool and (tool.Name:lower():match("rod") or tool.Name:lower():match("fishing")) then
                         isFishing = true
                         
-                        -- 1. فحص الطعم (Bait) وتجهيزه
+                        -- 1. فحص وتعبئة الطعم (Bait)
                         local hasBait = char:FindFirstChild("Wormtec") or char:FindFirstChild("Prawntec") or char:FindFirstChild("Bait")
                         if not hasBait then
                             local bait = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
                             if bait then
                                 bait.Parent = char
-                                task.wait(0.5)
+                                task.wait(1) -- انتظار تعبئة الطعم في السنارة
                             end
                         end
 
-                        -- 2. الرمي البعيد في البحيرة
+                        -- 2. الرمي البعيد بدون ماوس
+                        -- تعديل زاوية الكاميرا للنظر للأمام مباشرة لضمان أقصى مسافة رمي
+                        char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, 0, 0)
+                        camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + Vector3.new(0, 0, -1))
+                        
                         tool:Activate()
                         task.wait(3) -- الانتظار لوصول الطعم لأبعد نقطة
                         
-                        -- 3. البحث عن واجهة الصيد والنقر المباشر
+                        -- 3. البحث عن واجهة الصيد (الشريط البني والأخضر)
                         local fished = false
                         local timeout = 0
                         
@@ -98,18 +111,29 @@ local function startAutoFishingLoop()
                             if timeout > 15 then break end -- خروج إذا لم يعلق سمك خلال 15 ثانية
                             
                             local greenBar = nil
+                            local foundBrown = false
                             
                             -- البحث في جميع عناصر واجهة المستخدم
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        -- البحث عن أي عنصر مرئي (Frame أو ImageLabel إلخ)
+                                        -- البحث عن الأطراف البنية أولاً لنتأكد أنه الشريط المطلوب
+                                        if element:IsA("Frame") and element.Visible and isBrownColor(element.BackgroundColor3) then
+                                            -- نتأكد أنه شريط أفقي (عرضه أكبر من طوله)
+                                            if element.AbsoluteSize.X > 100 and element.AbsoluteSize.Y < 50 then
+                                                foundBrown = true
+                                            end
+                                        end
+                                        
+                                        -- البحث عن الجزء الأخضر
                                         if element:IsA("GuiObject") and element.Visible then
-                                            -- التأكد من حجمه (الخط الأخضر عادة صغير/متوسط)
                                             if element.AbsoluteSize.X > 2 and element.AbsoluteSize.X < 300 and element.AbsoluteSize.Y > 2 and element.AbsoluteSize.Y < 300 then
                                                 if isGreenColor(element.BackgroundColor3) or isGreenColor(element.ImageColor3) then
-                                                    greenBar = element
-                                                    break
+                                                    -- إذا وجدنا الأخضر وكان الشريط البني موجوداً معه
+                                                    if foundBrown then
+                                                        greenBar = element
+                                                        break
+                                                    end
                                                 end
                                             end
                                         end
@@ -145,19 +169,19 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم GUI
+-- 🖥️ واجهة التحكم (عربي)
 -- ==========================================
 local function CreateGUI()
-    local oldGui = playerGui:FindFirstChild("BlockSpin_DirectFish_AI")
+    local oldGui = playerGui:FindFirstChild("BlockSpin_Arabic_Fish")
     if oldGui then oldGui:Destroy() end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BlockSpin_DirectFish_AI"
+    screenGui.Name = "BlockSpin_Arabic_Fish"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 250, 0, 120)
+    mainFrame.Size = UDim2.new(0, 280, 0, 120)
     mainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     mainFrame.BorderSizePixel = 0
@@ -186,7 +210,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 AI Auto Fishing"
+    titleLabel.Text = "🎣 صيد تلقائي ذكي"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -214,7 +238,7 @@ local function CreateGUI()
 
     -- زر التشغيل/الإيقاف
     local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0, 210, 0, 40)
+    toggleBtn.Size = UDim2.new(0, 240, 0, 40)
     toggleBtn.Position = UDim2.new(0, 20, 0, 45)
     toggleBtn.Font = Enum.Font.GothamBold
     toggleBtn.TextSize = 14
@@ -227,25 +251,25 @@ local function CreateGUI()
 
     -- نص الحالة
     local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0, 210, 0, 20)
+    statusLabel.Size = UDim2.new(0, 240, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.BackgroundTransparency = 1
     statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextSize = 12
-    statusLabel.Text = "Status: Idle"
+    statusLabel.Text = "الحالة: متوقف"
     statusLabel.Parent = mainFrame
 
     -- منطق الأزرار
     local function updateToggleBtn()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-            toggleBtn.Text = "Auto Fish: ON"
-            statusLabel.Text = "Status: Fishing in progress..."
+            toggleBtn.Text = "الصيد التلقائي: يعمل"
+            statusLabel.Text = "الحالة: جاري الصيد..."
         else
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-            toggleBtn.Text = "Auto Fish: OFF"
-            statusLabel.Text = "Status: Idle"
+            toggleBtn.Text = "الصيد التلقائي: متوقف"
+            statusLabel.Text = "الحالة: متوقف"
         end
     end
 
@@ -257,7 +281,7 @@ local function CreateGUI()
     local isMaximized = false
     maxBtn.MouseButton1Click:Connect(function()
         if isMaximized then
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 280, 0, 120)}):Play()
             isMaximized = false
         else
             TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 250)}):Play()
@@ -268,12 +292,12 @@ local function CreateGUI()
     local isMinimized = false
     minBtn.MouseButton1Click:Connect(function()
         if isMinimized then
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 120)}):Play()
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 280, 0, 120)}):Play()
             toggleBtn.Visible = true
             statusLabel.Visible = true
             isMinimized = false
         else
-            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 30)}):Play()
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 280, 0, 30)}):Play()
             toggleBtn.Visible = false
             statusLabel.Visible = false
             isMinimized = true
@@ -287,4 +311,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("BlockSpin Direct Hit AI Fishing Script Loaded Successfully!")
+print("تم تحميل سكربت الصيد الذكي لـ BlockSpin بنجاح!")
