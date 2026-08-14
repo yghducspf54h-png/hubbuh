@@ -1,16 +1,15 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (إصدار اللون المخصص #13AB14)
--- بدون كولداون + دقة ضرب 100% للون الأخضر
+-- سكربت الصيد الذكي لـ BlockSpin (بدون تحكم في الماوس + فحص كل درجات الأخضر)
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
-local mouse = player:GetMouse()
 
 local Settings = {
     AutoFish = true,
@@ -19,23 +18,32 @@ local Settings = {
 local isFishing = false
 
 -- ==========================================
--- 1. دالة النقر المباشرة والخارقة
+-- 1. دالة النقر الخفية (لا تتحكم في الماوس الفعلي)
 -- ==========================================
-local function directClick(x, y)
-    if mouse1press and mouse1release then
-        if mousemove then mousemove(x, y) task.wait() end
-        mouse1press()
-        task.wait()
-        mouse1release()
-    elseif mouse1click then
-        if mousemove then mousemove(x, y) end
-        mouse1click()
-    else
-        local VirtualInputManager = game:GetService("VirtualInputManager")
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.01)
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+local function silentClick(x, y)
+    -- إرسال النقرة للواجهة مباشرة بدون تحريك مؤشر الماوس
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+    task.wait(0.01)
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+end
+
+-- دالة شحن الرمي (بدون تحريك الماوس)
+local function silentHold(duration)
+    VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 1)
+    task.wait(duration)
+    VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 1)
+end
+
+-- ==========================================
+-- 2. دالة فحص اللون الأخضر (تشمل الفاتح والداكن)
+-- ==========================================
+local function isGreenColor(c)
+    -- الشروط: اللون الأخضر يجب أن يكون مرتفعاً، والأحمر والأزرق منخفضين
+    -- هذه الدالة تقبل #13AB14 (داكن) وحتى الأخضر الفاتح جداً
+    if c and c.G > 0.3 and c.G > (c.R * 1.5) and c.G > (c.B * 1.5) then
+        return true
     end
+    return false
 end
 
 -- ==========================================
@@ -50,11 +58,11 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (بدون كولداون)
+-- 🎣 نظام الصيد الذكي (بدون كولداون وبدون تحكم بالماوس)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
-        while task.wait(0.1) do -- لوب سريع جداً بدون كولداون
+        while task.wait(0.1) do
             if Settings.AutoFish and not isFishing then
                 local char = getCharacter()
                 if char then
@@ -77,24 +85,16 @@ local function startAutoFishingLoop()
                         local lookVector = char.HumanoidRootPart.CFrame.LookVector
                         char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
-                        -- شحن الرمي لمدة 1.5 ثانية
-                        if mouse1press and mouse1release then
-                            mouse1press()
-                            task.wait(1.5)
-                            mouse1release()
-                        else
-                            tool:Activate()
-                            task.wait(1.5)
-                            tool:Deactivate()
-                        end
+                        -- شحن الرمي لمدة 1.5 ثانية (بدون لمس الماوس)
+                        silentHold(1.5)
                         
                         task.wait(0.5) -- انتظار وصول الطعم للماء
                         
-                        -- 3. البحث عن المستطيل الأخضر (#13AB14)
+                        -- 3. البحث عن المستطيل الأخضر (جميع الدرجات)
                         local fished = false
                         local timeout = 0
                         
-                        while task.wait(0.01) do -- لوب فائق السرعة لرصد اللون
+                        while task.wait(0.01) do 
                             timeout = timeout + 0.01
                             if timeout > 15 then break end
                             
@@ -105,8 +105,7 @@ local function startAutoFishingLoop()
                                     for _, element in pairs(gui:GetDescendants()) do
                                         if element:IsA("GuiObject") and element.Visible then
                                             local c = element.BackgroundColor3
-                                            -- فحص اللون بدقة (G عالية، R و B منخفضة جداً) مطابق لكود #13AB14
-                                            if c.G > 0.5 and c.R < 0.2 and c.B < 0.2 then
+                                            if isGreenColor(c) then
                                                 -- التأكد أنه مستطيل صغير (شريط الصيد)
                                                 if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 150 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 150 then
                                                     greenBar = element
@@ -119,14 +118,14 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد اللون الأخضر، يضغط فوراً بدون تأخير
+                            -- 4. إذا وجد اللون الأخضر، يضغط فوراً
                             if greenBar then
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
                                 
-                                directClick(greenX, greenY)
+                                silentClick(greenX, greenY)
                                 fished = true
-                                break -- لا يوجد كولداون، نكسر اللوب فوراً لنبدأ دورة صيد جديدة
+                                break
                             end
                         end
                         
@@ -183,7 +182,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائي مجنونن"
+    titleLabel.Text = "🎣 صيد تلقائسي خارق"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
