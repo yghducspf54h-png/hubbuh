@@ -1,5 +1,6 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (إصلاح زر الواجهة)
+-- سكربت الصيد الذكي لـ BlockSpin (إصدار اللون المخصص #13AB14)
+-- بدون كولداون + دقة ضرب 100% للون الأخضر
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -49,11 +50,11 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي
+-- 🎣 نظام الصيد الذكي (بدون كولداون)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
-        while task.wait(0.5) do
+        while task.wait(0.1) do -- لوب سريع جداً بدون كولداون
             if Settings.AutoFish and not isFishing then
                 local char = getCharacter()
                 if char then
@@ -68,15 +69,15 @@ local function startAutoFishingLoop()
                             local bait = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
                             if bait then
                                 bait.Parent = char
-                                task.wait(1.5) -- انتظار تعبئة الطعم في السنارة
+                                task.wait(1) -- انتظار تعبئة الطعم
                             end
                         end
 
-                        -- 2. الرمي البعيد في البحيرة (بدون لمس الكاميرا)
+                        -- 2. الرمي البعيد في البحيرة
                         local lookVector = char.HumanoidRootPart.CFrame.LookVector
                         char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
-                        -- مسك زر الماوس لمدة 1.5 ثانية لضمان رمي الصنارة لأبعد نقطة
+                        -- شحن الرمي لمدة 1.5 ثانية
                         if mouse1press and mouse1release then
                             mouse1press()
                             task.wait(1.5)
@@ -87,13 +88,13 @@ local function startAutoFishingLoop()
                             tool:Deactivate()
                         end
                         
-                        task.wait(1) -- انتظار وصول الطعم للماء
+                        task.wait(0.5) -- انتظار وصول الطعم للماء
                         
-                        -- 3. البحث عن المستطيل الأخضر
+                        -- 3. البحث عن المستطيل الأخضر (#13AB14)
                         local fished = false
                         local timeout = 0
                         
-                        while task.wait(0.01) do 
+                        while task.wait(0.01) do -- لوب فائق السرعة لرصد اللون
                             timeout = timeout + 0.01
                             if timeout > 15 then break end
                             
@@ -104,8 +105,10 @@ local function startAutoFishingLoop()
                                     for _, element in pairs(gui:GetDescendants()) do
                                         if element:IsA("GuiObject") and element.Visible then
                                             local c = element.BackgroundColor3
-                                            if c.G > 0.9 and c.R < 0.2 and c.B < 0.2 then
-                                                if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 100 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 100 then
+                                            -- فحص اللون بدقة (G عالية، R و B منخفضة جداً) مطابق لكود #13AB14
+                                            if c.G > 0.5 and c.R < 0.2 and c.B < 0.2 then
+                                                -- التأكد أنه مستطيل صغير (شريط الصيد)
+                                                if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 150 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 150 then
                                                     greenBar = element
                                                     break
                                                 end
@@ -116,22 +119,20 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. النقر على الأخضر
+                            -- 4. إذا وجد اللون الأخضر، يضغط فوراً بدون تأخير
                             if greenBar then
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
                                 
                                 directClick(greenX, greenY)
-                                
                                 fished = true
-                                task.wait(1.5)
-                                break
+                                break -- لا يوجد كولداون، نكسر اللوب فوراً لنبدأ دورة صيد جديدة
                             end
                         end
                         
                         -- 5. إعادة السنارة
                         tool:Deactivate()
-                        task.wait(0.5)
+                        task.wait(0.2)
                         
                         isFishing = false
                     end
@@ -142,7 +143,7 @@ local function startAutoFishingLoop()
 end
 
 -- ==========================================
--- 🖥️ واجهة التحكم (مصححة)
+-- 🖥️ واجهة التحكم (عربي)
 -- ==========================================
 local function CreateGUI()
     local oldGui = playerGui:FindFirstChild("BlockSpin_Arabic_Fish")
@@ -182,7 +183,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائيييي ذكي"
+    titleLabel.Text = "🎣 صيد تلقائي مجنونن"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -228,7 +229,6 @@ local function CreateGUI()
     statusLabel.Text = "الحالة: متوقف"
     statusLabel.Parent = mainFrame
 
-    -- منطق الأزرار (تم الإصلاح)
     local function updateToggleBtn()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
@@ -279,4 +279,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("تم تحميل سكربت الصيد الذكي لـ BlockSpin بنجاح!")
+print("تم تحميل سكربت الصيد الخارق لـ BlockSpin بنجاح!")
