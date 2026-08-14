@@ -1,5 +1,6 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (بدون تحكم في الماوس + فحص كل درجات الأخضر)
+-- سكربت الصيد الذكي لـ BlockSpin (إصدار المحاصرة الصارم)
+-- محاصر بالأبعاد واللون البني لمنع ضرب العشب
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -18,16 +19,14 @@ local Settings = {
 local isFishing = false
 
 -- ==========================================
--- 1. دالة النقر الخفية (لا تتحكم في الماوس الفعلي)
+-- 1. دوال النقر الخفية (بدون تحكم في الماوس)
 -- ==========================================
 local function silentClick(x, y)
-    -- إرسال النقرة للواجهة مباشرة بدون تحريك مؤشر الماوس
     VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
     task.wait(0.01)
     VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
 end
 
--- دالة شحن الرمي (بدون تحريك الماوس)
 local function silentHold(duration)
     VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 1)
     task.wait(duration)
@@ -35,12 +34,19 @@ local function silentHold(duration)
 end
 
 -- ==========================================
--- 2. دالة فحص اللون الأخضر (تشمل الفاتح والداكن)
+-- 2. دوال فحص الألوان (الخضراء والبنية)
 -- ==========================================
 local function isGreenColor(c)
-    -- الشروط: اللون الأخضر يجب أن يكون مرتفعاً، والأحمر والأزرق منخفضين
-    -- هذه الدالة تقبل #13AB14 (داكن) وحتى الأخضر الفاتح جداً
-    if c and c.G > 0.3 and c.G > (c.R * 1.5) and c.G > (c.B * 1.5) then
+    -- أخضر صريح: الأخضر هو الغالب بفارق كبير
+    if c and c.G > 0.4 and c.G > (c.R * 2) and c.G > (c.B * 2) then
+        return true
+    end
+    return false
+end
+
+local function isBrownColor(c)
+    -- بني صريح: أحمر متوسط، أخضر منخفض، أزرق شبه معدوم
+    if c and (c.R > 0.2 and c.R < 0.6) and (c.G > 0.1 and c.G < 0.4) and (c.B < 0.2) then
         return true
     end
     return false
@@ -58,7 +64,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي (بدون كولداون وبدون تحكم بالماوس)
+-- 🎣 نظام الصيد الذكي (المحاصر)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -77,20 +83,18 @@ local function startAutoFishingLoop()
                             local bait = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
                             if bait then
                                 bait.Parent = char
-                                task.wait(1) -- انتظار تعبئة الطعم
+                                task.wait(1)
                             end
                         end
 
-                        -- 2. الرمي البعيد في البحيرة
+                        -- 2. الرمي البعيد (للأمام مباشرة بدون تغيير الكاميرا)
                         local lookVector = char.HumanoidRootPart.CFrame.LookVector
                         char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
-                        -- شحن الرمي لمدة 1.5 ثانية (بدون لمس الماوس)
                         silentHold(1.5)
+                        task.wait(0.5)
                         
-                        task.wait(0.5) -- انتظار وصول الطعم للماء
-                        
-                        -- 3. البحث عن المستطيل الأخضر (جميع الدرجات)
+                        -- 3. البحث عن المستطيل الأخضر المحاصر بالشروط
                         local fished = false
                         local timeout = 0
                         
@@ -103,13 +107,35 @@ local function startAutoFishingLoop()
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        if element:IsA("GuiObject") and element.Visible then
+                                        if element:IsA("Frame") and element.Visible then
                                             local c = element.BackgroundColor3
+                                            local w = element.AbsoluteSize.X
+                                            local h = element.AbsoluteSize.Y
+                                            
+                                            -- الشرط الأول: اللون أخضر
                                             if isGreenColor(c) then
-                                                -- التأكد أنه مستطيل صغير (شريط الصيد)
-                                                if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 150 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 150 then
-                                                    greenBar = element
-                                                    break
+                                                -- الشرط الثاني: الأبعاد صغيرة (مستطيل الصيد)
+                                                if w > 5 and w < 80 and h > 5 and h < 80 then
+                                                    -- الشرط الثالث (المحاصرة): يجب أن يكون له إخوة (Siblings) لونهم بني
+                                                    local hasBrownSibling = false
+                                                    local parent = element.Parent
+                                                    if parent then
+                                                        for _, sibling in pairs(parent:GetChildren()) do
+                                                            if sibling ~= element and sibling:IsA("Frame") and isBrownColor(sibling.BackgroundColor3) then
+                                                                -- نتأكد أن البني طويل (شريط الصيد)
+                                                                if sibling.AbsoluteSize.X > 100 or sibling.AbsoluteSize.Y > 100 then
+                                                                    hasBrownSibling = true
+                                                                    break
+                                                                end
+                                                            end
+                                                        end
+                                                    end
+                                                    
+                                                    -- إذا تحققت كل الشروط، هو الخط المطلوب!
+                                                    if hasBrownSibling then
+                                                        greenBar = element
+                                                        break
+                                                    end
                                                 end
                                             end
                                         end
@@ -118,7 +144,7 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد اللون الأخضر، يضغط فوراً
+                            -- 4. النقر على الأخضر
                             if greenBar then
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
@@ -182,7 +208,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائسي خارق"
+    titleLabel.Text = "🎣 صيد تلقائيي محاصر"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -278,4 +304,4 @@ end
 CreateGUI()
 startAutoFishingLoop()
 
-print("تم تحميل سكربت الصيد الخارق لـ BlockSpin بنجاح!")
+print("تم تحميل سكربت الصيد المحاصر لـ BlockSpin بنجاح!")
