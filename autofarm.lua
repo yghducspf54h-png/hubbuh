@@ -1,29 +1,29 @@
 -- ==========================================
--- سكربت الصيد الذكي لـ BlockSpin (الإصدار العربي النهائي)
--- ميزات: تعبئة طعم تلقائية، رمي بعيد بدون ماوس، دقة نقر 100% على الأخضر
+-- سكربت الصيد الذكي لـ BlockSpin (إصدار الرمي البعيد والنقر الدقيق)
 -- ==========================================
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
+local mouse = player:GetMouse()
 
 local Settings = {
-    AutoFish = true, -- تشغيل الصيد
+    AutoFish = true,
 }
 
 local isFishing = false
 
 -- ==========================================
--- 1. دالة النقر المباشر على الإحداثيات
+-- 1. دالة النقر المباشرة والخارقة
 -- ==========================================
 local function directClick(x, y)
-    -- استخدام أوامر المنفذ المباشرة للنقر على الإحداثيات بسرعة خارقة
     if mouse1press and mouse1release then
-        if mousemove then mousemove(x, y) end
+        if mousemove then mousemove(x, y) task.wait() end
         mouse1press()
         task.wait()
         mouse1release()
@@ -31,31 +31,11 @@ local function directClick(x, y)
         if mousemove then mousemove(x, y) end
         mouse1click()
     else
-        -- طريقة VirtualInputManager الاحتياطية
         local VirtualInputManager = game:GetService("VirtualInputManager")
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
         task.wait(0.01)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
     end
-end
-
--- ==========================================
--- 2. دوال فحص الألوان (للبني والأخضر)
--- ==========================================
--- دالة للتحقق من اللون البني (أطراف الشريط)
-local function isBrownColor(color)
-    if color and (color.R > 0.3 and color.R < 0.6) and (color.G > 0.2 and color.G < 0.5) and (color.B > 0.1 and color.B < 0.3) then
-        return true
-    end
-    return false
-end
-
--- دالة للتحقق من اللون الأخضر (المنتصف)
-local function isGreenColor(color)
-    if color and color.G > 0.5 and color.R < 0.6 and color.B < 0.6 then
-        return true
-    end
-    return false
 end
 
 -- ==========================================
@@ -70,7 +50,7 @@ local function getCharacter()
 end
 
 -- ==========================================
--- 🎣 نظام الصيد الذكي
+-- 🎣 نظام الصيد الذكي (الإصدار النهائي)
 -- ==========================================
 local function startAutoFishingLoop()
     task.spawn(function()
@@ -89,51 +69,50 @@ local function startAutoFishingLoop()
                             local bait = player.Backpack:FindFirstChild("Wormtec") or player.Backpack:FindFirstChild("Prawntec") or player.Backpack:FindFirstChild("Bait")
                             if bait then
                                 bait.Parent = char
-                                task.wait(1) -- انتظار تعبئة الطعم في السنارة
+                                task.wait(1.5) -- انتظار تعبئة الطعم في السنارة
                             end
                         end
 
-                        -- 2. الرمي البعيد بدون ماوس
-                        -- تعديل زاوية الكاميرا للنظر للأمام مباشرة لضمان أقصى مسافة رمي
-                        char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, 0, 0)
-                        camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + Vector3.new(0, 0, -1))
+                        -- 2. الرمي البعيد في البحيرة (بدون لمس الكاميرا)
+                        -- جعل اللاعب ينظر للأمام مباشرة (حيث توجد البحيرة عادة)
+                        local lookVector = char.HumanoidRootPart.CFrame.LookVector
+                        char.HumanoidRootPart.CFrame = CFrame.lookAt(char.HumanoidRootPart.Position, char.HumanoidRootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
                         
-                        tool:Activate()
-                        task.wait(3) -- الانتظار لوصول الطعم لأبعد نقطة
+                        -- مسك زر الماوس لمدة 1.5 ثانية لضمان رمي الصنارة لأبعد نقطة
+                        if mouse1press and mouse1release then
+                            mouse1press()
+                            task.wait(1.5)
+                            mouse1release()
+                        else
+                            tool:Activate()
+                            task.wait(1.5)
+                            tool:Deactivate()
+                        end
                         
-                        -- 3. البحث عن واجهة الصيد (الشريط البني والأخضر)
+                        task.wait(1) -- انتظار وصول الطعم للماء
+                        
+                        -- 3. البحث عن المستطيل الأخضر (كما في الصورة المرسلة)
                         local fished = false
                         local timeout = 0
                         
-                        -- لوب سريع جداً لرصد الخط الأخضر
                         while task.wait(0.01) do 
                             timeout = timeout + 0.01
                             if timeout > 15 then break end -- خروج إذا لم يعلق سمك خلال 15 ثانية
                             
                             local greenBar = nil
-                            local foundBrown = false
                             
-                            -- البحث في جميع عناصر واجهة المستخدم
+                            -- البحث في واجهة المستخدم عن المستطيل الأخضر
                             for _, gui in pairs(playerGui:GetChildren()) do
                                 if gui:IsA("ScreenGui") and gui.Enabled then
                                     for _, element in pairs(gui:GetDescendants()) do
-                                        -- البحث عن الأطراف البنية أولاً لنتأكد أنه الشريط المطلوب
-                                        if element:IsA("Frame") and element.Visible and isBrownColor(element.BackgroundColor3) then
-                                            -- نتأكد أنه شريط أفقي (عرضه أكبر من طوله)
-                                            if element.AbsoluteSize.X > 100 and element.AbsoluteSize.Y < 50 then
-                                                foundBrown = true
-                                            end
-                                        end
-                                        
-                                        -- البحث عن الجزء الأخضر
                                         if element:IsA("GuiObject") and element.Visible then
-                                            if element.AbsoluteSize.X > 2 and element.AbsoluteSize.X < 300 and element.AbsoluteSize.Y > 2 and element.AbsoluteSize.Y < 300 then
-                                                if isGreenColor(element.BackgroundColor3) or isGreenColor(element.ImageColor3) then
-                                                    -- إذا وجدنا الأخضر وكان الشريط البني موجوداً معه
-                                                    if foundBrown then
-                                                        greenBar = element
-                                                        break
-                                                    end
+                                            -- فحص اللون الأخضر الصريح (0, 255, 0) أو درجاته القريبة جداً
+                                            local c = element.BackgroundColor3
+                                            if c.G > 0.9 and c.R < 0.2 and c.B < 0.2 then
+                                                -- التأكد أنه مستطيل صغير (الخط الأخضر المطلوب)
+                                                if element.AbsoluteSize.X > 5 and element.AbsoluteSize.X < 100 and element.AbsoluteSize.Y > 5 and element.AbsoluteSize.Y < 100 then
+                                                    greenBar = element
+                                                    break
                                                 end
                                             end
                                         end
@@ -142,7 +121,7 @@ local function startAutoFishingLoop()
                                 if greenBar then break end
                             end
                             
-                            -- 4. إذا وجد الخط الأخضر، ننقر فوراً على منتصفه
+                            -- 4. إذا وجد المستطيل الأخضر، ننقر فوراً على منتصفه
                             if greenBar then
                                 local greenX = greenBar.AbsolutePosition.X + (greenBar.AbsoluteSize.X / 2)
                                 local greenY = greenBar.AbsolutePosition.Y + (greenBar.AbsoluteSize.Y / 2)
@@ -151,7 +130,7 @@ local function startAutoFishingLoop()
                                 directClick(greenX, greenY)
                                 
                                 fished = true
-                                task.wait(1) -- انتظار سحب السمكة
+                                task.wait(1.5) -- انتظار سحب السمكة
                                 break
                             end
                         end
@@ -210,7 +189,7 @@ local function CreateGUI()
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    titleLabel.Text = "🎣 صيد تلقائي ذكي"
+    titleLabel.Text = "🎣 صيد تلقائي لابوبو ذكي"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = topBar
 
@@ -254,7 +233,7 @@ local function CreateGUI()
     statusLabel.Size = UDim2.new(0, 240, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 90)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TitleColor3 = Color3.fromRGB(150, 150, 150)
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextSize = 12
     statusLabel.Text = "الحالة: متوقف"
@@ -265,7 +244,7 @@ local function CreateGUI()
         if Settings.AutoFish then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
             toggleBtn.Text = "الصيد التلقائي: يعمل"
-            statusLabel.Text = "الحالة: جاري الصيد..."
+            roleLabel.Text = "الحالة: جاري الصيد..."
         else
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
             toggleBtn.Text = "الصيد التلقائي: متوقف"
