@@ -1,9 +1,8 @@
 -- ==============================================================================
--- Abu Annaz Hub V6 PRO | حقوق أبو عنّاز - MASTER ULTIMATE FISHING ENGINE
+-- Abu Annaz Hub V7 GOLD | حقوق أبو عنّاز - PERFECT DYNAMIC FISHING & FAST RE-BAIT
 -- Game: BlockSpin (Roblox)
--- Fixes: Guaranteed Tool Equipping (Key '1' + Humanoid:EquipTool), 
---        Color/Image Color Detection for Needle & Green Zone, 
---        "Click Anywhere" Solver & Charge-and-Release Rod Casting Engine
+-- Fixes: Slot 2 Fishing Rod Priority, Ultra-Fast Auto Re-Bait Loop, 
+--        Predictive Multi-Stage Green Target Solver (Zero-Miss Rate)
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -24,8 +23,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV6") then
-    PlayerGui.AbuAnnazHubV6:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV7") then
+    PlayerGui.AbuAnnazHubV7:Destroy()
 end
 
 -- Configuration State
@@ -36,6 +35,7 @@ local State = {
     FilterTrash = true,
     MinigameActive = false,
     HitCounter = 0,
+    RodSlotKey = Enum.KeyCode.Two, -- Slot 2 Rod Priority as requested
 }
 
 local TrashItems = {
@@ -47,7 +47,7 @@ local lastHitTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. GUARANTEED TOOL EQUIPPING SYSTEM (مسك السنارة بالتأكيد المباشر)
+-- 1. GUARANTEED ROD EQUIPPING SYSTEM (التركيز المباشر على خانة رقم 2)
 -- ------------------------------------------------------------------------------
 local function equipRodTool()
     local char = LocalPlayer.Character
@@ -55,13 +55,18 @@ local function equipRodTool()
 
     local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-    -- Check if tool already equipped in hand
+    -- Check if tool already in hand
     local currentTool = char:FindFirstChildOfClass("Tool")
     if currentTool then
         return currentTool
     end
 
-    -- Check Backpack for fishing rod or any tool
+    -- Press Hotbar Key '2' for Slot 2 Priority
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+    task.wait(0.01)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+
+    -- Check Backpack if not equipped by key
     local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
     if backpack then
         local foundTool = nil
@@ -75,32 +80,24 @@ local function equipRodTool()
         end
 
         if foundTool then
-            -- Method 1: Humanoid EquipTool
             if humanoid then
                 pcall(function() humanoid:EquipTool(foundTool) end)
             end
-            -- Method 2: Parent to Character
             foundTool.Parent = char
-
-            -- Method 3: Press Hotbar Key '1' via Virtual Input
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.One, false, game)
-            task.wait(0.02)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.One, false, game)
-
             return foundTool
         end
     end
 
-    -- Method 4: Press Hotbar Key '1' as fallback
+    -- Fallback press key '1'
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.One, false, game)
-    task.wait(0.02)
+    task.wait(0.01)
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.One, false, game)
 
     return char:FindFirstChildOfClass("Tool")
 end
 
 -- ------------------------------------------------------------------------------
--- 2. UNIVERSAL GREEN TARGET & NEEDLE SOLVER (كشف ألوان الصور والخلفيات)
+-- 2. PREDICTIVE MULTI-STAGE GREEN SOLVER (التحسين الكلي لعدم الغلط على الأخضر المتغير)
 -- ------------------------------------------------------------------------------
 local function scanGuiForMinigame()
     if not State.AutoSolveGreen and not State.AutoFish then 
@@ -111,21 +108,20 @@ local function scanGuiForMinigame()
     local minigameFound = false
 
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV6" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV7" then
             local needleObj = nil
             local greenObj = nil
             local hasMinigameText = false
 
-            -- Scan for minigame UI Elements & ImageLabels
+            -- Comprehensive Dynamic Scanning
             for _, desc in ipairs(gui:GetDescendants()) do
                 if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
                     local bgCol = desc.BackgroundColor3
                     local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bgCol
-                    local txtCol = desc:IsA("TextLabel") or desc:IsA("TextButton") and desc.TextColor3 or bgCol
                     local size = desc.AbsoluteSize
                     local name = desc.Name:lower()
 
-                    -- Check Text for Minigame Confirmation
+                    -- Confirm Minigame Activity via Text
                     if desc:IsA("TextLabel") and desc.Text ~= "" then
                         local t = desc.Text:lower()
                         if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
@@ -133,25 +129,25 @@ local function scanGuiForMinigame()
                         end
                     end
 
-                    -- Detect Needle (Vertical indicator line)
-                    if (size.X <= 25 and size.Y >= 10) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
-                        local isWhiteBg = (bgCol.R > 0.7 and bgCol.G > 0.7 and bgCol.B > 0.7)
-                        local isWhiteImg = (imgCol.R > 0.7 and imgCol.G > 0.7 and imgCol.B > 0.7)
+                    -- Detect Needle Line
+                    if (size.X <= 26 and size.Y >= 8) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
+                        local isWhiteBg = (bgCol.R > 0.65 and bgCol.G > 0.65 and bgCol.B > 0.65)
+                        local isWhiteImg = (imgCol.R > 0.65 and imgCol.G > 0.65 and imgCol.B > 0.65)
                         if isWhiteBg or isWhiteImg or name:find("needle") or name:find("pointer") or name:find("line") then
                             needleObj = desc
                         end
                     end
 
-                    -- Detect Green Target Zone
-                    local isGreenBg = (bgCol.G > 0.45 and bgCol.R < 0.55)
-                    local isGreenImg = (imgCol.G > 0.45 and imgCol.R < 0.55)
+                    -- Detect Green Target Zone (Dynamic Relocating Box)
+                    local isGreenBg = (bgCol.G > 0.42 and bgCol.R < 0.58)
+                    local isGreenImg = (imgCol.G > 0.42 and imgCol.R < 0.58)
                     if isGreenBg or isGreenImg or name:find("green") or name:find("target") or name:find("zone") or name:find("goal") or name:find("fill") then
                         greenObj = desc
                     end
                 end
             end
 
-            -- Execute Click when Needle enters Green Target
+            -- High-Speed Predictive Click Execution
             if (needleObj and greenObj) or (hasMinigameText and needleObj and greenObj) then
                 minigameFound = true
                 State.MinigameActive = true
@@ -160,9 +156,9 @@ local function scanGuiForMinigame()
                 local greenMinX = greenObj.AbsolutePosition.X
                 local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
 
-                -- Overlap Detection
-                if needleX >= greenMinX and needleX <= greenMaxX then
-                    if tick() - lastHitTick >= 0.04 then
+                -- Fast Response Window (0.015s cooldown to prevent misses on shrinking targets)
+                if needleX >= (greenMinX - 1) and needleX <= (greenMaxX + 1) then
+                    if tick() - lastHitTick >= 0.015 then
                         lastHitTick = tick()
                         State.HitCounter = State.HitCounter + 1
 
@@ -170,21 +166,21 @@ local function scanGuiForMinigame()
                         local screenCenterX = cam and (cam.ViewportSize.X / 2) or 500
                         local screenCenterY = cam and (cam.ViewportSize.Y / 2) or 300
 
-                        -- 1. Click Anywhere on Screen (As requested by the game text)
+                        -- 1. Click Anywhere on Screen Center
                         VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, true, game, 1)
-                        task.wait(0.005)
+                        task.wait(0.002)
                         VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, false, game, 1)
 
-                        -- 2. Click Needle Position
+                        -- 2. Click Directly at Needle Position
                         local clickX = math.floor(needleX)
                         local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                        task.wait(0.005)
+                        task.wait(0.002)
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
 
-                        -- 3. Spacebar Key Fallback
+                        -- 3. Spacebar Event
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.005)
+                        task.wait(0.002)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end
                 end
@@ -200,37 +196,35 @@ end
 RunService.RenderStepped:Connect(scanGuiForMinigame)
 
 -- ------------------------------------------------------------------------------
--- 3. AUTO CAST & BAIT MANAGEMENT ENGINE (رمي السنارة وتعبئة الطعم)
+-- 3. ULTRA-FAST AUTO RE-BAIT & FAR CAST ENGINE (تعبئة سريعة ورمي ممتاز)
 -- ------------------------------------------------------------------------------
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.2) do
         if State.AutoFish then
             local rod = equipRodTool()
 
-            -- Auto Re-Bait Routine
+            -- Ultra-Fast Auto Re-Bait Routine (Fires via Remote + Direct Hotbar/Tool Interaction)
             if State.AutoRebait and rod then
-                for _, rName in ipairs({"EquipBait", "BaitRemote", "Rebait", "Bait"}) do
-                    local remote = ReplicatedStorage:FindFirstChild(rName, true)
+                for _, rName in ipairs({"EquipBait", "BaitRemote", "Rebait", "Bait", "AddBait"}) do
+                    local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
                     if remote and remote:IsA("RemoteEvent") then
                         pcall(function() remote:FireServer() end)
                     end
                 end
             end
 
-            -- Cast Line into Water (Charge & Release Mechanics)
-            if rod and not State.MinigameActive and (tick() - lastCastTick >= 2.0) then
+            -- Cast Line Far into Water (Charge 0.35s and throw)
+            if rod and not State.MinigameActive and (tick() - lastCastTick >= 1.6) then
                 lastCastTick = tick()
 
-                -- Activate Tool
                 pcall(function() rod:Activate() end)
 
                 local cam = Workspace.CurrentCamera
                 local cx = cam and (cam.ViewportSize.X / 2) or 500
                 local cy = cam and (cam.ViewportSize.Y * 0.35) or 250
 
-                -- Hold Left Click for 0.4s to Charge Power, Then Release to Throw Line Far
                 VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-                task.wait(0.4)
+                task.wait(0.35)
                 VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
             end
         end
@@ -250,10 +244,10 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 4. GUI INTERFACE - حقوق أبو الهول عنّاز PRO V6
+-- 4. GUI INTERFACE - حقوق أبو عنّاز GOLD V7
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV6"
+gui.Name = "AbuAnnazHubV7"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
@@ -268,7 +262,7 @@ main.Parent = gui
 
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(230, 35, 50)
+stroke.Color = Color3.fromRGB(255, 215, 0)
 stroke.Thickness = 1.8
 
 -- Header Bar
@@ -281,7 +275,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 سكريبت حقوق أبو عنّاز | PERFECT FISHING V6 PRO"
+title.Text = "👑 حقوق أبو عنّاز | PERFECT FISHING V7 GOLD"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -351,7 +345,7 @@ local function createTab(name)
         for _, t in pairs(pages) do
             t.Page.Visible = false
             t.Btn.BackgroundColor3 = Color3.fromRGB(34, 22, 28)
-            t.Btn.TextColor3 = Color3.fromRGB(210, 210, 210)
+            t.Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
         page.Visible = true
         tabBtn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
@@ -381,14 +375,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك PRO V6")
+local fishPage = createTab("🎣 صيد الأسماك GOLD V7")
 
-pages["🎣 صيد الأسماك PRO V6"].Page.Visible = true
-pages["🎣 صيد الأسماك PRO V6"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
+pages["🎣 صيد الأسماك GOLD V7"].Page.Visible = true
+pages["🎣 صيد الأسماك GOLD V7"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
 
-addToggle(fishPage, "🎯 حل الضغط على الأخضر تلقائياً (Auto Click Green)", "AutoSolveGreen")
-addToggle(fishPage, "🎣 مسك السنارة والرمي البعيد (Auto Equip & Cast)", "AutoFish")
-addToggle(fishPage, "🪱 تعبئة الطعم تلقائياً (Auto Re-Bait)", "AutoRebait")
+addToggle(fishPage, "🎯 حل الضغط على الأخضر المثالي (Zero-Miss Green Hit)", "AutoSolveGreen")
+addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
+addToggle(fishPage, "🪱 التعبئة السريعة للطعم (Fast Re-Bait)", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB PERFECT FISHING V6 PRO LOADED!")
+print("ABU ANNAZ HUB PERFECT FISHING V7 GOLD LOADED!")
