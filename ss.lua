@@ -1,11 +1,11 @@
 -- ==============================================================================
--- Abu Annaz Hub V12 MASTER BYPASS | حقوق أبو عنّاز - DYNAMIC HYBRID REMOTE BYPASS ENGINE
+-- Abu Annaz Hub V13 PERFECT | حقوق أبو عنّاز - SEPARATED CAST & STRICT GREEN SOLVER
 -- Game: BlockSpin (Roblox)
--- Features: 
---  1. Hybrid Server-Side Remote Bypass & On-Demand Position Emulation (تخطي واخدعة السيرفر المباشر بالكامل)
---  2. Pure Midnight Black Theme GUI (تصميم أسود فاخر بالكامل)
---  3. Slot 2 Fishing Rod Priority (مسك السنارة من الخانة 2)
---  4. Ultra-Fast Re-Bait & Trash Discard Systems (تعبئة الطعم وتصفية القمامة)
+-- Fixes:
+--  1. NO-CLICK ROD CASTING (رمي السنارة بدون أي كليك على الشاشة إطلاقاً لتفادي ضرب الأخضر بالخطأ)
+--  2. STRICT NEEDLE-TO-GREEN SOLVER (#13A913 Dark Green Exact Overlap Hit)
+--  3. PURE MIDNIGHT BLACK THEME GUI
+--  4. Slot 2 Fishing Rod Priority & Fast Re-Bait Engine
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -26,18 +26,18 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV12") then
-    PlayerGui.AbuAnnazHubV12:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV13") then
+    PlayerGui.AbuAnnazHubV13:Destroy()
 end
 
 -- Configuration State
 local State = {
-    RemoteBypass = true,
+    AutoSolveGreen = true,
     AutoFish = true,
     AutoRebait = true,
     FilterTrash = true,
     MinigameActive = false,
-    BypassCounter = 0,
+    HitCounter = 0,
 }
 
 local TrashItems = {
@@ -45,99 +45,98 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
-local lastBypassTick = 0
+-- Exact Target Color Filtering for Dark Green #13A913
+local function isExactDarkGreen(col)
+    if not col then return false end
+    local r, g, b = math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255)
+    return (r >= 2 and r <= 55) and (g >= 120 and g <= 220) and (b >= 2 and b <= 55)
+end
+
+local lastHitTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. DYNAMIC HYBRID SERVER-SIDE REMOTE BYPASS (خداع وتخطي السيرفر بذكاء)
+-- 1. STRICT NEEDLE-TO-GREEN SOLVER (الضغط فقط وحصراً عند دخول الإبرة فوق الأخضر #13A913)
 -- ------------------------------------------------------------------------------
-local function scanAndBypassMinigame()
-    if not State.RemoteBypass and not State.AutoFish then 
+local function scanGuiForMinigame()
+    if not State.AutoSolveGreen and not State.AutoFish then 
         State.MinigameActive = false
         return 
     end
 
-    local minigameActive = false
-    local targetGreenBox = nil
+    local minigameFound = false
 
-    -- 1. Detect if Fishing Minigame UI is active and extract the Green Box Target
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV12" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV13" then
+            local needleObj = nil
+            local greenObj = nil
+
+            -- Scan UI Elements for Needle & Dark Green Target Box #13A913
             for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible then
-                    local bg = desc.BackgroundColor3
-                    local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bg
+                if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
+                    local bgCol = desc.BackgroundColor3
+                    local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bgCol
+                    local size = desc.AbsoluteSize
                     local name = desc.Name:lower()
 
-                    if desc:IsA("TextLabel") and desc.Text ~= "" then
-                        local t = desc.Text:lower()
-                        if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
-                            minigameActive = true
+                    -- Detect Moving Needle Line (White indicator)
+                    if (size.X <= 28 and size.Y >= 6) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
+                        local isWhiteBg = (bgCol.R > 0.65 and bgCol.G > 0.65 and bgCol.B > 0.65)
+                        local isWhiteImg = (imgCol.R > 0.65 and imgCol.G > 0.65 and imgCol.B > 0.65)
+                        if isWhiteBg or isWhiteImg or name:find("needle") or name:find("pointer") or name:find("line") then
+                            needleObj = desc
                         end
                     end
 
-                    -- Locate exact Green Target Box
-                    if (bg.G > 0.45 and bg.R < 0.55) or (imgCol.G > 0.45 and imgCol.R < 0.55) or name:find("green") or name:find("target") then
-                        targetGreenBox = desc
+                    -- Detect EXACT Dark Green Target Zone (#13A913)
+                    if isExactDarkGreen(bgCol) or isExactDarkGreen(imgCol) or name:find("green") or name:find("target") or name:find("zone") then
+                        greenObj = desc
+                    end
+                end
+            end
+
+            -- HIT STRICTLY WHEN NEEDLE IS INSIDE THE GREEN BOX BOUNDARIES
+            if needleObj and greenObj then
+                minigameFound = true
+                State.MinigameActive = true
+
+                local needleX = needleObj.AbsolutePosition.X + (needleObj.AbsoluteSize.X / 2)
+                local greenMinX = greenObj.AbsolutePosition.X
+                local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
+
+                -- Overlap Check (STRICTLY inside green box)
+                if needleX >= greenMinX and needleX <= greenMaxX then
+                    if tick() - lastHitTick >= 0.015 then
+                        lastHitTick = tick()
+                        State.HitCounter = State.HitCounter + 1
+
+                        local clickX = math.floor(needleX)
+                        local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
+
+                        -- 1. Hardware Click directly at needle/green position
+                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+                        task.wait(0.002)
+                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+
+                        -- 2. Spacebar Key Event (Backup)
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait(0.002)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end
                 end
             end
         end
     end
 
-    -- 2. Execute Hybrid Server Bypass Tricks
-    if minigameActive or targetGreenBox then
-        State.MinigameActive = true
-
-        if tick() - lastBypassTick >= 0.04 then
-            lastBypassTick = tick()
-            State.BypassCounter = State.BypassCounter + 1
-
-            -- Calculate perfect green coordinate if box exists
-            local greenCenterX = targetGreenBox and (targetGreenBox.AbsolutePosition.X + targetGreenBox.AbsoluteSize.X / 2) or 500
-
-            -- FIRE TRICK A: Remote Event Payload Spoofing
-            for _, rName in ipairs({"FishingRemote", "MinigameRemote", "Hit", "CompleteMinigame", "FishHit", "MinigameResult", "CatchFish"}) do
-                local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
-                if remote then
-                    if remote:IsA("RemoteEvent") then
-                        pcall(function() remote:FireServer(true) end)
-                        pcall(function() remote:FireServer("Hit", greenCenterX) end)
-                        pcall(function() remote:FireServer(true, greenCenterX) end)
-                        pcall(function() remote:FireServer(100) end)
-                    elseif remote:IsA("RemoteFunction") then
-                        pcall(function() remote:InvokeServer(true) end)
-                        pcall(function() remote:InvokeServer("Hit", greenCenterX) end)
-                    end
-                end
-            end
-
-            -- FIRE TRICK B: Instant Screen Center Mouse Tap (Instant Win trigger)
-            local cam = Workspace.CurrentCamera
-            local cx = cam and (cam.ViewportSize.X / 2) or 500
-            local cy = cam and (cam.ViewportSize.Y / 2) or 300
-
-            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-            task.wait(0.001)
-            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-
-            -- FIRE TRICK C: Instant Target Box Coordinate Tap
-            if targetGreenBox then
-                local gy = targetGreenBox.AbsolutePosition.Y + (targetGreenBox.AbsoluteSize.Y / 2)
-                VirtualInputManager:SendMouseButtonEvent(greenCenterX, gy, 0, true, game, 1)
-                task.wait(0.001)
-                VirtualInputManager:SendMouseButtonEvent(greenCenterX, gy, 0, false, game, 1)
-            end
-        end
-    else
+    if not minigameFound then
         State.MinigameActive = false
     end
 end
 
-RunService.RenderStepped:Connect(scanAndBypassMinigame)
+RunService.RenderStepped:Connect(scanGuiForMinigame)
 
 -- ------------------------------------------------------------------------------
--- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (نفس الخصائص دون تغيير)
+-- 2. NO-CLICK ROD CASTING & FAST RE-BAIT ENGINE (رمي السنارة بدون كليك شاشة)
 -- ------------------------------------------------------------------------------
 local function equipSlot2Rod()
     local char = LocalPlayer.Character
@@ -166,7 +165,7 @@ local function equipSlot2Rod()
 end
 
 task.spawn(function()
-    while task.wait(0.18) do
+    while task.wait(0.2) do
         if State.AutoFish then
             local rod = equipSlot2Rod()
 
@@ -180,19 +179,24 @@ task.spawn(function()
                 end
             end
 
-            -- Cast Line Far into Water
-            if rod and not State.MinigameActive and (tick() - lastCastTick >= 1.4) then
+            -- NO-CLICK ROD CASTING: Trigger tool via Activate() and Remotes ONLY (Zero Screen Clicks)
+            if rod and not State.MinigameActive and (tick() - lastCastTick >= 2.5) then
                 lastCastTick = tick()
 
+                -- 1. Pure Tool Activation (No mouse click on screen)
                 pcall(function() rod:Activate() end)
 
-                local cam = Workspace.CurrentCamera
-                local cx = cam and (cam.ViewportSize.X / 2) or 500
-                local cy = cam and (cam.ViewportSize.Y * 0.35) or 250
-
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-                task.wait(0.35)
-                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+                -- 2. Direct Cast Remotes if present
+                for _, cName in ipairs({"Cast", "CastLine", "FishCast", "CastRod", "ThrowLine"}) do
+                    local castRemote = ReplicatedStorage:FindFirstChild(cName, true) or Workspace:FindFirstChild(cName, true)
+                    if castRemote then
+                        if castRemote:IsA("RemoteEvent") then
+                            pcall(function() castRemote:FireServer() end)
+                        elseif castRemote:IsA("RemoteFunction") then
+                            pcall(function() castRemote:InvokeServer() end)
+                        end
+                    end
+                end
             end
         end
 
@@ -211,10 +215,10 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V12 MASTER BYPASS)
+-- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V13 PERFECT)
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV12"
+gui.Name = "AbuAnnazHubV13"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
@@ -242,7 +246,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | HYBRID REMOTE BYPASS V12"
+title.Text = "👑 حقوق أبو عنّاز | PERFECT NO-CLICK CAST V13"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -342,14 +346,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V12 HYBRID")
+local fishPage = createTab("🎣 صيد الأسماك V13 PERFECT")
 
-pages["🎣 صيد الأسماك V12 HYBRID"].Page.Visible = true
-pages["🎣 صيد الأسماك V12 HYBRID"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+pages["🎣 صيد الأسماك V13 PERFECT"].Page.Visible = true
+pages["🎣 صيد الأسماك V13 PERFECT"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "⚡ خداع وتخطي السيرفر المباشر (Hybrid Remote Bypass)", "RemoteBypass")
-addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
+addToggle(fishPage, "🎯 حل الأخضر #13A913 الصارم (Strict Needle Hit)", "AutoSolveGreen")
+addToggle(fishPage, "🎣 رمي السنارة بدون كليك شاشة (No-Click Cast)", "AutoFish")
 addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB HYBRID BYPASS V12 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB PERFECT NO-CLICK CAST V13 LOADED SUCCESSFULLY!")
