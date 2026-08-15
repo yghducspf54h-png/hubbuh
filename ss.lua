@@ -1,11 +1,11 @@
 -- ==============================================================================
--- Abu Annaz Hub V9 BLACK VIP | حقوق أبو عنّاز - SLEEK PURE BLACK GUI & CONTINUOUS HIT SOLVER
+-- Abu Annaz Hub V10 PREDICTIVE VIP | حقوق أبو عنّاز - PREDICTIVE VELOCITY NEEDLE SOLVER
 -- Game: BlockSpin (Roblox)
--- Features: 
---  1. Pure Midnight Black Theme (أسود فاخر بالكامل مع حواف حمراء داكنة)
---  2. Continuous Multi-Stage Green Target Lock (عدم تفويت الضربات المتتالية وتصاغر المربع الأخضر)
---  3. Slot 2 Fishing Rod Priority
---  4. Fast Re-Bait & Trash Discard System
+-- Features:
+--  1. Pure Midnight Black Theme (GUI أسود فاخر بالكامل)
+--  2. Predictive Needle Velocity & Lead-Offset Engine (حساب سرعة واتجاه الإبرة وتنبؤ الضرب في المركز بدون أي تفويت)
+--  3. Slot 2 Fishing Rod Priority (مسك السنارة من الخانة 2 بدون تغيير)
+--  4. Ultra-Fast Re-Bait & Trash Discard Systems (التعبئة السريعة وتدمير القمامة كما هي)
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -26,8 +26,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV9") then
-    PlayerGui.AbuAnnazHubV9:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV10") then
+    PlayerGui.AbuAnnazHubV10:Destroy()
 end
 
 -- Configuration State
@@ -52,22 +52,27 @@ local function isExactDarkGreen(col)
     return (r >= 2 and r <= 55) and (g >= 120 and g <= 220) and (b >= 2 and b <= 55)
 end
 
+-- Trackers for Predictive Velocity Calculation
+local lastNeedleX = nil
+local lastNeedleTick = nil
+local needleVelocityX = 0 -- px per second
 local lastHitTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. CONTINUOUS MULTI-STAGE GREEN TARGET & NEEDLE SOLVER (استجابة مستمرة لكل الضغطات)
+-- 1. PREDICTIVE VELOCITY & LEAD-OFFSET SOLVER (الخيار 1: التنبؤ بالسرعة والاتجاه)
 -- ------------------------------------------------------------------------------
 local function scanGuiForMinigame()
     if not State.AutoSolveGreen and not State.AutoFish then 
         State.MinigameActive = false
+        lastNeedleX = nil
         return 
     end
 
     local minigameFound = false
 
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV9" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV10" then
             local needleObj = nil
             local greenObj = nil
             local hasMinigameText = false
@@ -97,24 +102,42 @@ local function scanGuiForMinigame()
                         end
                     end
 
-                    -- Detect #13A913 Dark Green Relocating Target
+                    -- Detect #13A913 Dark Green Target
                     if isExactDarkGreen(bgCol) or isExactDarkGreen(imgCol) or name:find("green") or name:find("target") or name:find("zone") then
                         greenObj = desc
                     end
                 end
             end
 
-            -- Instant Continuous Overlap Solver
+            -- PREDICTIVE MATH ENGINE
             if (needleObj and greenObj) or (hasMinigameText and needleObj and greenObj) then
                 minigameFound = true
                 State.MinigameActive = true
 
-                local needleX = needleObj.AbsolutePosition.X + (needleObj.AbsoluteSize.X / 2)
+                local currentNeedleX = needleObj.AbsolutePosition.X + (needleObj.AbsoluteSize.X / 2)
+                local currentTick = tick()
+
+                -- Calculate Velocity & Direction (dx / dt)
+                if lastNeedleX and lastNeedleTick and (currentTick - lastNeedleTick) > 0 then
+                    local dt = currentTick - lastNeedleTick
+                    local dx = currentNeedleX - lastNeedleX
+                    needleVelocityX = dx / dt
+                end
+
+                lastNeedleX = currentNeedleX
+                lastNeedleTick = currentTick
+
+                -- Predict Position ahead by latency offset (approx 0.02s lead)
+                local predictedLeadTime = 0.02
+                local predictedNeedleX = currentNeedleX + (needleVelocityX * predictedLeadTime)
+
                 local greenMinX = greenObj.AbsolutePosition.X
                 local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
 
-                -- Fast Continuous Window (0.008s for zero delay on successive hits)
-                if needleX >= (greenMinX - 2) and needleX <= (greenMaxX + 2) then
+                -- Trigger Click when Predicted Position is inside #13A913 Bounds
+                if (predictedNeedleX >= (greenMinX - 1) and predictedNeedleX <= (greenMaxX + 1)) 
+                   or (currentNeedleX >= greenMinX and currentNeedleX <= greenMaxX) then
+                    
                     if tick() - lastHitTick >= 0.008 then
                         lastHitTick = tick()
                         State.HitCounter = State.HitCounter + 1
@@ -129,7 +152,7 @@ local function scanGuiForMinigame()
                         VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, false, game, 1)
 
                         -- 2. Click Directly at Needle Position
-                        local clickX = math.floor(needleX)
+                        local clickX = math.floor(currentNeedleX)
                         local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
                         task.wait(0.001)
@@ -147,13 +170,14 @@ local function scanGuiForMinigame()
 
     if not minigameFound then
         State.MinigameActive = false
+        lastNeedleX = nil
     end
 end
 
 RunService.RenderStepped:Connect(scanGuiForMinigame)
 
 -- ------------------------------------------------------------------------------
--- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE
+-- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (كما هي دون تغيير)
 -- ------------------------------------------------------------------------------
 local function equipSlot2Rod()
     local char = LocalPlayer.Character
@@ -227,17 +251,17 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V9 BLACK)
+-- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو الهول عنّاز V10 PREDICTIVE)
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV9"
+gui.Name = "AbuAnnazHubV10"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 540, 0, 400)
 main.Position = UDim2.new(0.5, -270, 0.5, -200)
-main.BackgroundColor3 = Color3.fromRGB(8, 8, 10) -- Pure Midnight Black
+main.BackgroundColor3 = Color3.fromRGB(8, 8, 10) -- Pure Midnight Black Theme
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
@@ -245,20 +269,20 @@ main.Parent = gui
 
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(180, 20, 30) -- Sleek Dark Red Border Accent
+stroke.Color = Color3.fromRGB(180, 20, 30) -- Dark Red Accent Border
 stroke.Thickness = 1.8
 
 -- Header Bar
 local header = Instance.new("Frame", main)
 header.Size = UDim2.new(1, 0, 0, 44)
-header.BackgroundColor3 = Color3.fromRGB(14, 14, 16) -- Dark Header
+header.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
 header.BorderSizePixel = 0
 Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | PURE BLACK FISHING V9"
+title.Text = "👑 حقوق أبو عنّاز | PREDICTIVE FISHING V10"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -358,14 +382,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V9 BLACK")
+local fishPage = createTab("🎣 صيد الأسماك V10 PREDICTIVE")
 
-pages["🎣 صيد الأسماك V9 BLACK"].Page.Visible = true
-pages["🎣 صيد الأسماك V9 BLACK"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+pages["🎣 صيد الأسماك V10 PREDICTIVE"].Page.Visible = true
+pages["🎣 صيد الأسماك V10 PREDICTIVE"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "🎯 الضغط المستمر على الأخضر #13A913 (Continuous Hit)", "AutoSolveGreen")
+addToggle(fishPage, "🎯 حل التنبؤ بالسرعة والاتجاه على #13A913", "AutoSolveGreen")
 addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
 addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB PURE BLACK V9 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB PREDICTIVE V10 LOADED SUCCESSFULLY!")
