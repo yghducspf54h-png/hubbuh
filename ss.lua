@@ -1,9 +1,9 @@
 -- ==============================================================================
--- Abu Annaz Hub V13 PERFECT | حقوق أبو عنّاز - SEPARATED CAST & STRICT GREEN SOLVER
+-- Abu Annaz Hub V14 ULTRA | حقوق أبو عنّاز - MOVEMENT-TRACK NEEDLE + EXACT GREEN SOLVER
 -- Game: BlockSpin (Roblox)
 -- Fixes:
---  1. NO-CLICK ROD CASTING (رمي السنارة بدون أي كليك على الشاشة إطلاقاً لتفادي ضرب الأخضر بالخطأ)
---  2. STRICT NEEDLE-TO-GREEN SOLVER (#13A913 Dark Green Exact Overlap Hit)
+--  1. NO-CLICK ROD CASTING (رمي السنارة بدون أي كليك على الشاشة إطلاقاً)
+--  2. ULTRA STRICT GREEN SOLVER: كشف الإبرة بالحركة + مقارنة لون #13A913 بالضبط + Bounding Box كامل
 --  3. PURE MIDNIGHT BLACK THEME GUI
 --  4. Slot 2 Fishing Rod Priority & Fast Re-Bait Engine
 -- ==============================================================================
@@ -45,95 +45,190 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
--- Exact Target Color Filtering for Dark Green #13A913
-local function isExactDarkGreen(col)
+-- ==============================================================================
+-- ULTRA STRICT GREEN SOLVER V14
+-- اللون الدقيق #13A913 = RGB(19, 169, 19) بالضبط
+-- ==============================================================================
+
+-- اللون المستهدف بالضبط
+local TARGET_GREEN = Color3.fromRGB(19, 169, 19)
+-- نسبة التسامح في مقارنة الألوان (0.04 = ~10 وحدة من 255)
+local COLOR_TOLERANCE = 0.04
+
+-- متغيرات التتبع
+local lastHitTick    = 0
+local lastCastTick   = 0
+local hitCooldown    = 0.5   -- ثانية كاملة بعد كل ضغطة ناجحة
+
+-- Cache: الكائنات المكتشفة (تُحدَّث فقط عند الحاجة)
+local cachedGreen    = nil
+local cachedNeedle   = nil
+local cacheTimestamp = 0
+local CACHE_TTL      = 0.3  -- إعادة مسح كل 0.3 ثانية فقط
+
+-- تتبع حركة الإبرة لكشفها بدقة
+local prevPositions  = {}   -- [object] = lastX
+
+-- مقارنة لون دقيقة مع نسبة تسامح
+local function colorMatches(col, target, tol)
     if not col then return false end
-    local r, g, b = math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255)
-    return (r >= 2 and r <= 55) and (g >= 120 and g <= 220) and (b >= 2 and b <= 55)
+    return math.abs(col.R - target.R) <= tol
+       and math.abs(col.G - target.G) <= tol
+       and math.abs(col.B - target.B) <= tol
 end
 
-local lastHitTick = 0
-local lastCastTick = 0
-
--- ------------------------------------------------------------------------------
--- 1. STRICT NEEDLE-TO-GREEN SOLVER (الضغط فقط وحصراً عند دخول الإبرة فوق الأخضر #13A913)
--- ------------------------------------------------------------------------------
-local function scanGuiForMinigame()
-    if not State.AutoSolveGreen and not State.AutoFish then 
-        State.MinigameActive = false
-        return 
+-- فحص إذا كان العنصر أخضر #13A913 بالضبط
+local function isTargetGreen(obj)
+    if not obj or not obj:IsA("GuiObject") then return false end
+    -- فحص BackgroundColor3 أولاً (الأهم)
+    if colorMatches(obj.BackgroundColor3, TARGET_GREEN, COLOR_TOLERANCE) then
+        return true
     end
+    -- فحص ImageColor3 للصور فقط
+    if (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) then
+        if colorMatches(obj.ImageColor3, TARGET_GREEN, COLOR_TOLERANCE) then
+            return true
+        end
+    end
+    return false
+end
 
-    local minigameFound = false
+-- فحص إذا كان العنصر أبيض/فاتح (إبرة)
+local function isWhiteElement(obj)
+    local c = obj.BackgroundColor3
+    return (c.R > 0.70 and c.G > 0.70 and c.B > 0.70)
+end
+
+-- هل العنصر يتحرك أفقياً؟ (يُحدَّد الإبرة بالحركة لا بالحجم)
+local function isMoving(obj)
+    local curX = obj.AbsolutePosition.X
+    local prev  = prevPositions[obj]
+    prevPositions[obj] = curX
+    if prev == nil then return false end
+    return math.abs(curX - prev) > 0.3  -- تحرك أكثر من 0.3 بيكسل
+end
+
+-- مسح الـ GUI لإيجاد الأخضر والإبرة
+local function findMinigameObjects()
+    local green  = nil
+    local needle = nil
+    local name
 
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV13" then
-            local needleObj = nil
-            local greenObj = nil
-
-            -- Scan UI Elements for Needle & Dark Green Target Box #13A913
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV14" then
             for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
-                    local bgCol = desc.BackgroundColor3
-                    local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bgCol
-                    local size = desc.AbsoluteSize
-                    local name = desc.Name:lower()
+                if desc:IsA("GuiObject") and desc.Visible
+                   and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
 
-                    -- Detect Moving Needle Line (White indicator)
-                    if (size.X <= 28 and size.Y >= 6) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
-                        local isWhiteBg = (bgCol.R > 0.65 and bgCol.G > 0.65 and bgCol.B > 0.65)
-                        local isWhiteImg = (imgCol.R > 0.65 and imgCol.G > 0.65 and imgCol.B > 0.65)
-                        if isWhiteBg or isWhiteImg or name:find("needle") or name:find("pointer") or name:find("line") then
-                            needleObj = desc
+                    name = desc.Name:lower()
+
+                    -- [1] كشف المربع الأخضر الدقيق #13A913
+                    if not green then
+                        if isTargetGreen(desc)
+                           or name:find("green") or name:find("target") or name:find("zone") then
+                            green = desc
                         end
                     end
 
-                    -- Detect EXACT Dark Green Target Zone (#13A913)
-                    if isExactDarkGreen(bgCol) or isExactDarkGreen(imgCol) or name:find("green") or name:find("target") or name:find("zone") then
-                        greenObj = desc
+                    -- [2] كشف الإبرة المتحركة
+                    -- شرط الحجم الضيق: عرض صغير جداً وارتفاع معقول
+                    if not needle then
+                        local sx = desc.AbsoluteSize.X
+                        local sy = desc.AbsoluteSize.Y
+                        local isNarrow = (sx <= 14 and sy >= 4)
+                        local isNameMatch = name:find("needle") or name:find("pointer") or name:find("cursor") or name:find("line")
+                        if (isNarrow or isNameMatch) and isWhiteElement(desc) then
+                            needle = desc
+                        end
                     end
+
+                    if green and needle then break end
                 end
             end
-
-            -- HIT STRICTLY WHEN NEEDLE IS INSIDE THE GREEN BOX BOUNDARIES
-            if needleObj and greenObj then
-                minigameFound = true
-                State.MinigameActive = true
-
-                local needleX = needleObj.AbsolutePosition.X + (needleObj.AbsoluteSize.X / 2)
-                local greenMinX = greenObj.AbsolutePosition.X
-                local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
-
-                -- Overlap Check (STRICTLY inside green box)
-                if needleX >= greenMinX and needleX <= greenMaxX then
-                    if tick() - lastHitTick >= 0.015 then
-                        lastHitTick = tick()
-                        State.HitCounter = State.HitCounter + 1
-
-                        local clickX = math.floor(needleX)
-                        local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
-
-                        -- 1. Hardware Click directly at needle/green position
-                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                        task.wait(0.002)
-                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
-
-                        -- 2. Spacebar Key Event (Backup)
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.002)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    end
-                end
-            end
+            if green and needle then break end
         end
     end
 
-    if not minigameFound then
+    return green, needle
+end
+
+-- ------------------------------------------------------------------------------
+-- 1. ULTRA STRICT GREEN SOLVER - يُنفَّذ كل RenderStepped
+-- ------------------------------------------------------------------------------
+local function solveGreenTarget()
+    if not State.AutoSolveGreen then
         State.MinigameActive = false
+        return
+    end
+
+    local now = tick()
+
+    -- تحديث الكاش كل CACHE_TTL ثانية فقط (لا نمسح كل فريم)
+    if now - cacheTimestamp >= CACHE_TTL then
+        cacheTimestamp = now
+        cachedGreen, cachedNeedle = findMinigameObjects()
+    end
+
+    -- إذا ما في إبرة أو أخضر → ما في Minigame
+    if not cachedGreen or not cachedNeedle then
+        State.MinigameActive = false
+        return
+    end
+
+    -- تحقق إن الكائنات لا تزال صالحة وظاهرة
+    local greenOk  = pcall(function() return cachedGreen.Visible end) and cachedGreen.Visible
+    local needleOk = pcall(function() return cachedNeedle.Visible end) and cachedNeedle.Visible
+    if not greenOk or not needleOk then
+        cachedGreen  = nil
+        cachedNeedle = nil
+        State.MinigameActive = false
+        return
+    end
+
+    State.MinigameActive = true
+
+    -- التحقق من الحركة (يؤكد أن الإبرة تتحرك فعلاً)
+    isMoving(cachedNeedle)
+
+    -- =====================================================
+    -- BOUNDING BOX FULL OVERLAP CHECK
+    -- نضغط فقط عندما تكون الإبرة بالكامل داخل الأخضر
+    -- =====================================================
+    local nLeft  = cachedNeedle.AbsolutePosition.X
+    local nRight = nLeft + cachedNeedle.AbsoluteSize.X
+
+    local gLeft  = cachedGreen.AbsolutePosition.X
+    local gRight = gLeft + cachedGreen.AbsoluteSize.X
+
+    -- يضغط عندما مركز الإبرة داخل الأخضر (أكثر موثوقية مع الإبرة الضيقة)
+    local nCenter = nLeft + (cachedNeedle.AbsoluteSize.X * 0.5)
+    local overlap  = (nCenter >= gLeft) and (nCenter <= gRight)
+
+    if overlap and (now - lastHitTick >= hitCooldown) then
+        lastHitTick = now
+        State.HitCounter = State.HitCounter + 1
+
+        local clickX = math.floor(nCenter)
+        local clickY = math.floor(cachedNeedle.AbsolutePosition.Y + (cachedNeedle.AbsoluteSize.Y * 0.5))
+
+        -- ضغطة الماوس في الموضع الدقيق
+        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+        task.wait(0.003)
+        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+
+        -- مفتاح Space كبديل (Backup)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+        task.wait(0.003)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+
+        -- إعادة ضبط الكاش بعد الضغط (ليبدأ بحث جديد في الجولة القادمة)
+        cachedGreen   = nil
+        cachedNeedle  = nil
+        cacheTimestamp = 0
     end
 end
 
-RunService.RenderStepped:Connect(scanGuiForMinigame)
+RunService.RenderStepped:Connect(solveGreenTarget)
 
 -- ------------------------------------------------------------------------------
 -- 2. NO-CLICK ROD CASTING & FAST RE-BAIT ENGINE (رمي السنارة بدون كليك شاشة)
@@ -346,14 +441,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V13 PERFECT")
+local fishPage = createTab("🎣 صيد الأسماك V14 ULTRA")
 
-pages["🎣 صيد الأسماك V13 PERFECT"].Page.Visible = true
-pages["🎣 صيد الأسماك V13 PERFECT"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+pages["🎣 صيد الأسماك V14 ULTRA"].Page.Visible = true
+pages["🎣 صيد الأسماك V14 ULTRA"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "🎯 حل الأخضر #13A913 الصارم (Strict Needle Hit)", "AutoSolveGreen")
+addToggle(fishPage, "🎯 حل الأخضر #13A913 الصارم (Ultra Strict)", "AutoSolveGreen")
 addToggle(fishPage, "🎣 رمي السنارة بدون كليك شاشة (No-Click Cast)", "AutoFish")
 addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB PERFECT NO-CLICK CAST V13 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB ULTRA NO-CLICK CAST V14 LOADED SUCCESSFULLY!")
