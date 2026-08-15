@@ -1,11 +1,7 @@
 -- ==============================================================================
--- Abu Annaz Hub V3 | حقوق أبو العم عنّاز - DYNAMIC MULTI-STAGE GREEN NEEDLE SOLVER & FAR CAST
+-- Abu Annaz Hub V4 | حقوق أبو عنّاز - ULTIMATE AUTO FISHING ENGINE
 -- Game: BlockSpin (Roblox)
--- Features: 
---  1. Far Cast & Long Distance Rod Throw (رمي السنارة بعيداً في البحيرة)
---  2. Dynamic Dynamic Multi-Stage Shrinking Green Box Tracking (تتبع تغير وتصاغر المربع الأخضر تلقائياً)
---  3. Non-Blocking Non-Stuck Loop Engine (حل التعليق وإعادة الصيد بسلاسة)
---  4. Auto Re-Bait & Trash Filter
+-- Dedicated Comprehensive Fishing Automation, Bait Engine & Dynamic Needle Solver
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -26,19 +22,20 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instance
-if PlayerGui:FindFirstChild("AbuAnnazHub") then
-    PlayerGui.AbuAnnazHub:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV4") then
+    PlayerGui.AbuAnnazHubV4:Destroy()
 end
 
--- Global Configuration
+-- Global Configuration & States
 local State = {
     AutoSolveGreen = true,
-    AutoFish = false,
+    AutoFish = true,
     AutoRebait = true,
-    CastDistance = 250, -- Distance to cast line far into the water
     FilterTrash = true,
-    Aimbot = false,
-    ESP = false,
+    CastPower = 0.8,
+    NeedleSpeedFactor = 1.0,
+    HitsCount = 0,
+    SuccessfulCatches = 0,
 }
 
 local TrashItems = {
@@ -46,72 +43,85 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
--- Global Trackers for Minigame State
 local isMinigameActive = false
+local lastCastTime = 0
 local lastClickTick = 0
 
--- 1. REAL-TIME DYNAMIC MULTI-STAGE SHRINKING GREEN ZONE SOLVER
+-- ------------------------------------------------------------------------------
+-- 1. ADVANCED DYNAMIC GREEN NEEDLE SOLVER ENGINE
+-- ------------------------------------------------------------------------------
+local function findNeedleAndTarget(parentGui)
+    local needle = nil
+    local greenZone = nil
+
+    for _, desc in ipairs(parentGui:GetDescendants()) do
+        if desc:IsA("GuiObject") and desc.Visible then
+            local col = desc.BackgroundColor3
+            local size = desc.AbsoluteSize
+            local name = desc.Name:lower()
+
+            -- Detect Needle (Vertical white/light indicator)
+            if size.X <= 16 and size.Y >= 14 then
+                if (col.R > 0.75 and col.G > 0.75 and col.B > 0.75) or name:find("needle") or name:find("pointer") or name:find("line") or name:find("indicator") then
+                    needle = desc
+                end
+            end
+
+            -- Detect Green Target Box (Shrinking / Moving zone)
+            if (col.G > 0.5 and col.R < 0.5) or name:find("green") or name:find("target") or name:find("zone") or name:find("goal") then
+                greenZone = desc
+            end
+        end
+    end
+
+    return needle, greenZone
+end
+
 RunService.RenderStepped:Connect(function()
     if not State.AutoSolveGreen and not State.AutoFish then 
         isMinigameActive = false
         return 
     end
 
-    local minigameFoundThisFrame = false
+    local foundInFrame = false
 
     for _, guiObj in ipairs(PlayerGui:GetChildren()) do
-        if guiObj:IsA("ScreenGui") and guiObj.Enabled and guiObj.Name ~= "AbuAnnazHub" then
-            local needle = nil
-            local greenZone = nil
+        if guiObj:IsA("ScreenGui") and guiObj.Enabled and guiObj.Name ~= "AbuAnnazHubV4" then
+            local needle, greenZone = findNeedleAndTarget(guiObj)
 
-            -- Dynamic Element Scanner
-            for _, desc in ipairs(guiObj:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible then
-                    local col = desc.BackgroundColor3
-                    local absSize = desc.AbsoluteSize
-                    local name = desc.Name:lower()
-
-                    -- Detect Needle (White / Moving Vertical Line)
-                    if absSize.X <= 14 and absSize.Y >= 18 then
-                        if (col.R > 0.8 and col.G > 0.8 and col.B > 0.8) or name:find("needle") or name:find("pointer") or name:find("line") then
-                            needle = desc
-                        end
-                    end
-
-                    -- Detect Green Target (Shrinking / Relocating Green Box)
-                    if (col.G > 0.5 and col.R < 0.45) or name:find("green") or name:find("target") or name:find("zone") then
-                        greenZone = desc
-                    end
-                end
-            end
-
-            -- High-Precision Dynamic Bound Checking
             if needle and greenZone then
-                minigameFoundThisFrame = true
+                foundInFrame = true
                 isMinigameActive = true
 
-                -- Avoid rapid double-click on the same frame (minimum 0.08s gap)
-                if tick() - lastClickTick >= 0.08 then
-                    local needleX = needle.AbsolutePosition.X + (needle.AbsoluteSize.X / 2)
+                -- Prevent rapid duplicate triggers within 0.05 seconds
+                if tick() - lastClickTick >= 0.05 then
+                    local needleCenterX = needle.AbsolutePosition.X + (needle.AbsoluteSize.X / 2)
                     local greenMinX = greenZone.AbsolutePosition.X
                     local greenMaxX = greenMinX + greenZone.AbsoluteSize.X
 
-                    -- Calculate margin padding based on shrinking green zone size
-                    local padding = math.clamp(greenZone.AbsoluteSize.X * 0.08, 1, 5)
+                    -- Dynamic safe padding calculated from green zone width
+                    local padding = math.clamp(greenZone.AbsoluteSize.X * 0.05, 1, 4)
 
-                    -- Check if needle currently sits inside the relocated green zone
-                    if needleX >= (greenMinX + padding) and needleX <= (greenMaxX - padding) then
+                    -- Trigger click when needle is inside green boundaries
+                    if needleCenterX >= (greenMinX + padding) and needleCenterX <= (greenMaxX - padding) then
                         lastClickTick = tick()
+                        State.HitsCount = State.HitsCount + 1
 
-                        -- Fire Direct Click Interaction
-                        local clickX = math.floor(needleX)
+                        local clickX = math.floor(needleCenterX)
                         local clickY = math.floor(needle.AbsolutePosition.Y + (needle.AbsoluteSize.Y / 2))
 
+                        -- Primary Mouse Click
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
                         task.wait(0.01)
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
 
-                        -- Fallback Spacebar
+                        -- Secondary Remote Fire Fallback
+                        local rem = ReplicatedStorage:FindFirstChild("FishingRemote", true) or ReplicatedStorage:FindFirstChild("MinigameRemote", true)
+                        if rem and rem:IsA("RemoteEvent") then
+                            pcall(function() rem:FireServer("Hit", needleCenterX) end)
+                        end
+
+                        -- Tertiary Key Fallback (Spacebar)
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                         task.wait(0.01)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
@@ -121,64 +131,73 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if not minigameFoundThisFrame then
+    if not foundInFrame then
         isMinigameActive = false
     end
 end)
 
--- 2. NON-BLOCKING FAR-CASTING & AUTOMATION MOTOR
-task.spawn(function()
-    while task.wait(0.5) do
-        if State.AutoFish then
-            local char = LocalPlayer.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            local rod = char and char:FindFirstChildOfClass("Tool")
-            
-            -- Auto Equip Rod if in Backpack
-            if not rod then
-                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                if backpack then
-                    for _, t in ipairs(backpack:GetChildren()) do
-                        if t.Name:find("Rod") or t.Name:find("Fish") or t.Name:find("Fishing") then
-                            t.Parent = char
-                            rod = t
-                            break
-                        end
-                    end
-                end
+-- ------------------------------------------------------------------------------
+-- 2. DEDICATED AUTO-CAST & BAIT MANAGEMENT MOTOR
+-- ------------------------------------------------------------------------------
+local function getFishingRod()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    
+    local rod = char:FindFirstChildOfClass("Tool")
+    if rod and (rod.Name:lower():find("rod") or rod.Name:lower():find("fish")) then
+        return rod
+    end
+
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name:lower():find("rod") or item.Name:lower():find("fish") then
+                item.Parent = char
+                return item
             end
+        end
+    end
+    return nil
+end
+
+task.spawn(function()
+    while task.wait(0.4) do
+        if State.AutoFish then
+            local rod = getFishingRod()
 
             -- Auto Re-Bait Routine
             if State.AutoRebait and rod then
-                local baitRemote = ReplicatedStorage:FindFirstChild("EquipBait") or ReplicatedStorage:FindFirstChild("BaitRemote")
+                local baitRemote = ReplicatedStorage:FindFirstChild("EquipBait", true) or ReplicatedStorage:FindFirstChild("BaitRemote", true) or ReplicatedStorage:FindFirstChild("Rebait", true)
                 if baitRemote and baitRemote:IsA("RemoteEvent") then
                     pcall(function() baitRemote:FireServer() end)
                 end
             end
 
-            -- Cast Far into the Water ONLY when Minigame is NOT active (Prevents Sticking/Freezing)
-            if rod and not isMinigameActive then
-                -- Perform Far Cast Position Calculation
-                local cam = Workspace.CurrentCamera
-                local castScreenPos = cam and Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 3) or Vector2.new(600, 300)
+            -- Auto Cast Line (Far into Water)
+            if rod and not isMinigameActive and (tick() - lastCastTime >= 2.2) then
+                lastCastTime = tick()
 
-                -- Simulate Long Distance Line Cast
-                VirtualInputManager:SendMouseButtonEvent(castScreenPos.X, castScreenPos.Y, 0, true, game, 1)
-                task.wait(0.08)
-                VirtualInputManager:SendMouseButtonEvent(castScreenPos.X, castScreenPos.Y, 0, false, game, 1)
-                
-                -- Pause briefly before checking next loop
-                task.wait(1.5)
+                local cam = Workspace.CurrentCamera
+                local castX = cam and (cam.ViewportSize.X / 2) or 500
+                local castY = cam and (cam.ViewportSize.Y * 0.35) or 250
+
+                -- Activate Rod Tool
+                pcall(function() rod:Activate() end)
+
+                -- Mouse Cast Interaction
+                VirtualInputManager:SendMouseButtonEvent(castX, castY, 0, true, game, 1)
+                task.wait(0.12)
+                VirtualInputManager:SendMouseButtonEvent(castX, castY, 0, false, game, 1)
             end
         end
 
-        -- Filter Trash Routine
+        -- Filter Trash Items
         if State.FilterTrash then
             local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
             if backpack then
                 for _, item in ipairs(backpack:GetChildren()) do
                     if TrashItems[item.Name] then
-                        item:Destroy()
+                        pcall(function() item:Destroy() end)
                     end
                 end
             end
@@ -186,67 +205,18 @@ task.spawn(function()
     end
 end)
 
--- 3. ESP & AIMBOT ENGINE
-RunService.RenderStepped:Connect(function()
-    if State.ESP then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local char = p.Character
-                if not char:FindFirstChild("AnnazHighlight") then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "AnnazHighlight"
-                    hl.FillColor = Color3.fromRGB(0, 230, 130)
-                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    hl.FillTransparency = 0.4
-                    hl.Parent = char
-                end
-            end
-        end
-    else
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("AnnazHighlight") then
-                p.Character.AnnazHighlight:Destroy()
-            end
-        end
-    end
-
-    if State.Aimbot and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local cam = Workspace.CurrentCamera
-        local targetHead = nil
-        local minDist = 350
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") then
-                if p.Character.Humanoid.Health > 0 then
-                    local sPos, onScreen = cam:WorldToViewportPoint(p.Character.Head.Position)
-                    if onScreen then
-                        local mPos = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-                        local dist = (Vector2.new(sPos.X, sPos.Y) - mPos).Magnitude
-                        if dist < minDist then
-                            minDist = dist
-                            targetHead = p.Character.Head
-                        end
-                    end
-                end
-            end
-        end
-
-        if targetHead then
-            cam.CFrame = CFrame.new(cam.CFrame.Position, targetHead.Position)
-        end
-    end
-end)
-
--- 4. UI CREATION SYSTEM - حقوق أبو عنّاز (ABU ANNAZ HUB V3 DYNAMIC)
+-- ------------------------------------------------------------------------------
+-- 3. USER INTERFACE (ABU ANNAZ HUB V4 PRO)
+-- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHub"
+gui.Name = "AbuAnnazHubV4"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 560, 0, 420)
-main.Position = UDim2.new(0.5, -280, 0.5, -210)
-main.BackgroundColor3 = Color3.fromRGB(15, 12, 16)
+main.Size = UDim2.new(0, 560, 0, 430)
+main.Position = UDim2.new(0.5, -280, 0.5, -215)
+main.BackgroundColor3 = Color3.fromRGB(16, 12, 16)
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
@@ -267,7 +237,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | DYNAMIC FISHING & FAR CAST V3"
+title.Text = "👑 سكريبت حقوق أبو عنّاز | BLOCKSPIN AUTOMATION V4"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -288,7 +258,7 @@ closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 -- Sidebar & Content
 local sidebar = Instance.new("Frame", main)
-sidebar.Size = UDim2.new(0, 150, 1, -56)
+sidebar.Size = UDim2.new(0, 155, 1, -56)
 sidebar.Position = UDim2.new(0, 8, 0, 50)
 sidebar.BackgroundColor3 = Color3.fromRGB(22, 15, 20)
 sidebar.BorderSizePixel = 0
@@ -300,8 +270,8 @@ sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 
 local content = Instance.new("Frame", main)
-content.Size = UDim2.new(1, -172, 1, -56)
-content.Position = UDim2.new(0, 164, 0, 50)
+content.Size = UDim2.new(1, -177, 1, -56)
+content.Position = UDim2.new(0, 169, 0, 50)
 content.BackgroundColor3 = Color3.fromRGB(24, 18, 22)
 content.BorderSizePixel = 0
 Instance.new("UICorner", content).CornerRadius = UDim.new(0, 8)
@@ -366,19 +336,15 @@ local function addToggle(parent, label, key)
     return btn
 end
 
--- Tabs
-local fishPage = createTab("🎣 صيد الأسماك المتقدم V3")
-local pvpPage  = createTab("⚔️ Aimbot & ESP")
+-- Create Dedicated Tabs
+local fishPage = createTab("🎣 صيد الأسماك التلقائي V4")
 
-pages["🎣 صيد الأسماك المتقدم V3"].Page.Visible = true
-pages["🎣 صيد الأسماك المتقدم V3"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
+pages["🎣 صيد الأسماك التلقائي V4"].Page.Visible = true
+pages["🎣 صيد الأسماك التلقائي V4"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
 
-addToggle(fishPage, "🎯 حل الإبرة المتغيرة والصغيره (Dynamic Needle Solver)", "AutoSolveGreen")
-addToggle(fishPage, "🎣 رمي السنارة بعيداً بالبحيرة (Far Cast & Reel)", "AutoFish")
+addToggle(fishPage, "🎯 حل الإبرة الخضراء المتغيرة (Green Needle Solver)", "AutoSolveGreen")
+addToggle(fishPage, "🎣 رمي السنارة البعيد وصيد تلقائي (Auto Cast)", "AutoFish")
 addToggle(fishPage, "🪱 تعبئة الطعم تلقائياً (Auto Re-Bait)", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-addToggle(pvpPage, "🔫 تثبيت الكاميرا Aimbot (RMB)", "Aimbot")
-addToggle(pvpPage, "👁️ كشف اللاعبين ESP", "ESP")
-
-print("ABU ANNAZ HUB DYNAMIC FISHING V3 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB V4 ENGINE FULLY LOADED!")
