@@ -1,11 +1,11 @@
 -- ==============================================================================
--- Abu Annaz Hub V10 PREDICTIVE VIP | حقوق أبو عنّاز - PREDICTIVE VELOCITY NEEDLE SOLVER
+-- Abu Annaz Hub V11 REMOTE BYPASS | حقوق أبو عنّاز - SERVER-SIDE REMOTE BYPASS ENGINE
 -- Game: BlockSpin (Roblox)
 -- Features:
---  1. Pure Midnight Black Theme (GUI أسود فاخر بالكامل)
---  2. Predictive Needle Velocity & Lead-Offset Engine (حساب سرعة واتجاه الإبرة وتنبؤ الضرب في المركز بدون أي تفويت)
---  3. Slot 2 Fishing Rod Priority (مسك السنارة من الخانة 2 بدون تغيير)
---  4. Ultra-Fast Re-Bait & Trash Discard Systems (التعبئة السريعة وتدمير القمامة كما هي)
+--  1. Instant Server-Side Remote Bypass (تخطي السيرفر المباشر بـ 0 ثانية بدون محاكاة ضغط)
+--  2. Pure Midnight Black Theme GUI (تصميم أسود فاخر بالكامل)
+--  3. Slot 2 Fishing Rod Priority (مسك السنارة من الخانة 2)
+--  4. Ultra-Fast Re-Bait & Trash Discard Systems (تعبئة الطعم وتصفية القمامة)
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -26,18 +26,18 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV10") then
-    PlayerGui.AbuAnnazHubV10:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV11") then
+    PlayerGui.AbuAnnazHubV11:Destroy()
 end
 
 -- Configuration State
 local State = {
-    AutoSolveGreen = true,
+    RemoteBypass = true,
     AutoFish = true,
     AutoRebait = true,
     FilterTrash = true,
     MinigameActive = false,
-    HitCounter = 0,
+    BypassCounter = 0,
 }
 
 local TrashItems = {
@@ -45,139 +45,65 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
--- Exact Target Color Filtering for Dark Green #13A913
-local function isExactDarkGreen(col)
-    if not col then return false end
-    local r, g, b = math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255)
-    return (r >= 2 and r <= 55) and (g >= 120 and g <= 220) and (b >= 2 and b <= 55)
-end
-
--- Trackers for Predictive Velocity Calculation
-local lastNeedleX = nil
-local lastNeedleTick = nil
-local needleVelocityX = 0 -- px per second
-local lastHitTick = 0
+local lastBypassTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. PREDICTIVE VELOCITY & LEAD-OFFSET SOLVER (الخيار 1: التنبؤ بالسرعة والاتجاه)
+-- 1. INSTANT SERVER-SIDE REMOTE BYPASS ENGINE (الطريقة الأولى: التخطي المباشر بـ 0 ثانية)
 -- ------------------------------------------------------------------------------
-local function scanGuiForMinigame()
-    if not State.AutoSolveGreen and not State.AutoFish then 
+local function scanAndBypassMinigame()
+    if not State.RemoteBypass and not State.AutoFish then 
         State.MinigameActive = false
-        lastNeedleX = nil
         return 
     end
 
-    local minigameFound = false
+    local minigameActive = false
 
+    -- Check if Fishing Minigame UI is currently present & enabled
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV10" then
-            local needleObj = nil
-            local greenObj = nil
-            local hasMinigameText = false
-
-            -- Scan UI Elements for Needle & Dark Green Box #13A913
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV11" then
             for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
-                    local bgCol = desc.BackgroundColor3
-                    local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bgCol
-                    local size = desc.AbsoluteSize
-                    local name = desc.Name:lower()
-
-                    -- Confirm Minigame Text Indicator
-                    if desc:IsA("TextLabel") and desc.Text ~= "" then
-                        local t = desc.Text:lower()
-                        if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
-                            hasMinigameText = true
-                        end
-                    end
-
-                    -- Detect Moving Needle Line
-                    if (size.X <= 28 and size.Y >= 6) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
-                        local isWhiteBg = (bgCol.R > 0.6 and bgCol.G > 0.6 and bgCol.B > 0.6)
-                        local isWhiteImg = (imgCol.R > 0.6 and imgCol.G > 0.6 and imgCol.B > 0.6)
-                        if isWhiteBg or isWhiteImg or name:find("needle") or name:find("pointer") or name:find("line") then
-                            needleObj = desc
-                        end
-                    end
-
-                    -- Detect #13A913 Dark Green Target
-                    if isExactDarkGreen(bgCol) or isExactDarkGreen(imgCol) or name:find("green") or name:find("target") or name:find("zone") then
-                        greenObj = desc
-                    end
-                end
-            end
-
-            -- PREDICTIVE MATH ENGINE
-            if (needleObj and greenObj) or (hasMinigameText and needleObj and greenObj) then
-                minigameFound = true
-                State.MinigameActive = true
-
-                local currentNeedleX = needleObj.AbsolutePosition.X + (needleObj.AbsoluteSize.X / 2)
-                local currentTick = tick()
-
-                -- Calculate Velocity & Direction (dx / dt)
-                if lastNeedleX and lastNeedleTick and (currentTick - lastNeedleTick) > 0 then
-                    local dt = currentTick - lastNeedleTick
-                    local dx = currentNeedleX - lastNeedleX
-                    needleVelocityX = dx / dt
-                end
-
-                lastNeedleX = currentNeedleX
-                lastNeedleTick = currentTick
-
-                -- Predict Position ahead by latency offset (approx 0.02s lead)
-                local predictedLeadTime = 0.02
-                local predictedNeedleX = currentNeedleX + (needleVelocityX * predictedLeadTime)
-
-                local greenMinX = greenObj.AbsolutePosition.X
-                local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
-
-                -- Trigger Click when Predicted Position is inside #13A913 Bounds
-                if (predictedNeedleX >= (greenMinX - 1) and predictedNeedleX <= (greenMaxX + 1)) 
-                   or (currentNeedleX >= greenMinX and currentNeedleX <= greenMaxX) then
-                    
-                    if tick() - lastHitTick >= 0.008 then
-                        lastHitTick = tick()
-                        State.HitCounter = State.HitCounter + 1
-
-                        local cam = Workspace.CurrentCamera
-                        local screenCenterX = cam and (cam.ViewportSize.X / 2) or 500
-                        local screenCenterY = cam and (cam.ViewportSize.Y / 2) or 300
-
-                        -- 1. Click Screen Center (Primary Game Interaction)
-                        VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, true, game, 1)
-                        task.wait(0.001)
-                        VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, false, game, 1)
-
-                        -- 2. Click Directly at Needle Position
-                        local clickX = math.floor(currentNeedleX)
-                        local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
-                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                        task.wait(0.001)
-                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
-
-                        -- 3. Spacebar Event Backup
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.001)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                if desc:IsA("TextLabel") and desc.Visible and desc.Text ~= "" then
+                    local t = desc.Text:lower()
+                    if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
+                        minigameActive = true
+                        break
                     end
                 end
             end
         end
     end
 
-    if not minigameFound then
+    if minigameActive then
+        State.MinigameActive = true
+        if tick() - lastBypassTick >= 0.05 then
+            lastBypassTick = tick()
+            State.BypassCounter = State.BypassCounter + 1
+
+            -- Fire direct success RemoteEvents to the server (0-Second Instant Bypass)
+            for _, rName in ipairs({"FishingRemote", "MinigameRemote", "Hit", "CompleteMinigame", "FishHit", "MinigameResult", "CatchFish"}) do
+                local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
+                if remote then
+                    if remote:IsA("RemoteEvent") then
+                        pcall(function() remote:FireServer(true) end)
+                        pcall(function() remote:FireServer("Success") end)
+                        pcall(function() remote:FireServer(100) end)
+                    elseif remote:IsA("RemoteFunction") then
+                        pcall(function() remote:InvokeServer(true) end)
+                        pcall(function() remote:InvokeServer("Success") end)
+                    end
+                end
+            end
+        end
+    else
         State.MinigameActive = false
-        lastNeedleX = nil
     end
 end
 
-RunService.RenderStepped:Connect(scanGuiForMinigame)
+RunService.RenderStepped:Connect(scanAndBypassMinigame)
 
 -- ------------------------------------------------------------------------------
--- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (كما هي دون تغيير)
+-- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (نفس الخصائص بدون تغيير)
 -- ------------------------------------------------------------------------------
 local function equipSlot2Rod()
     local char = LocalPlayer.Character
@@ -251,10 +177,10 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو الهول عنّاز V10 PREDICTIVE)
+-- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V11 REMOTE BYPASS)
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV10"
+gui.Name = "AbuAnnazHubV11"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
@@ -282,7 +208,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | PREDICTIVE FISHING V10"
+title.Text = "👑 حقوق أبو عنّاز | SERVER REMOTE BYPASS V11"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -382,14 +308,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V10 PREDICTIVE")
+local fishPage = createTab("🎣 صيد الأسماك V11 BYPASS")
 
-pages["🎣 صيد الأسماك V10 PREDICTIVE"].Page.Visible = true
-pages["🎣 صيد الأسماك V10 PREDICTIVE"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+pages["🎣 صيد الأسماك V11 BYPASS"].Page.Visible = true
+pages["🎣 صيد الأسماك V11 BYPASS"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "🎯 حل التنبؤ بالسرعة والاتجاه على #13A913", "AutoSolveGreen")
+addToggle(fishPage, "⚡ التخطي المباشر للسيرفر 0 ثانية (Server Remote Bypass)", "RemoteBypass")
 addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
 addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB PREDICTIVE V10 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB SERVER BYPASS V11 LOADED SUCCESSFULLY!")
