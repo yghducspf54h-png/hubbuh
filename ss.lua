@@ -1,9 +1,11 @@
 -- ==============================================================================
--- Abu Annaz Hub V8 VIP | حقوق أبو عنّاز - EXACT COLOR MATCHING GREEN SOLVER
+-- Abu Annaz Hub V9 BLACK VIP | حقوق أبو عنّاز - SLEEK PURE BLACK GUI & CONTINUOUS HIT SOLVER
 -- Game: BlockSpin (Roblox)
--- Target HEX Color: #13A913 (RGB: 19, 169, 19)
--- Features: Strict Hex Color Match (#13A913), Exact Dark Green Target Scanning,
---           Slot 2 Rod Priority, Ultra-Fast Re-Bait Engine & Zero-Miss Needle Hit
+-- Features: 
+--  1. Pure Midnight Black Theme (أسود فاخر بالكامل مع حواف حمراء داكنة)
+--  2. Continuous Multi-Stage Green Target Lock (عدم تفويت الضربات المتتالية وتصاغر المربع الأخضر)
+--  3. Slot 2 Fishing Rod Priority
+--  4. Fast Re-Bait & Trash Discard System
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -24,8 +26,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV8") then
-    PlayerGui.AbuAnnazHubV8:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV9") then
+    PlayerGui.AbuAnnazHubV9:Destroy()
 end
 
 -- Configuration State
@@ -43,21 +45,18 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
--- EXACT TARGET COLOR MATCHING: #13A913 -> RGB(19, 169, 19)
-local TargetRGB = Color3.fromRGB(19, 169, 19)
-
+-- Exact Target Color Filtering for Dark Green #13A913
 local function isExactDarkGreen(col)
     if not col then return false end
-    -- Check RGB range tolerance around #13A913 (R: 10-35, G: 140-200, B: 10-35)
     local r, g, b = math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255)
-    return (r >= 5 and r <= 45) and (g >= 135 and g <= 210) and (b >= 5 and b <= 45)
+    return (r >= 2 and r <= 55) and (g >= 120 and g <= 220) and (b >= 2 and b <= 55)
 end
 
 local lastHitTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. STRICT COLOR-MATCHED GREEN TARGET & NEEDLE SOLVER (#13A913 EXACT MATCH)
+-- 1. CONTINUOUS MULTI-STAGE GREEN TARGET & NEEDLE SOLVER (استجابة مستمرة لكل الضغطات)
 -- ------------------------------------------------------------------------------
 local function scanGuiForMinigame()
     if not State.AutoSolveGreen and not State.AutoFish then 
@@ -68,12 +67,12 @@ local function scanGuiForMinigame()
     local minigameFound = false
 
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV8" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV9" then
             local needleObj = nil
             local greenObj = nil
             local hasMinigameText = false
 
-            -- Scan UI Elements with Strict Color Filtering
+            -- Scan UI Elements for Needle & Dark Green Box #13A913
             for _, desc in ipairs(gui:GetDescendants()) do
                 if desc:IsA("GuiObject") and desc.Visible and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
                     local bgCol = desc.BackgroundColor3
@@ -81,7 +80,7 @@ local function scanGuiForMinigame()
                     local size = desc.AbsoluteSize
                     local name = desc.Name:lower()
 
-                    -- Check for Minigame Text Indicator
+                    -- Confirm Minigame Text Indicator
                     if desc:IsA("TextLabel") and desc.Text ~= "" then
                         local t = desc.Text:lower()
                         if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
@@ -89,23 +88,23 @@ local function scanGuiForMinigame()
                         end
                     end
 
-                    -- Detect Needle Line (White indicator)
-                    if (size.X <= 26 and size.Y >= 8) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
-                        local isWhiteBg = (bgCol.R > 0.65 and bgCol.G > 0.65 and bgCol.B > 0.65)
-                        local isWhiteImg = (imgCol.R > 0.65 and imgCol.G > 0.65 and imgCol.B > 0.65)
+                    -- Detect Moving Needle Line
+                    if (size.X <= 28 and size.Y >= 6) or name:find("needle") or name:find("line") or name:find("pointer") or name:find("indicator") then
+                        local isWhiteBg = (bgCol.R > 0.6 and bgCol.G > 0.6 and bgCol.B > 0.6)
+                        local isWhiteImg = (imgCol.R > 0.6 and imgCol.G > 0.6 and imgCol.B > 0.6)
                         if isWhiteBg or isWhiteImg or name:find("needle") or name:find("pointer") or name:find("line") then
                             needleObj = desc
                         end
                     end
 
-                    -- Detect EXACT Dark Green Target Zone (#13A913)
+                    -- Detect #13A913 Dark Green Relocating Target
                     if isExactDarkGreen(bgCol) or isExactDarkGreen(imgCol) or name:find("green") or name:find("target") or name:find("zone") then
                         greenObj = desc
                     end
                 end
             end
 
-            -- Execute Trigger when Needle enters the #13A913 Dark Green Zone
+            -- Instant Continuous Overlap Solver
             if (needleObj and greenObj) or (hasMinigameText and needleObj and greenObj) then
                 minigameFound = true
                 State.MinigameActive = true
@@ -114,9 +113,9 @@ local function scanGuiForMinigame()
                 local greenMinX = greenObj.AbsolutePosition.X
                 local greenMaxX = greenMinX + greenObj.AbsoluteSize.X
 
-                -- Instant Overlap Detection
-                if needleX >= (greenMinX - 1) and needleX <= (greenMaxX + 1) then
-                    if tick() - lastHitTick >= 0.012 then
+                -- Fast Continuous Window (0.008s for zero delay on successive hits)
+                if needleX >= (greenMinX - 2) and needleX <= (greenMaxX + 2) then
+                    if tick() - lastHitTick >= 0.008 then
                         lastHitTick = tick()
                         State.HitCounter = State.HitCounter + 1
 
@@ -124,21 +123,21 @@ local function scanGuiForMinigame()
                         local screenCenterX = cam and (cam.ViewportSize.X / 2) or 500
                         local screenCenterY = cam and (cam.ViewportSize.Y / 2) or 300
 
-                        -- 1. Click Screen Center
+                        -- 1. Click Screen Center (Primary Game Interaction)
                         VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, true, game, 1)
-                        task.wait(0.002)
+                        task.wait(0.001)
                         VirtualInputManager:SendMouseButtonEvent(screenCenterX, screenCenterY, 0, false, game, 1)
 
-                        -- 2. Click Directly at Needle Coordinate
+                        -- 2. Click Directly at Needle Position
                         local clickX = math.floor(needleX)
                         local clickY = math.floor(needleObj.AbsolutePosition.Y + (needleObj.AbsoluteSize.Y / 2))
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                        task.wait(0.002)
+                        task.wait(0.001)
                         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
 
-                        -- 3. Spacebar Event
+                        -- 3. Spacebar Event Backup
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.002)
+                        task.wait(0.001)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end
                 end
@@ -154,7 +153,7 @@ end
 RunService.RenderStepped:Connect(scanGuiForMinigame)
 
 -- ------------------------------------------------------------------------------
--- 2. SLOT 2 ROD & ULTRA-FAST BAIT REPLACEMENT MOTOR
+-- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE
 -- ------------------------------------------------------------------------------
 local function equipSlot2Rod()
     local char = LocalPlayer.Character
@@ -187,7 +186,7 @@ task.spawn(function()
         if State.AutoFish then
             local rod = equipSlot2Rod()
 
-            -- Ultra Fast Bait Refill Loop
+            -- Ultra Fast Re-Bait Loop
             if State.AutoRebait and rod then
                 for _, rName in ipairs({"EquipBait", "BaitRemote", "Rebait", "Bait", "AddBait"}) do
                     local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
@@ -198,7 +197,7 @@ task.spawn(function()
             end
 
             -- Cast Line Far into Water
-            if rod and not State.MinigameActive and (tick() - lastCastTick >= 1.5) then
+            if rod and not State.MinigameActive and (tick() - lastCastTick >= 1.4) then
                 lastCastTick = tick()
 
                 pcall(function() rod:Activate() end)
@@ -213,7 +212,7 @@ task.spawn(function()
             end
         end
 
-        -- Trash Discard Loop
+        -- Filter Trash Discard Loop
         if State.FilterTrash then
             local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
             if backpack then
@@ -228,17 +227,17 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - حقوق أبو عنّاز V8 VIP (#13A913 EXACT MATCH)
+-- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V9 BLACK)
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV8"
+gui.Name = "AbuAnnazHubV9"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 540, 0, 400)
 main.Position = UDim2.new(0.5, -270, 0.5, -200)
-main.BackgroundColor3 = Color3.fromRGB(15, 12, 16)
+main.BackgroundColor3 = Color3.fromRGB(8, 8, 10) -- Pure Midnight Black
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
@@ -246,21 +245,21 @@ main.Parent = gui
 
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(19, 169, 19) -- Matching #13A913 Green Accent
+stroke.Color = Color3.fromRGB(180, 20, 30) -- Sleek Dark Red Border Accent
 stroke.Thickness = 1.8
 
 -- Header Bar
 local header = Instance.new("Frame", main)
 header.Size = UDim2.new(1, 0, 0, 44)
-header.BackgroundColor3 = Color3.fromRGB(18, 28, 20)
+header.BackgroundColor3 = Color3.fromRGB(14, 14, 16) -- Dark Header
 header.BorderSizePixel = 0
 Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | #13A913 EXACT GREEN MATCH V8"
-title.TextColor3 = Color3.fromRGB(19, 220, 19)
+title.Text = "👑 حقوق أبو عنّاز | PURE BLACK FISHING V9"
+title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -271,18 +270,18 @@ closeBtn.Size = UDim2.new(0, 26, 0, 26)
 closeBtn.Position = UDim2.new(1, -34, 0.5, -13)
 closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 50)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 40)
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.BorderSizePixel = 0
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Sidebar & Content
+-- Sidebar & Content (Pure Black Theme)
 local sidebar = Instance.new("Frame", main)
 sidebar.Size = UDim2.new(0, 150, 1, -54)
 sidebar.Position = UDim2.new(0, 8, 0, 48)
-sidebar.BackgroundColor3 = Color3.fromRGB(16, 22, 18)
+sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 sidebar.BorderSizePixel = 0
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
 
@@ -294,7 +293,7 @@ sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 local content = Instance.new("Frame", main)
 content.Size = UDim2.new(1, -172, 1, -54)
 content.Position = UDim2.new(0, 164, 0, 48)
-content.BackgroundColor3 = Color3.fromRGB(18, 24, 20)
+content.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 content.BorderSizePixel = 0
 Instance.new("UICorner", content).CornerRadius = UDim.new(0, 8)
 
@@ -304,8 +303,8 @@ local function createTab(name)
     local tabBtn = Instance.new("TextButton", sidebar)
     tabBtn.Size = UDim2.new(0.92, 0, 0, 36)
     tabBtn.Text = name
-    tabBtn.TextColor3 = Color3.fromRGB(210, 210, 210)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(24, 36, 26)
+    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     tabBtn.Font = Enum.Font.GothamBold
     tabBtn.TextSize = 12
     tabBtn.BorderSizePixel = 0
@@ -328,11 +327,11 @@ local function createTab(name)
     tabBtn.MouseButton1Click:Connect(function()
         for _, t in pairs(pages) do
             t.Page.Visible = false
-            t.Btn.BackgroundColor3 = Color3.fromRGB(24, 36, 26)
+            t.Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
             t.Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
         page.Visible = true
-        tabBtn.BackgroundColor3 = Color3.fromRGB(19, 169, 19)
+        tabBtn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
         tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end)
 
@@ -342,7 +341,7 @@ end
 local function addToggle(parent, label, key)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.95, 0, 0, 36)
-    btn.BackgroundColor3 = State[key] and Color3.fromRGB(19, 169, 19) or Color3.fromRGB(28, 40, 30)
+    btn.BackgroundColor3 = State[key] and Color3.fromRGB(180, 20, 30) or Color3.fromRGB(22, 22, 26)
     btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
@@ -353,20 +352,20 @@ local function addToggle(parent, label, key)
     btn.MouseButton1Click:Connect(function()
         State[key] = not State[key]
         btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
-        btn.BackgroundColor3 = State[key] and Color3.fromRGB(19, 169, 19) or Color3.fromRGB(28, 40, 30)
+        btn.BackgroundColor3 = State[key] and Color3.fromRGB(180, 20, 30) or Color3.fromRGB(22, 22, 26)
     end)
     return btn
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك VIP V8")
+local fishPage = createTab("🎣 صيد الأسماك V9 BLACK")
 
-pages["🎣 صيد الأسماك VIP V8"].Page.Visible = true
-pages["🎣 صيد الأسماك VIP V8"].Btn.BackgroundColor3 = Color3.fromRGB(19, 169, 19)
+pages["🎣 صيد الأسماك V9 BLACK"].Page.Visible = true
+pages["🎣 صيد الأسماك V9 BLACK"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "🎯 مطابقة الأخضر الغامق #13A913 (Exact Green Match)", "AutoSolveGreen")
+addToggle(fishPage, "🎯 الضغط المستمر على الأخضر #13A913 (Continuous Hit)", "AutoSolveGreen")
 addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
-addToggle(fishPage, "🪱 التعبئة الفائقة للطعم (Super Fast Re-Bait)", "AutoRebait")
+addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB EXACT GREEN MATCH V8 LOADED!")
+print("ABU ANNAZ HUB PURE BLACK V9 LOADED SUCCESSFULLY!")
