@@ -1,464 +1,361 @@
+-- Abu Annaz Hub V15 | BlockSpin Auto Fish - Built from scratch after research
+-- Game: BlockSpin (Roblox) | حقوق أبو عنّاز
 -- ==============================================================================
--- Abu Annaz Hub V14 ULTRA | حقوق س عنّاز - MOVEMENT-TRACK NEEDLE + EXACT GREEN SOLVER
--- Game: BlockSpin (Roblox)
--- Fixes:
---  1. NO-CLICK ROD CASTING (رمي السنارة بدون أي كليك على الشاشة إطلاقاً)
---  2. ULTRA STRICT GREEN SOLVER: كشف الإبرة بالحركة + مقارنة لون #13A913 بالضبط + Bounding Box كامل
---  3. PURE MIDNIGHT BLACK THEME GUI
---  4. Slot 2 Fishing Rod Priority & Fast Re-Bait Engine
+-- How BlockSpin Fishing Works:
+--   1. Equip fishing rod (Tool in Character)
+--   2. Click to cast line into water
+--   3. Wait for fish to bite
+--   4. Minigame: Green Zone + White moving needle
+--   5. Click when needle center is inside Green Zone
 -- ==============================================================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players         = game:GetService("Players")
+local RunService      = game:GetService("RunService")
+local VIM             = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
-    repeat task.wait() until Players.LocalPlayer
+    repeat task.wait(0.1) until Players.LocalPlayer
     LocalPlayer = Players.LocalPlayer
 end
 
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-if not PlayerGui then return end
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 30)
+if not PlayerGui then warn("[V15] PlayerGui not found!") return end
 
--- Clean previous instances
 for _, v in ipairs(PlayerGui:GetChildren()) do
-    if v.Name == "AbuAnnazHubV13" or v.Name == "AbuAnnazHubV14" then
-        v:Destroy()
-    end
+    if v.Name:find("AbuAnnazHub") then v:Destroy() end
 end
 
--- Configuration State
+-- ============================================================
+-- STATE
+-- ============================================================
 local State = {
-    AutoSolveGreen = true,
-    AutoFish = true,
-    AutoRebait = true,
-    FilterTrash = true,
+    AutoFish       = true,
+    AutoMinigame   = true,
+    AutoRebait     = true,
+    DebugMode      = true,
     MinigameActive = false,
-    HitCounter = 0,
+    HitCount       = 0,
+    CastCount      = 0,
 }
 
-local TrashItems = {
-    ["Boot"] = true, ["Old Boot"] = true, ["Seaweed"] = true,
-    ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
-}
-
--- ==============================================================================
--- ULTRA STRICT GREEN SOLVER V14
--- اللون الدقيق #13A913 = RGB(19, 169, 19) بالضبط
--- ==============================================================================
-
--- اللون المستهدف #13A913 = RGB(19, 169, 19)
-local TARGET_GREEN    = Color3.fromRGB(19, 169, 19)
--- تسامح 0.12 = ~30 وحدة من 255 (يغطي فروق الرندرينج)
-local COLOR_TOLERANCE = 0.12
-
--- متغيرات التتبع
-local lastHitTick    = 0
-local lastCastTick   = 0
-local hitCooldown    = 0.5   -- ثانية كاملة بعد كل ضغطة ناجحة
-
--- Cache: الكائنات المكتشفة (تُحدَّث فقط عند الحاجة)
-local cachedGreen    = nil
-local cachedNeedle   = nil
-local cacheTimestamp = 0
-local CACHE_TTL      = 0.3  -- إعادة مسح كل 0.3 ثانية فقط
-
--- تتبع حركة الإبرة لكشفها بدقة
-local prevPositions  = {}   -- [object] = lastX
-
--- مقارنة لون دقيقة مع نسبة تسامح
-local function colorMatches(col, target, tol)
-    if not col then return false end
-    return math.abs(col.R - target.R) <= tol
-       and math.abs(col.G - target.G) <= tol
-       and math.abs(col.B - target.B) <= tol
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function log(msg)
+    if State.DebugMode then print("[V15] " .. tostring(msg)) end
 end
 
--- فحص إذا كان العنصر أخضر غامق (يقبل #13A913 وما يقاربه)
-local function isTargetGreen(obj)
-    if not obj or not obj:IsA("GuiObject") then return false end
-
-    local function checkCol(c)
-        if not c then return false end
-        -- طريقة 1: مقارنة مع #13A913 بتسامح 0.12
-        if colorMatches(c, TARGET_GREEN, COLOR_TOLERANCE) then return true end
-        -- طريقة 2: شرط مباشر - أخضر غامق (R وB صغيران، G كبير)
-        local r = c.R * 255
-        local g = c.G * 255
-        local b = c.B * 255
-        if r < 60 and g > 100 and b < 60 and g > (r * 3) then return true end
-        return false
-    end
-
-    if checkCol(obj.BackgroundColor3) then return true end
-    if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-        if checkCol(obj.ImageColor3) then return true end
-    end
-    return false
+local function isDarkGreen(c)
+    if not c then return false end
+    local r, g, b = c.R * 255, c.G * 255, c.B * 255
+    return g > 80 and r < 80 and b < 80 and g > r * 2 and g > b * 2
 end
 
--- فحص إذا كان العنصر أبيض/فاتح (إبرة) - عتبة مخففة 0.60
-local function isWhiteElement(obj)
-    local c = obj.BackgroundColor3
-    return (c.R > 0.60 and c.G > 0.60 and c.B > 0.60)
+local function isLight(c)
+    if not c then return false end
+    return c.R > 0.55 and c.G > 0.55 and c.B > 0.55
 end
 
--- هل العنصر يتحرك أفقياً؟ (يُحدَّد الإبرة بالحركة لا بالحجم)
-local function isMoving(obj)
-    local curX = obj.AbsolutePosition.X
-    local prev  = prevPositions[obj]
-    prevPositions[obj] = curX
-    if prev == nil then return false end
-    return math.abs(curX - prev) > 0.3  -- تحرك أكثر من 0.3 بيكسل
+local function isVisible(obj)
+    local ok, vis = pcall(function() return obj.Visible end)
+    if not ok or not vis then return false end
+    local ok2, sz = pcall(function() return obj.AbsoluteSize end)
+    if not ok2 then return false end
+    return sz.X > 0 and sz.Y > 0
 end
 
--- مسح الـ GUI لإيجاد الأخضر والإبرة
-local function findMinigameObjects()
-    local green  = nil
-    local needle = nil
-    local name
+-- ============================================================
+-- MINIGAME SCANNER
+-- ============================================================
+local cachedGreen   = nil
+local cachedNeedle  = nil
+local cacheTime     = 0
+local CACHE_REFRESH = 0.2
+
+local function scanAllGui()
+    local fg = nil
+    local fn = nil
 
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV14" then
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("GuiObject") and desc.Visible
-                   and desc.AbsoluteSize.X > 0 and desc.AbsoluteSize.Y > 0 then
+        if not (gui:IsA("ScreenGui") and gui.Enabled) then continue end
+        if gui.Name:find("AbuAnnazHub") then continue end
 
-                    name = desc.Name:lower()
+        for _, obj in ipairs(gui:GetDescendants()) do
+            if not (obj:IsA("GuiObject") and isVisible(obj)) then continue end
+            local bg   = obj.BackgroundColor3
+            local name = obj.Name:lower()
+            local sx   = obj.AbsoluteSize.X
+            local sy   = obj.AbsoluteSize.Y
 
-                    -- [1] كشف المربع الأخضر الدقيق #13A913
-                    if not green then
-                        if isTargetGreen(desc)
-                           or name:find("green") or name:find("target") or name:find("zone") then
-                            green = desc
-                        end
-                    end
-
-                    -- [2] كشف الإبرة - عرض ضيق (حتى 30px) + لون فاتح
-                    if not needle then
-                        local sx = desc.AbsoluteSize.X
-                        local sy = desc.AbsoluteSize.Y
-                        local isNarrow    = (sx <= 30 and sy >= 4)
-                        local isNameMatch = name:find("needle") or name:find("pointer") or name:find("cursor") or name:find("line") or name:find("indicator")
-                        if (isNarrow or isNameMatch) and isWhiteElement(desc) then
-                            -- تأكد أنه ليس جزء من واجهة أخرى (ليس داخل الأخضر)
-                            needle = desc
-                        end
-                    end
-
-                    if green and needle then break end
+            if not fg then
+                if isDarkGreen(bg) then
+                    fg = obj
+                    log(("GREEN '%s' RGB(%d,%d,%d) %.0fx%.0f"):format(
+                        obj.Name, bg.R*255, bg.G*255, bg.B*255, sx, sy))
+                elseif name:find("green") or name:find("target") or name:find("zone")
+                    or name:find("good") or name:find("hit") then
+                    fg = obj
+                    log("GREEN name: '" .. obj.Name .. "'")
                 end
             end
-            if green and needle then break end
+
+            if not fn then
+                local narrow  = sx <= 35 and sy >= 3 and sy <= 300
+                local named   = name:find("needle") or name:find("pointer")
+                             or name:find("cursor") or name:find("indicator")
+                             or name:find("slider") or name:find("marker")
+                             or name:find("bar") or name:find("arrow")
+                if (narrow or named) and isLight(bg) then
+                    fn = obj
+                    log(("NEEDLE '%s' RGB(%d,%d,%d) %.0fx%.0f"):format(
+                        obj.Name, bg.R*255, bg.G*255, bg.B*255, sx, sy))
+                end
+            end
+
+            if fg and fn then break end
         end
+        if fg and fn then break end
     end
 
-    return green, needle
+    return fg, fn
 end
 
--- ------------------------------------------------------------------------------
--- 1. ULTRA STRICT GREEN SOLVER - يُنفَّذ كل RenderStepped
--- ------------------------------------------------------------------------------
-local function solveGreenTarget()
-    if not State.AutoSolveGreen then
-        State.MinigameActive = false
-        return
-    end
+-- ============================================================
+-- MINIGAME SOLVER
+-- ============================================================
+local lastHit      = 0
+local HIT_COOLDOWN = 0.4
 
+local function solveMinigame()
+    if not State.AutoMinigame then return end
     local now = tick()
 
-    -- تحديث الكاش كل CACHE_TTL ثانية فقط (لا نمسح كل فريم)
-    if now - cacheTimestamp >= CACHE_TTL then
-        cacheTimestamp = now
-        cachedGreen, cachedNeedle = findMinigameObjects()
+    if now - cacheTime >= CACHE_REFRESH then
+        cacheTime = now
+        cachedGreen, cachedNeedle = scanAllGui()
     end
 
-    -- إذا ما في إبرة أو أخضر → ما في Minigame
     if not cachedGreen or not cachedNeedle then
+        if State.MinigameActive then
+            log("Minigame ended")
+            State.MinigameActive = false
+        end
+        return
+    end
+
+    if not isVisible(cachedGreen) or not isVisible(cachedNeedle) then
+        cachedGreen = nil; cachedNeedle = nil
         State.MinigameActive = false
         return
     end
 
-    -- تحقق إن الكائنات لا تزال صالحة وظاهرة
-    local greenOk  = pcall(function() return cachedGreen.Visible end) and cachedGreen.Visible
-    local needleOk = pcall(function() return cachedNeedle.Visible end) and cachedNeedle.Visible
-    if not greenOk or not needleOk then
-        cachedGreen  = nil
-        cachedNeedle = nil
-        State.MinigameActive = false
-        return
+    if not State.MinigameActive then
+        log("Minigame started!")
+        State.MinigameActive = true
     end
 
-    State.MinigameActive = true
+    local nPos    = cachedNeedle.AbsolutePosition
+    local nSize   = cachedNeedle.AbsoluteSize
+    local gPos    = cachedGreen.AbsolutePosition
+    local gSize   = cachedGreen.AbsoluteSize
+    local nCenter = nPos.X + nSize.X * 0.5
+    local gLeft   = gPos.X
+    local gRight  = gPos.X + gSize.X
 
-    -- التحقق من الحركة (يؤكد أن الإبرة تتحرك فعلاً)
-    isMoving(cachedNeedle)
+    if nCenter >= gLeft and nCenter <= gRight and now - lastHit >= HIT_COOLDOWN then
+        lastHit = now
+        State.HitCount = State.HitCount + 1
+        local cx = math.floor(nCenter)
+        local cy = math.floor(nPos.Y + nSize.Y * 0.5)
+        log(("HIT #%d X=%.0f green=%.0f-%.0f"):format(State.HitCount, nCenter, gLeft, gRight))
 
-    -- =====================================================
-    -- BOUNDING BOX FULL OVERLAP CHECK
-    -- نضغط فقط عندما تكون الإبرة بالكامل داخل الأخضر
-    -- =====================================================
-    local nLeft  = cachedNeedle.AbsolutePosition.X
-    local nRight = nLeft + cachedNeedle.AbsoluteSize.X
+        VIM:SendMouseButtonEvent(cx, cy, 0, true,  game, 1)
+        task.wait(0.005)
+        VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+        VIM:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+        task.wait(0.005)
+        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
 
-    local gLeft  = cachedGreen.AbsolutePosition.X
-    local gRight = gLeft + cachedGreen.AbsoluteSize.X
-
-    -- يضغط عندما مركز الإبرة داخل الأخضر (أكثر موثوقية مع الإبرة الضيقة)
-    local nCenter = nLeft + (cachedNeedle.AbsoluteSize.X * 0.5)
-    local overlap  = (nCenter >= gLeft) and (nCenter <= gRight)
-
-    if overlap and (now - lastHitTick >= hitCooldown) then
-        lastHitTick = now
-        State.HitCounter = State.HitCounter + 1
-
-        local clickX = math.floor(nCenter)
-        local clickY = math.floor(cachedNeedle.AbsolutePosition.Y + (cachedNeedle.AbsoluteSize.Y * 0.5))
-
-        -- ضغطة الماوس في الموضع الدقيق
-        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-        task.wait(0.003)
-        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
-
-        -- مفتاح Space كبديل (Backup)
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        task.wait(0.003)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-
-        -- إعادة ضبط الكاش بعد الضغط (ليبدأ بحث جديد في الجولة القادمة)
-        cachedGreen   = nil
-        cachedNeedle  = nil
-        cacheTimestamp = 0
+        cachedGreen = nil; cachedNeedle = nil; cacheTime = 0
     end
 end
 
-RunService.RenderStepped:Connect(solveGreenTarget)
+RunService.RenderStepped:Connect(solveMinigame)
 
--- ------------------------------------------------------------------------------
--- 2. NO-CLICK ROD CASTING & FAST RE-BAIT ENGINE (رمي السنارة بدون كليك شاشة)
--- ------------------------------------------------------------------------------
-local function equipSlot2Rod()
+-- ============================================================
+-- AUTO CAST
+-- ============================================================
+local lastCast   = 0
+local CAST_DELAY = 3.5
+
+local function equipRod()
     local char = LocalPlayer.Character
     if not char then return nil end
-
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local currentTool = char:FindFirstChildOfClass("Tool")
-    if currentTool then return currentTool end
-
-    -- Press Key '2' for Slot 2 Priority
-    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
-    task.wait(0.01)
-    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
-
-    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                if humanoid then pcall(function() humanoid:EquipTool(item) end) end
-                item.Parent = char
-                return item
-            end
+    local inHand = char:FindFirstChildOfClass("Tool")
+    if inHand then return inHand end
+    local bp  = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not bp then return nil end
+    for _, item in ipairs(bp:GetChildren()) do
+        if item:IsA("Tool") then
+            if hum then pcall(function() hum:EquipTool(item) end) end
+            task.wait(0.15)
+            return item
         end
     end
-    return char:FindFirstChildOfClass("Tool")
+    return nil
+end
+
+local function castRod()
+    if tick() - lastCast < CAST_DELAY then return end
+    if State.MinigameActive then return end
+    local rod = equipRod()
+    if not rod then log("No rod found") return end
+    lastCast = tick()
+    State.CastCount = State.CastCount + 1
+    log(("CAST #%d rod=%s"):format(State.CastCount, rod.Name))
+
+    pcall(function() rod:Activate() end)
+    task.wait(0.05)
+
+    local cam = workspace.CurrentCamera
+    local vp  = cam.ViewportSize
+    VIM:SendMouseButtonEvent(math.floor(vp.X*0.5), math.floor(vp.Y*0.5), 0, true,  game, 1)
+    task.wait(0.09)
+    VIM:SendMouseButtonEvent(math.floor(vp.X*0.5), math.floor(vp.Y*0.5), 0, false, game, 1)
+
+    for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
+        local n = r.Name:lower()
+        if r:IsA("RemoteEvent") and (n:find("cast") or n:find("fish") or n:find("throw")) then
+            pcall(function() r:FireServer() end)
+            log("Remote: " .. r.Name)
+        end
+    end
+end
+
+local lastRebait = 0
+local function tryRebait()
+    if not State.AutoRebait or tick() - lastRebait < 6 then return end
+    lastRebait = tick()
+    for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
+        local n = r.Name:lower()
+        if r:IsA("RemoteEvent") and (n:find("bait") or n:find("equip")) then
+            pcall(function() r:FireServer() end)
+        end
+    end
 end
 
 task.spawn(function()
-    while task.wait(0.2) do
-        if State.AutoFish then
-            local rod = equipSlot2Rod()
-
-            -- Ultra Fast Re-Bait Loop
-            if State.AutoRebait and rod then
-                for _, rName in ipairs({"EquipBait", "BaitRemote", "Rebait", "Bait", "AddBait"}) do
-                    local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
-                    if remote and remote:IsA("RemoteEvent") then
-                        pcall(function() remote:FireServer() end)
-                    end
-                end
-            end
-
-            -- NO-CLICK ROD CASTING: Trigger tool via Activate() and Remotes ONLY (Zero Screen Clicks)
-            if rod and not State.MinigameActive and (tick() - lastCastTick >= 2.5) then
-                lastCastTick = tick()
-
-                -- 1. Pure Tool Activation (No mouse click on screen)
-                pcall(function() rod:Activate() end)
-
-                -- 2. Direct Cast Remotes if present
-                for _, cName in ipairs({"Cast", "CastLine", "FishCast", "CastRod", "ThrowLine"}) do
-                    local castRemote = ReplicatedStorage:FindFirstChild(cName, true) or Workspace:FindFirstChild(cName, true)
-                    if castRemote then
-                        if castRemote:IsA("RemoteEvent") then
-                            pcall(function() castRemote:FireServer() end)
-                        elseif castRemote:IsA("RemoteFunction") then
-                            pcall(function() castRemote:InvokeServer() end)
-                        end
-                    end
-                end
-            end
-        end
-
-        -- Filter Trash Discard Loop
-        if State.FilterTrash then
-            local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-            if backpack then
-                for _, item in ipairs(backpack:GetChildren()) do
-                    if TrashItems[item.Name] then
-                        pcall(function() item:Destroy() end)
-                    end
-                end
-            end
-        end
+    log("V15 STARTED - check Output for debug info")
+    while task.wait(0.5) do
+        if State.AutoFish then castRod() end
+        tryRebait()
     end
 end)
 
--- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V13 PERFECT)
--- ------------------------------------------------------------------------------
+-- ============================================================
+-- GUI
+-- ============================================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV13"
+gui.Name = "AbuAnnazHubV15"
 gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PlayerGui
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 540, 0, 400)
-main.Position = UDim2.new(0.5, -270, 0.5, -200)
-main.BackgroundColor3 = Color3.fromRGB(8, 8, 10) -- Pure Midnight Black Theme
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 290, 0, 310)
+main.Position = UDim2.new(0, 16, 0.5, -155)
+main.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
-main.Parent = gui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+local brd = Instance.new("UIStroke", main)
+brd.Color = Color3.fromRGB(180, 20, 30)
+brd.Thickness = 1.5
 
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
-local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(180, 20, 30) -- Dark Red Accent Border
-stroke.Thickness = 1.8
+local hdr = Instance.new("Frame", main)
+hdr.Size = UDim2.new(1, 0, 0, 40)
+hdr.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+hdr.BorderSizePixel = 0
+Instance.new("UICorner", hdr).CornerRadius = UDim.new(0, 10)
 
--- Header Bar
-local header = Instance.new("Frame", main)
-header.Size = UDim2.new(1, 0, 0, 44)
-header.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
-header.BorderSizePixel = 0
-Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
+local titleLbl = Instance.new("TextLabel", hdr)
+titleLbl.Size = UDim2.new(1, -38, 1, 0)
+titleLbl.Position = UDim2.new(0, 12, 0, 0)
+titleLbl.Text = "👑 أبو عنّاز | Auto Fish V15"
+titleLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+titleLbl.Font = Enum.Font.GothamBold
+titleLbl.TextSize = 13
+titleLbl.BackgroundTransparency = 1
+titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-local title = Instance.new("TextLabel", header)
-title.Size = UDim2.new(0.8, 0, 1, 0)
-title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | PERFECT NO-CLICK CAST V13"
-title.TextColor3 = Color3.fromRGB(255, 215, 0)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.BackgroundTransparency = 1
-
-local closeBtn = Instance.new("TextButton", header)
-closeBtn.Size = UDim2.new(0, 26, 0, 26)
-closeBtn.Position = UDim2.new(1, -34, 0.5, -13)
+local closeBtn = Instance.new("TextButton", hdr)
+closeBtn.Size = UDim2.new(0, 22, 0, 22)
+closeBtn.Position = UDim2.new(1, -28, 0.5, -11)
 closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
 closeBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 40)
 closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 11
 closeBtn.BorderSizePixel = 0
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Sidebar & Content (Pure Black Theme)
-local sidebar = Instance.new("Frame", main)
-sidebar.Name = "Sidebar"
-sidebar.Size = UDim2.new(0, 150, 1, -54)
-sidebar.Position = UDim2.new(0, 8, 0, 48)
-sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-sidebar.BorderSizePixel = 0
-Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+local body = Instance.new("Frame", main)
+body.Size = UDim2.new(1, -14, 1, -52)
+body.Position = UDim2.new(0, 7, 0, 44)
+body.BackgroundTransparency = 1
 
-local sideLayout = Instance.new("UIListLayout", sidebar)
-sideLayout.Padding = UDim.new(0, 6)
-sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+local layout = Instance.new("UIListLayout", body)
+layout.Padding = UDim.new(0, 6)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local content = Instance.new("Frame", main)
-content.Size = UDim2.new(1, -172, 1, -54)
-content.Position = UDim2.new(0, 164, 0, 48)
-content.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-content.BorderSizePixel = 0
-Instance.new("UICorner", content).CornerRadius = UDim.new(0, 8)
+local statsLbl = Instance.new("TextLabel", body)
+statsLbl.Size = UDim2.new(1, 0, 0, 30)
+statsLbl.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+statsLbl.TextColor3 = Color3.fromRGB(150, 210, 255)
+statsLbl.Font = Enum.Font.Gotham
+statsLbl.TextSize = 11
+statsLbl.Text = "Starting..."
+statsLbl.BorderSizePixel = 0
+Instance.new("UICorner", statsLbl).CornerRadius = UDim.new(0, 6)
 
-local pages = {}
-
-local function createTab(name)
-    local tabBtn = Instance.new("TextButton", sidebar)
-    tabBtn.Size = UDim2.new(0.92, 0, 0, 36)
-    tabBtn.Text = name
-    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-    tabBtn.Font = Enum.Font.GothamBold
-    tabBtn.TextSize = 12
-    tabBtn.BorderSizePixel = 0
-    Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
-
-    local page = Instance.new("ScrollingFrame", content)
-    page.Size = UDim2.new(1, -10, 1, -10)
-    page.Position = UDim2.new(0, 5, 0, 5)
-    page.BackgroundTransparency = 1
-    page.Visible = false
-    page.ScrollBarThickness = 3
-    
-    local pageLayout = Instance.new("UIListLayout", page)
-    pageLayout.Padding = UDim.new(0, 8)
-    pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    pageLayout.Parent = page
-
-    pages[name] = { Btn = tabBtn, Page = page }
-
-    tabBtn.MouseButton1Click:Connect(function()
-        for _, t in pairs(pages) do
-            t.Page.Visible = false
-            t.Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-            t.Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-        end
-        page.Visible = true
-        tabBtn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
-        tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-
-    return page
-end
-
-local function addToggle(parent, label, key)
-    local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(0.95, 0, 0, 36)
-    btn.BackgroundColor3 = State[key] and Color3.fromRGB(180, 20, 30) or Color3.fromRGB(22, 22, 26)
-    btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+local function addToggle(txt, key)
+    local btn = Instance.new("TextButton", body)
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BorderSizePixel = 0
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 12
-    btn.BorderSizePixel = 0
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-    btn.MouseButton1Click:Connect(function()
-        State[key] = not State[key]
-        btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
-        btn.BackgroundColor3 = State[key] and Color3.fromRGB(180, 20, 30) or Color3.fromRGB(22, 22, 26)
-    end)
-    return btn
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
+    local function rf()
+        btn.BackgroundColor3 = State[key] and Color3.fromRGB(20,120,20) or Color3.fromRGB(25,25,30)
+        btn.Text = txt .. (State[key] and "  ON" or "  OFF")
+    end
+    rf()
+    btn.MouseButton1Click:Connect(function() State[key] = not State[key]; rf() end)
 end
 
--- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V14 ULTRA")
+addToggle("🎣 Auto Cast", "AutoFish")
+addToggle("🟢 Minigame Solver", "AutoMinigame")
+addToggle("🪱 Auto Rebait", "AutoRebait")
+addToggle("🔍 Debug (check Output)", "DebugMode")
 
-pages["🎣 صيد الأسماك V14 ULTRA"].Page.Visible = true
-pages["🎣 صيد الأسماك V14 ULTRA"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+task.spawn(function()
+    while task.wait(1) do
+        if not gui.Parent then break end
+        local s = State.MinigameActive and "MINIGAME!" or "waiting..."
+        statsLbl.Text = ("Cast:%d Hit:%d | %s"):format(State.CastCount, State.HitCount, s)
+    end
+end)
 
-addToggle(fishPage, "🎯 حل الأخضر #13A913 الصارم (Ultra Strict)", "AutoSolveGreen")
-addToggle(fishPage, "🎣 رمي السنارة بدون كليك شاشة (No-Click Cast)", "AutoFish")
-addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
-addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
+print("Abu Annaz V15 loaded! Turn on DebugMode and check Output tab.")
+"""
 
-print("ABU ANNAZ HUB ULTRA NO-CLICK CAST V14 LOADED SUCCESSFULLY!")
+with open("blockspin_ultimate_hub.lua", "w", encoding="utf-8") as f:
+    f.write(content)
+
+print("Done! File written successfully.")
