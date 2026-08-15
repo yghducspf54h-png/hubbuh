@@ -1,8 +1,8 @@
 -- ==============================================================================
--- Abu Annaz Hub V11 REMOTE BYPASS | حقوق أبو عنّاز - SERVER-SIDE REMOTE BYPASS ENGINE
+-- Abu Annaz Hub V12 MASTER BYPASS | حقوق أبو عنّاز - DYNAMIC HYBRID REMOTE BYPASS ENGINE
 -- Game: BlockSpin (Roblox)
--- Features:
---  1. Instant Server-Side Remote Bypass (تخطي السيرفر المباشر بـ 0 ثانية بدون محاكاة ضغط)
+-- Features: 
+--  1. Hybrid Server-Side Remote Bypass & On-Demand Position Emulation (تخطي واخدعة السيرفر المباشر بالكامل)
 --  2. Pure Midnight Black Theme GUI (تصميم أسود فاخر بالكامل)
 --  3. Slot 2 Fishing Rod Priority (مسك السنارة من الخانة 2)
 --  4. Ultra-Fast Re-Bait & Trash Discard Systems (تعبئة الطعم وتصفية القمامة)
@@ -26,8 +26,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV11") then
-    PlayerGui.AbuAnnazHubV11:Destroy()
+if PlayerGui:FindFirstChild("AbuAnnazHubV12") then
+    PlayerGui.AbuAnnazHubV12:Destroy()
 end
 
 -- Configuration State
@@ -49,7 +49,7 @@ local lastBypassTick = 0
 local lastCastTick = 0
 
 -- ------------------------------------------------------------------------------
--- 1. INSTANT SERVER-SIDE REMOTE BYPASS ENGINE (الطريقة الأولى: التخطي المباشر بـ 0 ثانية)
+-- 1. DYNAMIC HYBRID SERVER-SIDE REMOTE BYPASS (خداع وتخطي السيرفر بذكاء)
 -- ------------------------------------------------------------------------------
 local function scanAndBypassMinigame()
     if not State.RemoteBypass and not State.AutoFish then 
@@ -58,41 +58,75 @@ local function scanAndBypassMinigame()
     end
 
     local minigameActive = false
+    local targetGreenBox = nil
 
-    -- Check if Fishing Minigame UI is currently present & enabled
+    -- 1. Detect if Fishing Minigame UI is active and extract the Green Box Target
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV11" then
+        if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "AbuAnnazHubV12" then
             for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Visible and desc.Text ~= "" then
-                    local t = desc.Text:lower()
-                    if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
-                        minigameActive = true
-                        break
+                if desc:IsA("GuiObject") and desc.Visible then
+                    local bg = desc.BackgroundColor3
+                    local imgCol = desc:IsA("ImageLabel") or desc:IsA("ImageButton") and desc.ImageColor3 or bg
+                    local name = desc.Name:lower()
+
+                    if desc:IsA("TextLabel") and desc.Text ~= "" then
+                        local t = desc.Text:lower()
+                        if t:find("needle") or t:find("green target") or t:find("click anywhere") or t:find("tries") then
+                            minigameActive = true
+                        end
+                    end
+
+                    -- Locate exact Green Target Box
+                    if (bg.G > 0.45 and bg.R < 0.55) or (imgCol.G > 0.45 and imgCol.R < 0.55) or name:find("green") or name:find("target") then
+                        targetGreenBox = desc
                     end
                 end
             end
         end
     end
 
-    if minigameActive then
+    -- 2. Execute Hybrid Server Bypass Tricks
+    if minigameActive or targetGreenBox then
         State.MinigameActive = true
-        if tick() - lastBypassTick >= 0.05 then
+
+        if tick() - lastBypassTick >= 0.04 then
             lastBypassTick = tick()
             State.BypassCounter = State.BypassCounter + 1
 
-            -- Fire direct success RemoteEvents to the server (0-Second Instant Bypass)
+            -- Calculate perfect green coordinate if box exists
+            local greenCenterX = targetGreenBox and (targetGreenBox.AbsolutePosition.X + targetGreenBox.AbsoluteSize.X / 2) or 500
+
+            -- FIRE TRICK A: Remote Event Payload Spoofing
             for _, rName in ipairs({"FishingRemote", "MinigameRemote", "Hit", "CompleteMinigame", "FishHit", "MinigameResult", "CatchFish"}) do
                 local remote = ReplicatedStorage:FindFirstChild(rName, true) or Workspace:FindFirstChild(rName, true)
                 if remote then
                     if remote:IsA("RemoteEvent") then
                         pcall(function() remote:FireServer(true) end)
-                        pcall(function() remote:FireServer("Success") end)
+                        pcall(function() remote:FireServer("Hit", greenCenterX) end)
+                        pcall(function() remote:FireServer(true, greenCenterX) end)
                         pcall(function() remote:FireServer(100) end)
                     elseif remote:IsA("RemoteFunction") then
                         pcall(function() remote:InvokeServer(true) end)
-                        pcall(function() remote:InvokeServer("Success") end)
+                        pcall(function() remote:InvokeServer("Hit", greenCenterX) end)
                     end
                 end
+            end
+
+            -- FIRE TRICK B: Instant Screen Center Mouse Tap (Instant Win trigger)
+            local cam = Workspace.CurrentCamera
+            local cx = cam and (cam.ViewportSize.X / 2) or 500
+            local cy = cam and (cam.ViewportSize.Y / 2) or 300
+
+            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+            task.wait(0.001)
+            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+
+            -- FIRE TRICK C: Instant Target Box Coordinate Tap
+            if targetGreenBox then
+                local gy = targetGreenBox.AbsolutePosition.Y + (targetGreenBox.AbsoluteSize.Y / 2)
+                VirtualInputManager:SendMouseButtonEvent(greenCenterX, gy, 0, true, game, 1)
+                task.wait(0.001)
+                VirtualInputManager:SendMouseButtonEvent(greenCenterX, gy, 0, false, game, 1)
             end
         end
     else
@@ -103,7 +137,7 @@ end
 RunService.RenderStepped:Connect(scanAndBypassMinigame)
 
 -- ------------------------------------------------------------------------------
--- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (نفس الخصائص بدون تغيير)
+-- 2. SLOT 2 ROD EQUIPPING & FAST RE-BAIT ENGINE (نفس الخصائص دون تغيير)
 -- ------------------------------------------------------------------------------
 local function equipSlot2Rod()
     local char = LocalPlayer.Character
@@ -113,7 +147,7 @@ local function equipSlot2Rod()
     local currentTool = char:FindFirstChildOfClass("Tool")
     if currentTool then return currentTool end
 
-    -- Press Key '2' for Slot 2
+    -- Press Key '2' for Slot 2 Priority
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
     task.wait(0.01)
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
@@ -177,10 +211,10 @@ task.spawn(function()
 end)
 
 -- ------------------------------------------------------------------------------
--- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V11 REMOTE BYPASS)
+-- 3. GUI DESIGN - PURE MIDNIGHT BLACK THEME (حقوق أبو عنّاز V12 MASTER BYPASS)
 -- ------------------------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "AbuAnnazHubV11"
+gui.Name = "AbuAnnazHubV12"
 gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
@@ -208,7 +242,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 حقوق أبو عنّاز | SERVER REMOTE BYPASS V11"
+title.Text = "👑 حقوق أبو عنّاز | HYBRID REMOTE BYPASS V12"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -308,14 +342,14 @@ local function addToggle(parent, label, key)
 end
 
 -- Create Pages
-local fishPage = createTab("🎣 صيد الأسماك V11 BYPASS")
+local fishPage = createTab("🎣 صيد الأسماك V12 HYBRID")
 
-pages["🎣 صيد الأسماك V11 BYPASS"].Page.Visible = true
-pages["🎣 صيد الأسماك V11 BYPASS"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+pages["🎣 صيد الأسماك V12 HYBRID"].Page.Visible = true
+pages["🎣 صيد الأسماك V12 HYBRID"].Btn.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
 
-addToggle(fishPage, "⚡ التخطي المباشر للسيرفر 0 ثانية (Server Remote Bypass)", "RemoteBypass")
+addToggle(fishPage, "⚡ خداع وتخطي السيرفر المباشر (Hybrid Remote Bypass)", "RemoteBypass")
 addToggle(fishPage, "🎣 مسك السنارة (خانة 2) والرمي البعيد", "AutoFish")
 addToggle(fishPage, "🪱 التعبئة السريعة للطعم", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
-print("ABU ANNAZ HUB SERVER BYPASS V11 LOADED SUCCESSFULLY!")
+print("ABU ANNAZ HUB HYBRID BYPASS V12 LOADED SUCCESSFULLY!")
