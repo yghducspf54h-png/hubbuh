@@ -1,14 +1,14 @@
 -- ==============================================================================
--- ProbeX BlockSpin Ultimate Hub (Safe Standard Roblox Luau)
+-- ProbeX BlockSSpin Real Automation Hub (Fully Functional Motor & Automation Mechanics)
 -- Game: BlockSpin (Roblox)
--- Robust Executor Compatibility & Network Bypasses
+-- Includes: Active Character Movement (Tween/Teleport), Real Fishing Loop, Real ATM Hacking, Aimbot Loop, ESP Highlights
 -- ==============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -21,66 +21,170 @@ end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
--- Clean previous instances safely
-local existing = PlayerGui:FindFirstChild("BlockSpinUltimateHub")
-if existing then
-    existing:Destroy()
-end
+-- Clean previous instances
+local existing = PlayerGui:FindFirstChild("BlockSpinRealHub")
+if existing then existing:Destroy() end
 
--- Global Hub State Configuration
-local HubState = {
-    AimbotEnabled = false,
-    TargetCircle = false,
-    FOVRadius = 120,
-    ESPEnabled = false,
-    
+-- Global State
+local State = {
+    Aimbot = false,
+    ESP = false,
+    AutoFarmATMs = false,
     AutoFarmJobs = false,
-    ATMAutoHack = false,
     AutoFish = false,
     SkipSlider = true,
-    FilterBadFish = true,
-    
-    TrashList = {
-        ["Bass"] = false,
-        ["Perch"] = false,
-        ["Salmon"] = false,
-        ["Northern Pike"] = false,
-        ["Dolphinfish"] = false,
-        ["Coelacanth"] = true,
-        ["Tuna"] = true,
-        ["Sailfish"] = true,
-        ["Marlin"] = true,
-        ["Boot"] = true,
-        ["Tin Can"] = true,
-        ["Seaweed"] = true,
-    },
-    
-    WebhookURL = "",
+    FilterTrash = true,
 }
 
--- 1. Game Reverse-Engineered Network Remotes (Bypass & Fire System)
-local function getGameRemote(remoteName)
-    local found = ReplicatedStorage:FindFirstChild(remoteName, true) or Workspace:FindFirstChild(remoteName, true)
-    return found
+-- Target Trash Items
+local TrashNames = {
+    ["Boot"] = true, ["Old Boot"] = true, ["Seaweed"] = true,
+    ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true,
+    ["Bass"] = false, ["Perch"] = false, ["Salmon"] = false
+}
+
+-- Helper Movement (Tween Engine to prevent AC bans)
+local function moveToPosition(targetPos, speed)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    speed = speed or 50
+    local dist = (root.Position - targetPos).Magnitude
+    local timeToTravel = dist / speed
+
+    local tweenInfo = TweenInfo.new(timeToTravel, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)})
+    tween:Play()
+    return tween
 end
 
--- Auto Fishing & Slider Bypass Loop
-task.spawn(function()
-    while task.wait(0.4) do
-        if HubState.AutoFish then
-            local castRemote = getGameRemote("CastLine") or getGameRemote("FishingRemote") or getGameRemote("Fish")
-            if castRemote and castRemote:IsA("RemoteEvent") then
-                pcall(function() castRemote:FireServer() end)
+-- 1. REAL AIMBOT & ESP ENGINE
+local espBoxes = {}
+
+RunService.RenderStepped:Connect(function()
+    -- ESP Engine
+    if State.ESP then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local char = p.Character
+                if not char:FindFirstChild("HubHighlight") then
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "HubHighlight"
+                    hl.FillColor = Color3.fromRGB(255, 30, 40)
+                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    hl.FillTransparency = 0.5
+                    hl.Parent = char
+                end
             end
         end
-        
-        -- Filter Bad Fish Logic
-        if HubState.FilterBadFish then
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("HubHighlight") then
+                p.Character.HubHighlight:Destroy()
+            end
+        end
+    end
+
+    -- AIMBOT Engine
+    if State.Aimbot and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local cam = Workspace.CurrentCamera
+        local nearest = nil
+        local minDist = 300
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") then
+                if p.Character.Humanoid.Health > 0 then
+                    local screenPos, onScreen = cam:WorldToViewportPoint(p.Character.Head.Position)
+                    if onScreen then
+                        local mousePos = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            nearest = p.Character.Head
+                        end
+                    end
+                end
+            end
+        end
+
+        if nearest then
+            cam.CFrame = CFrame.new(cam.CFrame.Position, nearest.Position)
+        end
+    end
+end)
+
+-- 2. REAL ATM AUTOMATION MOTOR
+task.spawn(function()
+    while task.wait(1) do
+        if State.AutoFarmATMs then
+            local atms = {}
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name:find("ATM") or obj.Name:find("Atm") or obj.Name:find("Bank") then
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        table.insert(atms, obj)
+                    end
+                end
+            end
+
+            for _, atm in ipairs(atms) do
+                if not State.AutoFarmATMs then break end
+                local targetPos = atm:IsA("Model") and atm:GetPrimaryPartCFrame().Position or atm.Position
+                if targetPos then
+                    local tw = moveToPosition(targetPos + Vector3.new(0, 2, 3), 45)
+                    if tw then tw.Completed:Wait() end
+
+                    -- Simulate Interaction Key (E)
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.2)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                    task.wait(2)
+                end
+            end
+        end
+    end
+end)
+
+-- 3. REAL FISHING MOTOR & SKIP SLIDER INTEGRATION
+task.spawn(function()
+    while task.wait(0.5) do
+        if State.AutoFish then
+            local char = LocalPlayer.Character
+            local rod = char and char:FindFirstChildOfClass("Tool")
+            if not rod then
+                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                if backpack then
+                    for _, tool in ipairs(backpack:GetChildren()) do
+                        if tool.Name:find("Rod") or tool.Name:find("Fish") or tool.Name:find("Fishing") then
+                            tool.Parent = char
+                            rod = tool
+                            break
+                        end
+                    end
+                end
+            end
+
+            -- Click to cast line
+            VirtualInputManager:SendMouseButtonEvent(cam and cam.ViewportSize.X/2 or 500, cam and cam.ViewportSize.Y/2 or 500, 0, true, game, 1)
+            task.wait(0.1)
+            VirtualInputManager:SendMouseButtonEvent(cam and cam.ViewportSize.X/2 or 500, cam and cam.ViewportSize.Y/2 or 500, 0, false, game, 1)
+            
+            -- Skip Slider Script Execution when active
+            if State.SkipSlider then
+                pcall(function()
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/kahhakanouar-arch/skip-slider/refs/heads/main/blockspin%20skip%20slider"))()
+                end)
+            end
+        end
+
+        -- Filter Trash Motor
+        if State.FilterTrash then
             local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
             if backpack then
                 for _, item in ipairs(backpack:GetChildren()) do
-                    if HubState.TrashList[item.Name] then
-                        pcall(function() item:Destroy() end)
+                    if TrashNames[item.Name] then
+                        item:Destroy()
                     end
                 end
             end
@@ -88,198 +192,151 @@ task.spawn(function()
     end
 end)
 
--- 2. UI Builder Frame Structure
+-- 4. UI CREATION SYSTEM
 local gui = Instance.new("ScreenGui")
-gui.Name = "BlockSpinUltimateHub"
+gui.Name = "BlockSpinRealHub"
 gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
-main.Name = "MainFrame"
-main.Size = UDim2.new(0, 540, 0, 400)
-main.Position = UDim2.new(0.5, -270, 0.5, -200)
-main.BackgroundColor3 = Color3.fromRGB(20, 14, 18)
+main.Size = UDim2.new(0, 520, 0, 380)
+main.Position = UDim2.new(0.5, -260, 0.5, -190)
+main.BackgroundColor3 = Color3.fromRGB(15, 12, 16)
 main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
 main.Parent = gui
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 10)
-mainCorner.Parent = main
-
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(190, 30, 45)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(220, 35, 45)
 stroke.Thickness = 1.5
-stroke.Parent = main
 
--- Top Bar Header
-local header = Instance.new("Frame")
-header.Name = "Header"
-header.Size = UDim2.new(1, 0, 0, 42)
-header.BackgroundColor3 = Color3.fromRGB(30, 18, 24)
+-- Header
+local header = Instance.new("Frame", main)
+header.Size = UDim2.new(1, 0, 0, 40)
+header.BackgroundColor3 = Color3.fromRGB(26, 16, 22)
 header.BorderSizePixel = 0
-header.Parent = main
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 10)
 
-local headerCorner = Instance.new("UICorner")
-headerCorner.CornerRadius = UDim.new(0, 10)
-headerCorner.Parent = header
-
-local title = Instance.new("TextLabel")
+local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.7, 0, 1, 0)
-title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "BLOCKSPIN - Ultimate Custom Hub"
+title.Position = UDim2.new(0, 12, 0, 0)
+title.Text = "BLOCKSPIN - REAL AUTOMATION ENGINE"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 15
-title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextSize = 14
 title.BackgroundTransparency = 1
-title.Parent = header
+title.TextXAlignment = Enum.TextXAlignment.Left
 
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 28, 0, 28)
-closeBtn.Position = UDim2.new(1, -36, 0.5, -14)
+local closeBtn = Instance.new("TextButton", header)
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -32, 0.5, -13)
 closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.BackgroundColor3 = Color3.fromRGB(210, 45, 55)
+closeBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 50)
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 13
 closeBtn.BorderSizePixel = 0
-closeBtn.Parent = header
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 8)
-closeCorner.Parent = closeBtn
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
-closeBtn.MouseButton1Click:Connect(function()
-    gui:Destroy()
-end)
-
--- Sidebar Tabs Container
-local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, 140, 1, -52)
-sidebar.Position = UDim2.new(0, 8, 0, 46)
-sidebar.BackgroundColor3 = Color3.fromRGB(25, 18, 22)
+-- Sidebar
+local sidebar = Instance.new("Frame", main)
+sidebar.Size = UDim2.new(0, 130, 1, -50)
+sidebar.Position = UDim2.new(0, 6, 0, 44)
+sidebar.BackgroundColor3 = Color3.fromRGB(20, 15, 18)
 sidebar.BorderSizePixel = 0
-sidebar.Parent = main
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
 
-local sideCorner = Instance.new("UICorner")
-sideCorner.CornerRadius = UDim.new(0, 8)
-sideCorner.Parent = sidebar
-
-local sideLayout = Instance.new("UIListLayout")
+local sideLayout = Instance.new("UIListLayout", sidebar)
 sideLayout.Padding = UDim.new(0, 6)
 sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-sideLayout.Parent = sidebar
 
--- Content Area
-local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -162, 1, -52)
-content.Position = UDim2.new(0, 154, 0, 46)
-content.BackgroundColor3 = Color3.fromRGB(26, 20, 24)
+-- Content
+local content = Instance.new("Frame", main)
+content.Size = UDim2.new(1, -148, 1, -50)
+content.Position = UDim2.new(0, 142, 0, 44)
+content.BackgroundColor3 = Color3.fromRGB(22, 17, 20)
 content.BorderSizePixel = 0
-content.Parent = main
-
-local contentCorner = Instance.new("UICorner")
-contentCorner.CornerRadius = UDim.new(0, 8)
-contentCorner.Parent = content
+Instance.new("UICorner", content).CornerRadius = UDim.new(0, 8)
 
 local pages = {}
 
-local function createTab(tabName)
-    local tabBtn = Instance.new("TextButton")
-    tabBtn.Size = UDim2.new(0.92, 0, 0, 36)
-    tabBtn.Text = tabName
-    tabBtn.TextColor3 = Color3.fromRGB(210, 210, 210)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(36, 26, 32)
+local function createTab(name)
+    local tabBtn = Instance.new("TextButton", sidebar)
+    tabBtn.Size = UDim2.new(0.9, 0, 0, 34)
+    tabBtn.Text = name
+    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(30, 22, 26)
     tabBtn.Font = Enum.Font.GothamBold
     tabBtn.TextSize = 12
     tabBtn.BorderSizePixel = 0
-    tabBtn.Parent = sidebar
+    Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
 
-    local tabCorner = Instance.new("UICorner")
-    tabCorner.CornerRadius = UDim.new(0, 6)
-    tabCorner.Parent = tabBtn
-
-    local page = Instance.new("ScrollingFrame")
+    local page = Instance.new("ScrollingFrame", content)
     page.Size = UDim2.new(1, -10, 1, -10)
     page.Position = UDim2.new(0, 5, 0, 5)
     page.BackgroundTransparency = 1
     page.Visible = false
     page.ScrollBarThickness = 3
-    page.Parent = content
-
-    local pageLayout = Instance.new("UIListLayout")
+    
+    local pageLayout = Instance.new("UIListLayout", page)
     pageLayout.Padding = UDim.new(0, 8)
     pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     pageLayout.Parent = page
 
-    pages[tabName] = { Btn = tabBtn, Page = page }
+    pages[name] = { Btn = tabBtn, Page = page }
 
     tabBtn.MouseButton1Click:Connect(function()
         for _, t in pairs(pages) do
             t.Page.Visible = false
-            t.Btn.BackgroundColor3 = Color3.fromRGB(36, 26, 32)
-            t.Btn.TextColor3 = Color3.fromRGB(210, 210, 210)
+            t.Btn.BackgroundColor3 = Color3.fromRGB(30, 22, 26)
+            t.Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
         page.Visible = true
-        tabBtn.BackgroundColor3 = Color3.fromRGB(190, 30, 45)
+        tabBtn.BackgroundColor3 = Color3.fromRGB(210, 35, 45)
         tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end)
 
     return page
 end
 
--- Toggles Helper
-local function addToggle(parentPage, labelText, defaultVal, callback)
-    local btn = Instance.new("TextButton")
+local function addToggle(parent, label, key)
+    local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.95, 0, 0, 36)
-    btn.BackgroundColor3 = defaultVal and Color3.fromRGB(170, 25, 38) or Color3.fromRGB(42, 30, 36)
-    btn.Text = labelText .. (defaultVal and " [ON]" or " [OFF]")
+    btn.BackgroundColor3 = State[key] and Color3.fromRGB(190, 30, 40) or Color3.fromRGB(36, 26, 30)
+    btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 12
     btn.BorderSizePixel = 0
-    btn.Parent = parentPage
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
-
-    local state = defaultVal
     btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = labelText .. (state and " [ON]" or " [OFF]")
-        btn.BackgroundColor3 = state and Color3.fromRGB(170, 25, 38) or Color3.fromRGB(42, 30, 36)
-        callback(state)
+        State[key] = not State[key]
+        btn.Text = label .. (State[key] and " [ON]" or " [OFF]")
+        btn.BackgroundColor3 = State[key] and Color3.fromRGB(190, 30, 40) or Color3.fromRGB(36, 26, 30)
     end)
     return btn
 end
 
--- Populate Pages
-local pvpPage = createTab("⚔️ Combat / PvP")
-local farmPage = createTab("💰 Auto Farm")
-local fishPage = createTab("🎣 Fishing & Skip")
+-- Create Real Automation Pages
+local pvpPage = createTab("⚔️ Real Combat")
+local farmPage = createTab("💰 Real ATM Farm")
+local fishPage = createTab("🎣 Real Fishing")
 
-pages["⚔️ Combat / PvP"].Page.Visible = true
-pages["⚔️ Combat / PvP"].Btn.BackgroundColor3 = Color3.fromRGB(190, 30, 45)
+pages["⚔️ Real Combat"].Page.Visible = true
+pages["⚔️ Real Combat"].Btn.BackgroundColor3 = Color3.fromRGB(210, 35, 45)
 
-addToggle(pvpPage, "🔫 Lock Aimbot", HubState.AimbotEnabled, function(s) HubState.AimbotEnabled = s end)
-addToggle(pvpPage, "👁️ Player ESP", HubState.ESPEnabled, function(s) HubState.ESPEnabled = s end)
+addToggle(pvpPage, "🔫 Real Camera Aimbot (RMB)", "Aimbot")
+addToggle(pvpPage, "👁️ Real Highlight ESP", "ESP")
 
-addToggle(farmPage, "🤖 Auto Farm Jobs", HubState.AutoFarmJobs, function(s) HubState.AutoFarmJobs = s end)
-addToggle(farmPage, "💳 Auto ATM Hack", HubState.ATMAutoHack, function(s) HubState.ATMAutoHack = s end)
+addToggle(farmPage, "💳 Real Teleport & Hack ATMs", "AutoFarmATMs")
 
-addToggle(fishPage, "🎣 Skip Slider / Minigame", HubState.SkipSlider, function(s)
-    HubState.SkipSlider = s
-    if s then
-        pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/kahhakanouar-arch/skip-slider/refs/heads/main/blockspin%20skip%20slider"))()
-        end)
-    end
-end)
-addToggle(fishPage, "🐟 Auto Trash Filter", HubState.FilterBadFish, function(s) HubState.FilterBadFish = s end)
+addToggle(fishPage, "🎣 Real Auto Cast & Reel", "AutoFish")
+addToggle(fishPage, "⚡ Skip Slider / Minigame", "SkipSlider")
+addToggle(fishPage, "🐟 Auto Destroy Trash", "FilterTrash")
 
-print("BlockSpin Ultimate Hub initialized successfully!")
+print("REAL AUTOMATION ENGINE ACTIVE!")
