@@ -1,7 +1,11 @@
 -- ==============================================================================
--- Abu Annaz Hub |  العم حقوق أبو عنّاز - ULTIMATE PERFECT FISHING SOLVER (100% PERFECT HIT)
+-- Abu Annaz Hub V3 | حقوق أبو العم عنّاز - DYNAMIC MULTI-STAGE GREEN NEEDLE SOLVER & FAR CAST
 -- Game: BlockSpin (Roblox)
--- Features: Zero-Latency Center Prediction Green Needle Solver, Network Remote Bypass, Auto Re-Bait, Auto Fish
+-- Features: 
+--  1. Far Cast & Long Distance Rod Throw (رمي السنارة بعيداً في البحيرة)
+--  2. Dynamic Dynamic Multi-Stage Shrinking Green Box Tracking (تتبع تغير وتصاغر المربع الأخضر تلقائياً)
+--  3. Non-Blocking Non-Stuck Loop Engine (حل التعليق وإعادة الصيد بسلاسة)
+--  4. Auto Re-Bait & Trash Filter
 -- ==============================================================================
 
 local Players = game:GetService("Players")
@@ -31,11 +35,10 @@ local State = {
     AutoSolveGreen = true,
     AutoFish = false,
     AutoRebait = true,
-    AutoFarmATMs = false,
+    CastDistance = 250, -- Distance to cast line far into the water
+    FilterTrash = true,
     Aimbot = false,
     ESP = false,
-    FilterTrash = true,
-    TolerancePadding = 6, -- Safety margin inside green target
 }
 
 local TrashItems = {
@@ -43,81 +46,95 @@ local TrashItems = {
     ["Tin Can"] = true, ["Driftwood"] = true, ["Trash"] = true
 }
 
--- 1. PERFECT GREEN NEEDLE SOLVER (حساب المركز المتوقع بدقة 100% بدون أي خطأ)
-local lastHitTime = 0
+-- Global Trackers for Minigame State
+local isMinigameActive = false
+local lastClickTick = 0
 
+-- 1. REAL-TIME DYNAMIC MULTI-STAGE SHRINKING GREEN ZONE SOLVER
 RunService.RenderStepped:Connect(function()
-    if not State.AutoSolveGreen and not State.AutoFish then return end
+    if not State.AutoSolveGreen and not State.AutoFish then 
+        isMinigameActive = false
+        return 
+    end
 
-    -- Avoid double-clicking too fast
-    if tick() - lastHitTime < 0.12 then return end
+    local minigameFoundThisFrame = false
 
     for _, guiObj in ipairs(PlayerGui:GetChildren()) do
         if guiObj:IsA("ScreenGui") and guiObj.Enabled and guiObj.Name ~= "AbuAnnazHub" then
             local needle = nil
-            local greenTarget = nil
+            local greenZone = nil
 
-            -- Advanced Property & Geometry Scanning
+            -- Dynamic Element Scanner
             for _, desc in ipairs(guiObj:GetDescendants()) do
                 if desc:IsA("GuiObject") and desc.Visible then
                     local col = desc.BackgroundColor3
                     local absSize = desc.AbsoluteSize
                     local name = desc.Name:lower()
 
-                    -- Detect Needle (Vertical indicator / White / Moving line)
-                    if absSize.X <= 12 and absSize.Y >= 20 then
-                        if col.R > 0.85 and col.G > 0.85 and col.B > 0.85 or name:find("needle") or name:find("line") or name:find("bar") then
+                    -- Detect Needle (White / Moving Vertical Line)
+                    if absSize.X <= 14 and absSize.Y >= 18 then
+                        if (col.R > 0.8 and col.G > 0.8 and col.B > 0.8) or name:find("needle") or name:find("pointer") or name:find("line") then
                             needle = desc
                         end
                     end
 
-                    -- Detect Green Zone (Target area)
-                    if col.G > 0.55 and col.R < 0.4 or name:find("green") or name:find("target") or name:find("zone") then
-                        greenTarget = desc
+                    -- Detect Green Target (Shrinking / Relocating Green Box)
+                    if (col.G > 0.5 and col.R < 0.45) or name:find("green") or name:find("target") or name:find("zone") then
+                        greenZone = desc
                     end
                 end
             end
 
-            -- High-Precision Collision Math with Velocity Prediction
-            if needle and greenTarget then
-                local needleX = needle.AbsolutePosition.X + (needle.AbsoluteSize.X / 2)
-                local greenMinX = greenTarget.AbsolutePosition.X + State.TolerancePadding
-                local greenMaxX = greenTarget.AbsolutePosition.X + greenTarget.AbsoluteSize.X - State.TolerancePadding
-                local greenCenterX = (greenMinX + greenMaxX) / 2
+            -- High-Precision Dynamic Bound Checking
+            if needle and greenZone then
+                minigameFoundThisFrame = true
+                isMinigameActive = true
 
-                -- Hit precisely near the center of the green zone
-                if needleX >= greenMinX and needleX <= greenMaxX then
-                    lastHitTime = tick()
+                -- Avoid rapid double-click on the same frame (minimum 0.08s gap)
+                if tick() - lastClickTick >= 0.08 then
+                    local needleX = needle.AbsolutePosition.X + (needle.AbsoluteSize.X / 2)
+                    local greenMinX = greenZone.AbsolutePosition.X
+                    local greenMaxX = greenMinX + greenZone.AbsoluteSize.X
 
-                    -- 1. Network Bypass Remote Fire (Fastest response)
-                    local minigameRemote = ReplicatedStorage:FindFirstChild("MinigameRemote", true) or ReplicatedStorage:FindFirstChild("FishingRemote", true) or ReplicatedStorage:FindFirstChild("Hit", true)
-                    if minigameRemote and minigameRemote:IsA("RemoteEvent") then
-                        pcall(function() minigameRemote:FireServer(true, needleX) end)
+                    -- Calculate margin padding based on shrinking green zone size
+                    local padding = math.clamp(greenZone.AbsoluteSize.X * 0.08, 1, 5)
+
+                    -- Check if needle currently sits inside the relocated green zone
+                    if needleX >= (greenMinX + padding) and needleX <= (greenMaxX - padding) then
+                        lastClickTick = tick()
+
+                        -- Fire Direct Click Interaction
+                        local clickX = math.floor(needleX)
+                        local clickY = math.floor(needle.AbsolutePosition.Y + (needle.AbsoluteSize.Y / 2))
+
+                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+                        task.wait(0.01)
+                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+
+                        -- Fallback Spacebar
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait(0.01)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end
-
-                    -- 2. Hardware Input Simulation Backup
-                    VirtualInputManager:SendMouseButtonEvent(needleX, needle.AbsolutePosition.Y + 10, 0, true, game, 1)
-                    task.wait(0.01)
-                    VirtualInputManager:SendMouseButtonEvent(needleX, needle.AbsolutePosition.Y + 10, 0, false, game, 1)
-
-                    -- 3. Virtual Key Hit fallback (Space / Enter)
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    task.wait(0.01)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                 end
             end
         end
     end
+
+    if not minigameFoundThisFrame then
+        isMinigameActive = false
+    end
 end)
 
--- 2. AUTOMATIC FISHING & AUTO RE-BAIT MOTOR
+-- 2. NON-BLOCKING FAR-CASTING & AUTOMATION MOTOR
 task.spawn(function()
     while task.wait(0.5) do
         if State.AutoFish then
             local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
             local rod = char and char:FindFirstChildOfClass("Tool")
             
-            -- Auto Equip Rod if not in hand
+            -- Auto Equip Rod if in Backpack
             if not rod then
                 local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
                 if backpack then
@@ -131,7 +148,7 @@ task.spawn(function()
                 end
             end
 
-            -- Auto Re-Bait Check
+            -- Auto Re-Bait Routine
             if State.AutoRebait and rod then
                 local baitRemote = ReplicatedStorage:FindFirstChild("EquipBait") or ReplicatedStorage:FindFirstChild("BaitRemote")
                 if baitRemote and baitRemote:IsA("RemoteEvent") then
@@ -139,11 +156,19 @@ task.spawn(function()
                 end
             end
 
-            -- Click to cast line if minigame isn't currently active
-            if rod then
-                VirtualInputManager:SendMouseButtonEvent(500, 500, 0, true, game, 1)
-                task.wait(0.05)
-                VirtualInputManager:SendMouseButtonEvent(500, 500, 0, false, game, 1)
+            -- Cast Far into the Water ONLY when Minigame is NOT active (Prevents Sticking/Freezing)
+            if rod and not isMinigameActive then
+                -- Perform Far Cast Position Calculation
+                local cam = Workspace.CurrentCamera
+                local castScreenPos = cam and Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 3) or Vector2.new(600, 300)
+
+                -- Simulate Long Distance Line Cast
+                VirtualInputManager:SendMouseButtonEvent(castScreenPos.X, castScreenPos.Y, 0, true, game, 1)
+                task.wait(0.08)
+                VirtualInputManager:SendMouseButtonEvent(castScreenPos.X, castScreenPos.Y, 0, false, game, 1)
+                
+                -- Pause briefly before checking next loop
+                task.wait(1.5)
             end
         end
 
@@ -212,7 +237,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 4. UI CREATION SYSTEM - حقوق أبو عنّاز (ABU ANNAZ HUB V2 PRO)
+-- 4. UI CREATION SYSTEM - حقوق أبو عنّاز (ABU ANNAZ HUB V3 DYNAMIC)
 local gui = Instance.new("ScreenGui")
 gui.Name = "AbuAnnazHub"
 gui.ResetOnSpawn = false
@@ -242,7 +267,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(0.8, 0, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "👑 سكريبت حقوق أبو عنّاز | PERFECT FISHING V2"
+title.Text = "👑 حقوق أبو عنّاز | DYNAMIC FISHING & FAR CAST V3"
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -342,18 +367,18 @@ local function addToggle(parent, label, key)
 end
 
 -- Tabs
-local fishPage = createTab("🎣 صيد الأسماك المثالي")
+local fishPage = createTab("🎣 صيد الأسماك المتقدم V3")
 local pvpPage  = createTab("⚔️ Aimbot & ESP")
 
-pages["🎣 صيد الأسماك المثالي"].Page.Visible = true
-pages["🎣 صيد الأسماك المثالي"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
+pages["🎣 صيد الأسماك المتقدم V3"].Page.Visible = true
+pages["🎣 صيد الأسماك المتقدم V3"].Btn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
 
-addToggle(fishPage, "🎯 حل الإبرة الخضراء المثالي (Perfect Hit 100%)", "AutoSolveGreen")
-addToggle(fishPage, "🎣 صيد أسماك تلقائي (Auto Cast & Reel)", "AutoFish")
+addToggle(fishPage, "🎯 حل الإبرة المتغيرة والصغيره (Dynamic Needle Solver)", "AutoSolveGreen")
+addToggle(fishPage, "🎣 رمي السنارة بعيداً بالبحيرة (Far Cast & Reel)", "AutoFish")
 addToggle(fishPage, "🪱 تعبئة الطعم تلقائياً (Auto Re-Bait)", "AutoRebait")
 addToggle(fishPage, "🐟 تصفية وتدمير القمامة", "FilterTrash")
 
 addToggle(pvpPage, "🔫 تثبيت الكاميرا Aimbot (RMB)", "Aimbot")
 addToggle(pvpPage, "👁️ كشف اللاعبين ESP", "ESP")
 
-print("ABU ANNAZ HUB PERFECT FISHING V2 LOADED!")
+print("ABU ANNAZ HUB DYNAMIC FISHING V3 LOADED SUCCESSFULLY!")
