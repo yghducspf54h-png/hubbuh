@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Abu Annaz Hub V14 ULTRA | حقوق أبو عنّاز - MOVEMENT-TRACK NEEDLE + EXACT GREEN SOLVER
+-- Abu Annaz Hub V14 ULTRA | حقوق س عنّاز - MOVEMENT-TRACK NEEDLE + EXACT GREEN SOLVER
 -- Game: BlockSpin (Roblox)
 -- Fixes:
 --  1. NO-CLICK ROD CASTING (رمي السنارة بدون أي كليك على الشاشة إطلاقاً)
@@ -26,8 +26,10 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end
 
 -- Clean previous instances
-if PlayerGui:FindFirstChild("AbuAnnazHubV13") then
-    PlayerGui.AbuAnnazHubV13:Destroy()
+for _, v in ipairs(PlayerGui:GetChildren()) do
+    if v.Name == "AbuAnnazHubV13" or v.Name == "AbuAnnazHubV14" then
+        v:Destroy()
+    end
 end
 
 -- Configuration State
@@ -50,10 +52,10 @@ local TrashItems = {
 -- اللون الدقيق #13A913 = RGB(19, 169, 19) بالضبط
 -- ==============================================================================
 
--- اللون المستهدف بالضبط
-local TARGET_GREEN = Color3.fromRGB(19, 169, 19)
--- نسبة التسامح في مقارنة الألوان (0.04 = ~10 وحدة من 255)
-local COLOR_TOLERANCE = 0.04
+-- اللون المستهدف #13A913 = RGB(19, 169, 19)
+local TARGET_GREEN    = Color3.fromRGB(19, 169, 19)
+-- تسامح 0.12 = ~30 وحدة من 255 (يغطي فروق الرندرينج)
+local COLOR_TOLERANCE = 0.12
 
 -- متغيرات التتبع
 local lastHitTick    = 0
@@ -77,26 +79,33 @@ local function colorMatches(col, target, tol)
        and math.abs(col.B - target.B) <= tol
 end
 
--- فحص إذا كان العنصر أخضر #13A913 بالضبط
+-- فحص إذا كان العنصر أخضر غامق (يقبل #13A913 وما يقاربه)
 local function isTargetGreen(obj)
     if not obj or not obj:IsA("GuiObject") then return false end
-    -- فحص BackgroundColor3 أولاً (الأهم)
-    if colorMatches(obj.BackgroundColor3, TARGET_GREEN, COLOR_TOLERANCE) then
-        return true
+
+    local function checkCol(c)
+        if not c then return false end
+        -- طريقة 1: مقارنة مع #13A913 بتسامح 0.12
+        if colorMatches(c, TARGET_GREEN, COLOR_TOLERANCE) then return true end
+        -- طريقة 2: شرط مباشر - أخضر غامق (R وB صغيران، G كبير)
+        local r = c.R * 255
+        local g = c.G * 255
+        local b = c.B * 255
+        if r < 60 and g > 100 and b < 60 and g > (r * 3) then return true end
+        return false
     end
-    -- فحص ImageColor3 للصور فقط
-    if (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) then
-        if colorMatches(obj.ImageColor3, TARGET_GREEN, COLOR_TOLERANCE) then
-            return true
-        end
+
+    if checkCol(obj.BackgroundColor3) then return true end
+    if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+        if checkCol(obj.ImageColor3) then return true end
     end
     return false
 end
 
--- فحص إذا كان العنصر أبيض/فاتح (إبرة)
+-- فحص إذا كان العنصر أبيض/فاتح (إبرة) - عتبة مخففة 0.60
 local function isWhiteElement(obj)
     local c = obj.BackgroundColor3
-    return (c.R > 0.70 and c.G > 0.70 and c.B > 0.70)
+    return (c.R > 0.60 and c.G > 0.60 and c.B > 0.60)
 end
 
 -- هل العنصر يتحرك أفقياً؟ (يُحدَّد الإبرة بالحركة لا بالحجم)
@@ -130,14 +139,14 @@ local function findMinigameObjects()
                         end
                     end
 
-                    -- [2] كشف الإبرة المتحركة
-                    -- شرط الحجم الضيق: عرض صغير جداً وارتفاع معقول
+                    -- [2] كشف الإبرة - عرض ضيق (حتى 30px) + لون فاتح
                     if not needle then
                         local sx = desc.AbsoluteSize.X
                         local sy = desc.AbsoluteSize.Y
-                        local isNarrow = (sx <= 14 and sy >= 4)
-                        local isNameMatch = name:find("needle") or name:find("pointer") or name:find("cursor") or name:find("line")
+                        local isNarrow    = (sx <= 30 and sy >= 4)
+                        local isNameMatch = name:find("needle") or name:find("pointer") or name:find("cursor") or name:find("line") or name:find("indicator")
                         if (isNarrow or isNameMatch) and isWhiteElement(desc) then
+                            -- تأكد أنه ليس جزء من واجهة أخرى (ليس داخل الأخضر)
                             needle = desc
                         end
                     end
@@ -362,6 +371,7 @@ closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 -- Sidebar & Content (Pure Black Theme)
 local sidebar = Instance.new("Frame", main)
+sidebar.Name = "Sidebar"
 sidebar.Size = UDim2.new(0, 150, 1, -54)
 sidebar.Position = UDim2.new(0, 8, 0, 48)
 sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
