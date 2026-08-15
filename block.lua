@@ -1,7 +1,3 @@
--- ==========================================
--- PRO COMBAT HUB - FIXED & MASTER AIMBOT 2026
--- ==========================================
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +5,6 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- إزالة الواجهة القديمة
 if PlayerGui:FindFirstChild("ProCheatGUI") then
 	PlayerGui.ProCheatGUI:Destroy()
 end
@@ -18,10 +13,9 @@ local Settings = {
 	ESP_Enabled = true,
 	Aimbot_Enabled = true,
 	WallCheck = true,
-	AimSmoothness = 0.2 -- سرعة ودقة الملاحقة (كل ما قل صار أسرع)
+	AimSmoothness = 0.2
 }
 
--- واجهة المستخدم المتحركة
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ProCheatGUI"
 ScreenGui.ResetOnSpawn = false
@@ -46,7 +40,7 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 15
-Title.Text = "Pro Combat Hub (Fixed)"
+Title.Text = "Pro Combat Hub"
 Title.Parent = MainFrame
 
 local function CreateToggle(name, yPos, key)
@@ -72,12 +66,11 @@ local function CreateToggle(name, yPos, key)
 end
 
 CreateToggle("ESP (Red)", 45, "ESP_Enabled")
-CreateToggle("Aimbot (Right Click)", 90, "Aimbot_Enabled")
+CreateToggle("Aimbot", 90, "Aimbot_Enabled")
 CreateToggle("Wall Check", 135, "WallCheck")
 
--- نظام الـ ESP الأحمر
 local function AddESP(char)
-	if char:FindFirstChild("Head") and not char.Head:FindFirstChild("RedESP") then
+	if char and char:FindFirstChild("Head") and not char.Head:FindFirstChild("RedESP") then
 		local bg = Instance.new("BillboardGui")
 		bg.Name = "RedESP"
 		bg.Size = UDim2.new(4, 0, 5, 0)
@@ -97,7 +90,26 @@ local function AddESP(char)
 	end
 end
 
--- إيجاد أقرب عدو في واجهة الكاميرا فقط
+local function SetupPlayerESP(player)
+	if player ~= LocalPlayer then
+		player.CharacterAdded:Connect(function(char)
+			if Settings.ESP_Enabled then
+				task.wait(0.5)
+				AddESP(char)
+			end
+		end)
+		if player.Character then
+			AddESP(player.Character)
+		end
+	end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+	SetupPlayerESP(p)
+end
+
+Players.PlayerAdded:Connect(SetupPlayerESP)
+
 local function GetClosestTargetInView()
 	local target = nil
 	local shortestDist = math.huge
@@ -112,12 +124,10 @@ local function GetClosestTargetInView()
 			if head and humanoid and humanoid.Health > 0 then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
 				
-				-- شرط: يكون الشخص داخل الشاشة وفي واجهة الرؤية الأمامية
 				if onScreen then
 					local pos2D = Vector2.new(screenPos.X, screenPos.Y)
 					local dist = (pos2D - mousePos).Magnitude
 					
-					-- الفحص بناء على مسافة المركز وزاوية الرؤية
 					if dist < shortestDist then
 						if Settings.WallCheck then
 							local origin = Camera.CFrame.Position
@@ -127,7 +137,6 @@ local function GetClosestTargetInView()
 							raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 							
 							local result = workspace:Raycast(origin, direction, raycastParams)
-							-- إذا مافيه جدار عائق (أو جدار وراه هو العدو مباشرة)
 							if not result or result.Instance:IsDescendantOf(char) then
 								target = head
 								shortestDist = dist
@@ -144,7 +153,6 @@ local function GetClosestTargetInView()
 	return target
 end
 
--- حلقة التحديث المستمرة
 RunService.RenderStepped:Connect(function()
 	if Settings.ESP_Enabled then
 		for _, p in ipairs(Players:GetPlayers()) do
@@ -154,7 +162,6 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 	
-	-- تفعيل الإيمبوت عند الضغط المستمر على زر الماوس الأيمن (عكس الكاميرا الحرة)
 	if Settings.Aimbot_Enabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
 		local targetHead = GetClosestTargetInView()
 		if targetHead then
@@ -163,5 +170,3 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 end)
-
-print("Pro Combat Hub Loaded successfully!")
