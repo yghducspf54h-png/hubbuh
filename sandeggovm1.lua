@@ -10,7 +10,7 @@ end
 local WindUI = WindUILoader()
 
 -- ================================================================
--- ALMBJL ENGINE v2.0
+-- ALMBJL ENGINE v2.1
 -- Rights: almbjl
 -- Based on the provided route/interaction engineering, rebuilt with
 -- explicit state handling, verification, and recovery.
@@ -103,7 +103,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v2.0 | حقوق almbjl",
+    Title = "v2.1 | حقوق almbjl",
     Icon = "shield-check",
     Color = Color3.fromHex("#C5A059"),
     Radius = 10,
@@ -116,7 +116,7 @@ local ReadTab = Window:Tab({
 })
 
 local MainTab = Window:Tab({
-    Title = "التجميع الآلي / Auto Farm",
+    Title = "اوتو فارم الآلي / Auto Farm",
     Icon = "bot",
 })
 
@@ -1138,6 +1138,109 @@ local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
     return false
 end
 
+local function getSellerSafeApproachPositions(targetPart, fallbackPosition)
+    if not targetPart or not fallbackPosition then return {} end
+
+    local sellerPos = targetPart.Position
+    local flat = Vector3.new(
+        fallbackPosition.X - sellerPos.X,
+        0,
+        fallbackPosition.Z - sellerPos.Z
+    )
+
+    if flat.Magnitude < 0.01 then
+        flat = Vector3.new(1, 0, 0)
+    else
+        flat = flat.Unit
+    end
+
+    -- Do NOT drive/tween directly onto the seller part.
+    -- Some seller geometry is slightly below/inside the floor and the
+    -- direct approach can make the vehicle/player drop through it.
+    local safeY = fallbackPosition.Y + CONFIG.Height
+    local distances = {6, 9, 12}
+    local positions = {}
+
+    for _, distance in ipairs(distances) do
+        positions[#positions + 1] = Vector3.new(
+            sellerPos.X + flat.X * distance,
+            safeY,
+            sellerPos.Z + flat.Z * distance
+        )
+    end
+
+    return positions
+end
+
+local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPosition, runId)
+    if not targetPart or not isFarmActive(runId) then return false end
+
+    local approaches = getSellerSafeApproachPositions(targetPart, fallbackPosition)
+
+    for attempt, approachPos in ipairs(approaches) do
+        if not isFarmActive(runId) then return false end
+
+        if isCharacterFallingOrDead() then
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+        end
+
+        clearWaylines()
+
+        -- Stay in the vehicle while travelling to the safe point.
+        getInVehicle()
+
+        local arrived, _, fell = moveToPositionVelocity(approachPos)
+
+        if fell or not arrived or isCharacterFallingOrDead() then
+            pcall(clearWaylines)
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+            safeWait(0.2 * attempt, runId)
+            continue
+        end
+
+        -- IMPORTANT: never tween the vehicle onto the seller itself.
+        -- Dismount at the safe point, then interact from a short distance.
+        dismountVehicle()
+        task.wait(0.15)
+
+        if isCharacterFallingOrDead() then
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+            continue
+        end
+
+        local sold = performInteractionLoop(
+            targetPart,
+            targetPrompt,
+            function()
+                return getItemCount(CONFIG.ItemName) <= 0
+            end,
+            12,
+            0.08,
+            runId
+        )
+
+        if sold and getItemCount(CONFIG.ItemName) <= 0 then
+            return true
+        end
+
+        -- If the prompt was too far away, try the next closer approach.
+        -- If the player dropped, restore before trying again.
+        if isCharacterFallingOrDead() then
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+        end
+    end
+
+    return getItemCount(CONFIG.ItemName) <= 0
+end
+
 local function routeWithRecovery(waypoints, label, runId)
     if not waypoints or #waypoints == 0 then return true end
     if not isFarmActive(runId) then return false end
@@ -1289,33 +1392,15 @@ local function mainLoop()
                 continue
             end
 
-            getInVehicle()
-
-            -- Use the final post-buy waypoint as the safe recovery point.
-            -- If the character falls under the map while approaching the seller,
-            -- restore here and retry the seller approach instead of continuing.
+            -- The seller's physical part can sit slightly inside/under
+            -- the floor. Approach a safe point beside it instead of
+            -- tweening the vehicle/player directly onto the seller.
             local sellerFallback = lastBuyPos
 
-            local reached = goToTargetWithFallRecovery(
-                savedSellPart,
-                sellerFallback,
-                runId
-            )
-
-            if not reached then
-                savedSellPart, savedSellPrompt = nil, nil
-                if not recoverFarm(runId, "seller approach/fall recovery failed") then break end
-                continue
-            end
-
-            local sold = performInteractionLoop(
+            local sold = sellAtSafeSellerPosition(
                 savedSellPart,
                 savedSellPrompt,
-                function()
-                    return getItemCount(CONFIG.ItemName) <= 0
-                end,
-                35,
-                0.08,
+                sellerFallback,
                 runId
             )
 
@@ -1444,8 +1529,8 @@ ReadTab:Paragraph({
 })
 
 MainTab:Toggle({
-    Title = "التجميع الآلي / Auto Farm",
-    Desc = "تشغيل أو إيقاف التجميع الآلي",
+    Title = "اوتو فارم الآلي / Auto Farm",
+    Desc = "تشغيل أو إيقاف اوتو فارم الآلي",
     Icon = "power",
     Type = "Toggle",
     Value = isRunning,
