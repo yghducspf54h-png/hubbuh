@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
+    Accent = Color3.fromHex("#006C35"), -- 1الأخضر السعودي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -136,6 +136,7 @@ local pathSpeed = 0
 local lastVehicle = nil
 local lastVehicleCFrame = nil
 
+-- v2 fixes: purchase loop reaches CONFIG.Amount; seller approach has fall recovery.
 local CONFIG = {
 	Speed = 250,
 	Height = 2.5,
@@ -948,6 +949,85 @@ local function performInteractionLoop(targetPart, targetPrompt, conditionFn, max
     return conditionFn()
 end
 
+local FALL_Y_THRESHOLD = 0
+local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
+
+local function getCharacterRoot()
+    local char = player.Character
+    if not char then return nil, nil end
+    return char, char:FindFirstChild("HumanoidRootPart")
+end
+
+local function isCharacterFallingOrDead()
+    local char, hrp = getCharacterRoot()
+    if not char or not hrp then return true end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return true end
+
+    -- In this map the normal route is well above the void/under-map area.
+    -- Treat a very low Y as a failed approach rather than continuing to interact.
+    if hrp.Position.Y < FALL_Y_THRESHOLD then
+        return true
+    end
+
+    return false
+end
+
+local function restoreCharacterToPosition(position)
+    local char, hrp = getCharacterRoot()
+    if not char or not hrp then return false end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.Health <= 0 then
+        return false
+    end
+
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.CFrame = CFrame.new(position + SELL_RECOVERY_OFFSET)
+    end)
+
+    task.wait(0.15)
+    return not isCharacterFallingOrDead()
+end
+
+local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
+    if not targetPart or not isFarmActive(runId) then return false end
+
+    for attempt = 1, 3 do
+        if not isFarmActive(runId) then return false end
+
+        if isCharacterFallingOrDead() then
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+        end
+
+        local reached = false
+        local ok = pcall(function()
+            reached = goToTarget(targetPart)
+        end)
+
+        if ok and reached and not isCharacterFallingOrDead() then
+            return true
+        end
+
+        -- The approach failed or the character dropped under the map.
+        -- Put the player back at the last known safe route point and retry.
+        pcall(clearWaylines)
+
+        if not restoreCharacterToPosition(fallbackPosition) then
+            return false
+        end
+
+        safeWait(0.2 * attempt, runId)
+    end
+
+    return false
+end
+
 local function routeWithRecovery(waypoints, label, runId)
     if not waypoints or #waypoints == 0 then return true end
     if not isFarmActive(runId) then return false end
@@ -956,20 +1036,25 @@ local function routeWithRecovery(waypoints, label, runId)
 
     local routeAttempts = 0
     while isFarmActive(runId) and routeAttempts < 3 do
+        routeAttempts = routeAttempts + 1
         processWaypoints(waypoints, label)
 
         if not isFarmActive(runId) then return false end
 
-        -- processWaypoints completes normally or exits when stopped.
-        -- Give the route a short settling period before the next action.
-        if safeWait(0.08, runId) then
-            return true
+        -- Confirm the character is still alive and above the map after the route.
+        if isCharacterFallingOrDead() then
+            local safePoint = waypoints[math.max(1, math.min(#waypoints, 1))]
+            if not restoreCharacterToPosition(safePoint) then
+                return false
+            end
+        else
+            if safeWait(0.08, runId) then
+                return true
+            end
         end
-
-        routeAttempts = routeAttempts + 1
     end
 
-    return isFarmActive(runId)
+    return false
 end
 
 local function stopFarmCleanly()
@@ -1041,10 +1126,11 @@ local function mainLoop()
                 savedBuyPart,
                 savedBuyPrompt,
                 function()
+                    -- Do not stop after a single successful purchase.
+                    -- Continue until the configured target amount is reached.
                     return getItemCount(CONFIG.ItemName) >= CONFIG.Amount
-                        or getItemCount(CONFIG.ItemName) > beforeCount
                 end,
-                40,
+                60,
                 0.05,
                 runId
             )
@@ -1095,14 +1181,20 @@ local function mainLoop()
 
             getInVehicle()
 
-            local reached = false
-            local ok = pcall(function()
-                reached = goToTarget(savedSellPart)
-            end)
+            -- Use the final post-buy waypoint as the safe recovery point.
+            -- If the character falls under the map while approaching the seller,
+            -- restore here and retry the seller approach instead of continuing.
+            local sellerFallback = lastBuyPos
 
-            if not ok or not reached then
+            local reached = goToTargetWithFallRecovery(
+                savedSellPart,
+                sellerFallback,
+                runId
+            )
+
+            if not reached then
                 savedSellPart, savedSellPrompt = nil, nil
-                if not recoverFarm(runId, "could not reach sell target") then break end
+                if not recoverFarm(runId, "seller approach/fall recovery failed") then break end
                 continue
             end
 
@@ -1122,6 +1214,19 @@ local function mainLoop()
             if not sold and getItemCount(CONFIG.ItemName) > 0 then
                 savedSellPart, savedSellPrompt = nil, nil
                 if not recoverFarm(runId, "sell verification failed") then break end
+                continue
+            end
+
+            -- If selling caused a drop/death, do not continue to the next route.
+            -- Restore to the safe point and reacquire the seller.
+            if isCharacterFallingOrDead() and getItemCount(CONFIG.ItemName) > 0 then
+                if not restoreCharacterToPosition(sellerFallback) then
+                    if not recoverFarm(runId, "player fell after seller approach") then break end
+                    continue
+                end
+
+                savedSellPart, savedSellPrompt = nil, nil
+                if not recoverFarm(runId, "retry seller after fall") then break end
                 continue
             end
 
