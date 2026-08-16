@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), --1 الأخضر السعودي
+    Accent = Color3.fromHex("#006C35"), -- 1الأخضر السعودي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -561,117 +561,115 @@ local function getNearestWaypointIndex(waypoints, currentPos)
 end
 
 local function moveToPositionVelocity(targetPos)
-	local groundedTarget = getGroundedWaypoint(targetPos)
-	local char = player.Character
-	if not char then return false, false end
-	
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return false, false end
+    -- Ground-only movement for the user's own game:
+    -- use Roblox's Humanoid/Pathfinding movement instead of BodyVelocity,
+    -- noclip, or airborne CFrame travel. This avoids fighting the game's
+    -- normal movement/validation systems.
+    local char = player.Character
+    if not char then return false, false end
 
-	local seat = humanoid.SeatPart
-	local vehicleModel = getVehicleModel(seat)
-	
-	local movePart = (seat and vehicleModel) and (vehicleModel.PrimaryPart or seat) or hrp
-	if not movePart then return false, false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp or humanoid.Health <= 0 then
+        return false, false
+    end
 
-	local floatPart = Instance.new("Part")
-	floatPart.Name = "AntiFall_FloatPlatform"
-	floatPart.Size = Vector3.new(30, 1, 30)
-	floatPart.Anchored = true
-	floatPart.CanCollide = true
-	floatPart.Transparency = 1
-	floatPart.Parent = workspace
+    -- If the previous route left us in a vehicle, leave it before walking.
+    if humanoid.SeatPart then
+        dismountVehicle()
+        task.wait(0.15)
+        char = player.Character
+        humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not hrp then return false, false end
+    end
 
-	local bodyVel = Instance.new("BodyVelocity")
-	bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-	bodyVel.Velocity = Vector3.zero
-	bodyVel.Parent = movePart
+    local groundedTarget = getGroundedWaypoint(targetPos)
+    local target = Vector3.new(
+        groundedTarget.X,
+        groundedTarget.Y + 2.5,
+        groundedTarget.Z
+    )
 
-	local bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-	bodyGyro.P = 10000
-	bodyGyro.CFrame = movePart.CFrame
-	bodyGyro.Parent = movePart
+    local PathfindingService = game:GetService("PathfindingService")
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2.5,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentCanClimb = true,
+        WaypointSpacing = 5
+    })
 
-	local noclipConnection = RunService.Stepped:Connect(function()
-		if not isRunning then return end
-		if movePart and movePart.Parent then 
-			floatPart.CFrame = movePart.CFrame * CFrame.new(0, -3.5, 0) 
-		end
-		if player.Character then
-			for _, part in ipairs(player.Character:GetDescendants()) do
-				if part:IsA("BasePart") and part ~= floatPart then 
-					part.CanCollide = false 
-				end
-			end
-		end
-		if vehicleModel then
-			for _, part in ipairs(vehicleModel:GetDescendants()) do
-				if part:IsA("BasePart") and part ~= floatPart then 
-					part.CanCollide = false 
-				end
-			end
-		end
-	end)
+    local computed = pcall(function()
+        path:ComputeAsync(hrp.Position, target)
+    end)
 
-	local targetPosWithHeight = Vector3.new(groundedTarget.X, groundedTarget.Y + CONFIG.Height, groundedTarget.Z)
-	local arrived = false
-	local rubberbandDetected = false
-	local previousPos = movePart.Position
+    local waypoints = {}
+    if computed and path.Status == Enum.PathStatus.Success then
+        waypoints = path:GetWaypoints()
+    end
 
-	local stopThreshold = math.clamp(CONFIG.Speed * 0.04, 6, 15)
+    -- If the pathfinder cannot build a path, use short grounded MoveTo
+    -- segments instead of teleporting or applying physics forces.
+    if #waypoints == 0 then
+        waypoints = {
+            {
+                Position = target,
+                Action = Enum.PathWaypointAction.Walk
+            }
+        }
+    end
 
-	local renderConnection = RunService.Heartbeat:Connect(function()
-		if not isRunning or not movePart or not movePart.Parent then arrived = false return end
+    for _, waypoint in ipairs(waypoints) do
+        if not isRunning then return false, false end
+        if not humanoid or humanoid.Health <= 0 then return false, false end
 
-		local currentPos = movePart.Position
-		local moveDelta = (currentPos - previousPos).Magnitude
-		local distToTarget = (targetPosWithHeight - currentPos).Magnitude
+        local waypointPos = getGroundedWaypoint(waypoint.Position)
 
-		if moveDelta > 45 and distToTarget > 20 then
-			rubberbandDetected = true
-			bodyVel.Velocity = Vector3.zero
-			return
-		end
-		
-		previousPos = currentPos
+        if waypoint.Action == Enum.PathWaypointAction.Jump then
+            humanoid.Jump = true
+        end
 
-		if distToTarget <= stopThreshold then
-			arrived = true
-			return
-		end
+        humanoid:MoveTo(waypointPos)
 
-		local speedFactor = math.clamp(distToTarget / 40, 0.25, 1)
-		local currentSpeed = CONFIG.Speed * speedFactor
-		local direction = (targetPosWithHeight - currentPos)
-		
-		bodyVel.Velocity = direction.Unit * currentSpeed
-		bodyGyro.CFrame = CFrame.lookAt(currentPos, Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z))
-	end)
+        local distance = (hrp.Position - waypointPos).Magnitude
+        local timeout = math.clamp(distance / math.max(CONFIG.Speed / 8, 8) + 4, 4, 18)
+        local started = tick()
 
-	while isRunning and not arrived and not rubberbandDetected do
-		task.wait(0.01)
-	end
+        while isRunning and humanoid.Health > 0 do
+            local current = hrp.Position
+            local horizontalDistance =
+                (Vector3.new(current.X, 0, current.Z) -
+                 Vector3.new(waypointPos.X, 0, waypointPos.Z)).Magnitude
 
-	if noclipConnection then noclipConnection:Disconnect() end
-	if renderConnection then renderConnection:Disconnect() end
-	bodyVel:Destroy()
-	bodyGyro:Destroy()
-	floatPart:Destroy()
+            if horizontalDistance <= 5 then
+                break
+            end
 
-	if movePart and movePart.Parent then
-		movePart.AssemblyLinearVelocity = Vector3.zero
-		movePart.AssemblyAngularVelocity = Vector3.zero
-	end
+            -- If the character drops below the map, stop immediately.
+            if current.Y < FALL_Y_THRESHOLD then
+                humanoid:MoveTo(current)
+                return false, false
+            end
 
-	if player.Character then
-		for _, part in ipairs(player.Character:GetDescendants()) do
-			if part:IsA("BasePart") then part.CanCollide = true end
-		end
-	end
+            if tick() - started >= timeout then
+                humanoid:MoveTo(current)
+                return false, false
+            end
 
-	return arrived, rubberbandDetected
+            task.wait(0.05)
+        end
+
+        if not isRunning or humanoid.Health <= 0 then
+            return false, false
+        end
+    end
+
+    local finalDistance =
+        (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
+         Vector3.new(target.X, 0, target.Z)).Magnitude
+
+    return finalDistance <= 7, false
 end
 
 local function moveToTargetVelocity(targetPart)
@@ -681,43 +679,67 @@ local function moveToTargetVelocity(targetPart)
 end
 
 local function tweenToInteract(targetPart)
-	local char = player.Character
-	if not char then return false end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return false end
+    local char = player.Character
+    if not char or not targetPart then return false end
 
-	local seat = humanoid.SeatPart
-	local vehicleModel = getVehicleModel(seat)
-	local groundTargetCFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp or humanoid.Health <= 0 then return false end
 
-	if seat and vehicleModel then
-		local duration = math.clamp((vehicleModel.PrimaryPart.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local cframeValue = Instance.new("CFrameValue")
-		cframeValue.Value = vehicleModel:GetPivot()
+    if humanoid.SeatPart then
+        dismountVehicle()
+        task.wait(0.15)
+        char = player.Character
+        humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not hrp then return false end
+    end
 
-		local tween = TweenService:Create(cframeValue, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Value = groundTargetCFrame})
-		local conn = cframeValue.Changed:Connect(function(newCFrame)
-			if vehicleModel and vehicleModel.Parent then vehicleModel:PivotTo(newCFrame) end
-		end)
+    local prompt =
+        targetPart:FindFirstChildOfClass("ProximityPrompt")
+        or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
+        or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
 
-		tween:Play()
-		task.wait(duration)
-		conn:Disconnect()
-		cframeValue:Destroy()
+    local targetPos = getGroundedWaypoint(targetPart.Position)
 
-		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-		dismountVehicle()
-		return true
-	else
-		local duration = math.clamp((hrp.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = groundTargetCFrame})
-		tween:Play()
-		task.wait(duration)
+    -- Stand a little away from the target so the interaction is performed
+    -- from a normal on-foot position.
+    if prompt then
+        local activationDistance = math.max(prompt.MaxActivationDistance or 10, 6)
+        local offset = targetPos - hrp.Position
+        if offset.Magnitude > activationDistance * 0.75 then
+            local approach = targetPos - offset.Unit * math.min(activationDistance * 0.55, 5)
+            approach = getGroundedWaypoint(approach)
+            humanoid:MoveTo(approach)
 
-		if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-		return true
-	end
+            local started = tick()
+            while isRunning and humanoid.Health > 0 do
+                local d = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
+                           Vector3.new(approach.X, 0, approach.Z)).Magnitude
+                if d <= 4.5 then break end
+                if hrp.Position.Y < FALL_Y_THRESHOLD then return false end
+                if tick() - started > 8 then return false end
+                task.wait(0.05)
+            end
+        end
+    else
+        humanoid:MoveTo(targetPos)
+        local started = tick()
+        while isRunning and humanoid.Health > 0 do
+            local d = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
+                       Vector3.new(targetPos.X, 0, targetPos.Z)).Magnitude
+            if d <= 5 then break end
+            if hrp.Position.Y < FALL_Y_THRESHOLD then return false end
+            if tick() - started > 8 then return false end
+            task.wait(0.05)
+        end
+    end
+
+    if CONFIG.TweenDelay > 0 then
+        task.wait(CONFIG.TweenDelay)
+    end
+
+    return isRunning and humanoid.Health > 0 and hrp.Position.Y >= FALL_Y_THRESHOLD
 end
 
 local function goToTarget(targetPart)
@@ -734,7 +756,7 @@ local function processWaypoints(waypoints, labelPrefix)
 		
 		drawForwardPath(waypoints, currentIndex)
 		
-		local targetPos = waypoints[currentIndex]
+		local targetPos = getGroundedWaypoint(waypoints[currentIndex])
 		local arrived, rubberbandDetected = moveToPositionVelocity(targetPos)
 
 		if rubberbandDetected then
@@ -860,7 +882,7 @@ local mainLoopRunning = false
 local lastStateChange = 0
 local consecutiveFailures = 0
 local MAX_CONSECUTIVE_FAILURES = 5
-local STATE_TIMEOUT = 45
+local STATE_TIMEOUT = 90
 
 local function setFarmState(state)
     farmState = state
@@ -1245,8 +1267,11 @@ local function mainLoop()
             end
 
             if not savedBuyPart then
-                if not recoverFarm(runId, "buy target not found") then break end
-                continue
+                savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName)
+                if not savedBuyPart then
+                    if not recoverFarm(runId, "buy target not found") then break end
+                    continue
+                end
             end
 
             setFarmState(FarmState.BUY)
@@ -1473,6 +1498,11 @@ ReadTab:Paragraph({
 })
 
 ReadTab:Paragraph({
+    Title = "🚶 Ground Pathfinding",
+    Content = "الحركة تستخدم Humanoid/Pathfinding على الأرض بدل BodyVelocity أو النقل الهوائي، لتتوافق مع نظام الحركة والتحقق الطبيعي في الماب."
+})
+
+ReadTab:Paragraph({
     Title = "💰 Laundry Priority",
     Content = "إذا كانت الحقيبة/الشخصية تحتوي أغراضاً قابلة للغسيل، يتم تشغيل الغسيل أولاً قبل شراء جديد."
 })
@@ -1554,7 +1584,7 @@ MainTab:Slider({
 })
 
 MainTab:Slider({
-    Title = "ارتفاع التوين / Tween Height (Y)",
+    Title = "ارتفاع التوين1 / Tween Height (Y)",
     Desc = "تعديل الارتفاع عن الأرض",
     Icon = "arrow-up-right",
     Step = 0.1,
