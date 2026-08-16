@@ -66,8 +66,8 @@ local function CreateToggle(name, yPos, key)
 end
 
 CreateToggle("ESP (Red)", 45, "ESP_Enabled")
-CreateToggle("Aimbot", 90, "Aimbot_Enabled")
-CreateToggle("Wall Check", 135, "WallCheck")
+CreateToggle("ايم بوت", 90, "Aimbot_Enabled")
+CreateToggle("مايلقط الي ورا الجدران", 135, "WallCheck")
 
 local function AddESP(char)
 	if char and char:FindFirstChild("Head") and not char.Head:FindFirstChild("RedESP") then
