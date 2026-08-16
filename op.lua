@@ -1,6 +1,9 @@
+-- ==========================================
+-- PRO COMBAT MASTER KILL-FARM v20261
+-- ==========================================
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
@@ -12,16 +15,10 @@ end
 
 local Settings = {
 	ESP_Enabled = true,
-	Aimbot_Enabled = true,
-	WallCheck = true,
-	AimSmoothness = 0.2,
-	Fly_Enabled = false,
-	Fly_Speed = 50,
-	Teleport_Air = false,
-	AutoLoot = false,
+	KillFarm_Enabled = false,
+	BypassAnti = true,
 	SafeZoneCheck = true,
-	Speed_Enabled = false,
-	WalkSpeed = 30
+	AttackDelay = 0.3,
 }
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -30,7 +27,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.fromOffset(280, 360)
+MainFrame.Size = UDim2.fromOffset(260, 260)
 MainFrame.Position = UDim2.new(0, 20, 0, 20)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
@@ -48,14 +45,14 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 15
-Title.Text = "من صنع almbjl_"
+Title.Text = "من صنع almbjl_ (Killer)"
 Title.Parent = MainFrame
 
 local ScrollingFrame = Instance.new("ScrollingFrame")
 ScrollingFrame.Size = UDim2.new(1, -10, 1, -45)
 ScrollingFrame.Position = UDim2.new(0, 5, 0, 40)
 ScrollingFrame.BackgroundTransparency = 1
-ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 420)
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
 ScrollingFrame.ScrollBarThickness = 4
 ScrollingFrame.Parent = MainFrame
 
@@ -66,7 +63,7 @@ UIList.Parent = ScrollingFrame
 
 local function CreateToggle(name, key)
 	local Btn = Instance.new("TextButton")
-	Btn.Size = UDim2.new(1, -10, 0, 32)
+	Btn.Size = UDim2.new(1, -10, 0, 35)
 	Btn.BackgroundColor3 = Settings[key] and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
 	Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	Btn.Font = Enum.Font.GothamBold
@@ -85,22 +82,41 @@ local function CreateToggle(name, key)
 	end)
 end
 
-CreateToggle("ESP (Red)", "ESP_Enabled")
-CreateToggle("ايم بوت", "Aimbot_Enabled")
-CreateToggle("مايلقط الي ورا الجدران", "WallCheck")
-CreateToggle("تفعيل الطيران", "Fly_Enabled")
-CreateToggle("الطيران فوق بالهواء", "Teleport_Air")
-CreateToggle("تعديل السرعة", "Speed_Enabled")
-CreateToggle("سحب اللوت المؤقت", "AutoLoot")
-CreateToggle("منع الايمبوت ع SafeZone", "SafeZoneCheck")
+CreateToggle("ESP + اسم السلاح بالشنطة", "ESP_Enabled")
+CreateToggle("فارم قتل جماعي تلقائي", "KillFarm_Enabled")
+CreateToggle("تخطي نظام الحماية (Anti-Cheat)", "BypassAnti")
+CreateToggle("تجنب الـ Safe Zone", "SafeZoneCheck")
 
--- نظام الـ ESP مع محتوى الشنطة (Inventory)
+-- تجاوز نظام الحماية (Anti-Cheat Bypass) الأساسي
+local function ApplyAntiBypass()
+	if not Settings.BypassAnti then return end
+	pcall(function()
+		for _, v in ipairs(getconnections(Script.Error or gameScriptError)) do
+			v:Disable()
+		end
+	end)
+	pcall(function()
+		local mt = getrawmetatable(game)
+		setreadonly(mt, false)
+		local old = mt.__namecall
+		mt.__namecall = newcclosure(function(self, ...)
+			local method = getnamecallmethod()
+			if method == "Kick" or method == "Ban" then
+				return nil
+			end
+			return old(self, ...)
+		end)
+	end)
+end
+task.spawn(ApplyAntiBypass)
+
+-- ESP يوضح اسم اللاعب + الأسلحة اللي معه بالشنطة
 local function AddESP(char, player)
-	if char and char:FindFirstChild("Head") and not char.Head:FindFirstChild("RedESP") then
+	if char and char:FindFirstChild("Head") and not char.Head:FindFirstChild("KillESP") then
 		local bg = Instance.new("BillboardGui")
-		bg.Name = "RedESP"
-		bg.Size = UDim2.new(6, 0, 7, 0)
-		bg.StudsOffset = Vector3.new(0, 1.5, 0)
+		bg.Name = "KillESP"
+		bg.Size = UDim2.new(7, 0, 8, 0)
+		bg.StudsOffset = Vector3.new(0, 2, 0)
 		bg.AlwaysOnTop = true
 		bg.Parent = char.Head
 		
@@ -115,33 +131,32 @@ local function AddESP(char, player)
 		stroke.Parent = frame
 
 		local infoText = Instance.new("TextLabel")
-		infoText.Name = "InfoText"
-		infoText.Size = UDim2.new(1, 0, 0, 50)
+		infoText.Name = "WeaponInfo"
+		infoText.Size = UDim2.new(1, 0, 0, 60)
 		infoText.Position = UDim2.new(0, 0, 1, 0)
 		infoText.BackgroundTransparency = 1
-		infoText.TextColor3 = Color3.fromRGB(255, 255, 255)
+		infoText.TextColor3 = Color3.fromRGB(255, 255, 0)
 		infoText.TextStrokeTransparency = 0
 		infoText.Font = Enum.Font.GothamBold
 		infoText.TextSize = 12
 		infoText.Text = ""
 		infoText.Parent = bg
 
-		-- تحديث محتوى الشنطة
 		task.spawn(function()
 			while char and char.Parent do
 				pcall(function()
-					local items = {}
+					local weapons = {}
 					if player:FindFirstChild("Backpack") then
 						for _, item in ipairs(player.Backpack:GetChildren()) do
-							table.insert(items, item.Name)
+							table.insert(weapons, item.Name)
 						end
 					end
 					if char:FindFirstChildOfClass("Tool") then
-						table.insert(items, char:FindFirstChildOfClass("Tool").Name)
+						table.insert(weapons, char:FindFirstChildOfClass("Tool").Name)
 					end
-					infoText.Text = "الشنطة: " .. (#items > 0 and table.concat(items, ", ") :sub(1, 40) or "فارغة")
+					infoText.Text = player.Name .. "\nالأسلحة: " .. (#weapons > 0 and table.concat(weapons, ", ") :sub(1, 45) or "لايوجد سلاح")
 				end)
-				task.wait(1)
+				task.wait(0.8)
 			end
 		end)
 	end
@@ -170,7 +185,7 @@ Players.PlayerAdded:Connect(SetupPlayerESP)
 local function IsInSafeZone(targetPart)
 	if not Settings.SafeZoneCheck then return false end
 	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj.Name:lower():find("safe") or obj.Name:lower():find("zone") then
+		if obj.Name:lower():find("safe") or obj.Name:lower():find("zone") or obj.Name:lower():find("spawn") then
 			if obj:IsA("BasePart") then
 				if (targetPart.Position - obj.Position).Magnitude < (obj.Size.Magnitude / 2) then
 					return true
@@ -181,113 +196,42 @@ local function IsInSafeZone(targetPart)
 	return false
 end
 
--- فحص أقرب هدف للايمبوت مع شروط الجدران والـ SafeZone
-local function GetClosestTargetInView()
-	local target = nil
-	local shortestDist = math.huge
-	local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character then
-			local char = player.Character
-			local head = char:FindFirstChild("Head")
-			local humanoid = char:FindFirstChildOfClass("Humanoid")
-			
-			if head and humanoid and humanoid.Health > 0 then
-				if not IsInSafeZone(head) then
-					local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-					if onScreen then
-						local pos2D = Vector2.new(screenPos.X, screenPos.Y)
-						local dist = (pos2D - mousePos).Magnitude
-						
-						if dist < shortestDist then
-							if Settings.WallCheck then
-								local origin = Camera.CFrame.Position
-								local direction = (head.Position - origin)
-								local raycastParams = RaycastParams.new()
-								raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-								raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-								
-								local result = Workspace:Raycast(origin, direction, raycastParams)
-								if not result or result.Instance:IsDescendantOf(char) then
-									target = head
-									shortestDist = dist
+-- نظام القتل التلقائي الجماعي (Kill Farm)
+task.spawn(function()
+	while true do
+		if Settings.KillFarm_Enabled then
+			pcall(function()
+				local myChar = LocalPlayer.Character
+				if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+					local hrp = myChar.HumanoidRootPart
+					local originalPos = hrp.CFrame
+					
+					for _, player in ipairs(Players:GetPlayers()) do
+						if player ~= LocalPlayer and player.Character then
+							local enemyChar = player.Character
+							local enemyHrp = enemyChar:FindFirstChild("HumanoidRootPart")
+							local enemyHumanoid = enemyChar:FindFirstChildOfClass("Humanoid")
+							
+							if enemyHrp and enemyHumanoid and enemyHumanoid.Health > 0 then
+								if not IsInSafeZone(enemyHrp) then
+									-- الانتقال الفوري للعدو وتصفيته ثم العودة لتجنب الكشف
+									hrp.CFrame = enemyHrp.CFrame + Vector3.new(0, 3, 0)
+									
+									-- محاولة تفعيل السلاح أو ضرب العدو تلقائياً
+									local tool = myChar:FindFirstChildOfClass("Tool")
+									if tool then
+										tool:Activate()
+									end
+									
+									task.wait(Settings.AttackDelay)
 								end
-							else
-								target = head
-								shortestDist = dist
 							end
 						end
 					end
+					hrp.CFrame = originalPos
 				end
-			end
+			end)
 		end
-	end
-	return target
-end
-
--- نظام اللوت السريع المؤقت
-local function TriggerAutoLoot()
-	if not Settings.AutoLoot then return end
-	local char = LocalPlayer.Character
-	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-	local hrp = char.HumanoidRootPart
-	local originalPos = hrp.CFrame
-	
-	pcall(function()
-		for _, obj in ipairs(Workspace:GetDescendants()) do
-			if obj:IsA("TouchTransmitter") and obj.Parent and (obj.Parent:IsA("BasePart") or obj.Parent:IsA("Model")) then
-				local part = obj.Parent:IsA("BasePart") and obj.Parent or obj.Parent:FindFirstChildWhichIsA("BasePart")
-				if part and (part.Position - hrp.Position).Magnitude < 250 then
-					hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
-					task.wait(0.1)
-				end
-			end
-		end
-	end)
-	task.wait(0.2)
-	hrp.CFrame = originalPos
-	Settings.AutoLoot = false
-end
-
--- حلقة التحديث المستمرة للوظائف
-RunService.RenderStepped:Connect(function()
-	local char = LocalPlayer.Character
-	if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") then
-		local hrp = char.HumanoidRootPart
-		local humanoid = char:FindFirstChildOfClass("Humanoid")
-		
-		-- السرعة
-		if Settings.Speed_Enabled then
-			humanoid.WalkSpeed = Settings.WalkSpeed
-		else
-			humanoid.WalkSpeed = 16
-		end
-		
-		-- الانتقال فوق بالهواء
-		if Settings.Teleport_Air then
-			hrp.CFrame = hrp.CFrame + Vector3.new(0, 50, 0)
-			Settings.Teleport_Air = false
-		end
-		
-		-- الطيران
-		if Settings.Fly_Enabled then
-			local moveDir = humanoid.MoveDirection
-			hrp.Velocity = Vector3.new(moveDir.X * Settings.Fly_Speed, 1, moveDir.Z * Settings.Fly_Speed)
-		end
-	end
-	
-	-- سحب اللوت
-	if Settings.AutoLoot then
-		task.spawn(TriggerAutoLoot)
-	end
-	
-	-- الإيمبوت
-	if Settings.Aimbot_Enabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-		local targetHead = GetClosestTargetInView()
-		if targetHead then
-			local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-			Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.AimSmoothness)
-		end
+		task.wait(1)
 	end
 end)
