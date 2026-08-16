@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- 1الأخضر السعودي
+    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي2
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -100,7 +100,7 @@ local ReadTab = Window:Tab({
 })
 
 local MainTab = Window:Tab({
-    Title = "التجميع الآلي / Auto Farm",
+    Title = "اوتو فارم الآلي / Auto Farm",
     Icon = "bot",
 })
 
@@ -1177,6 +1177,69 @@ end
 --------------------------------------------------------------------
 -- 🔄 MAIN LOOP
 --------------------------------------------------------------------
+--------------------------------------------------------------------
+-- 🔎 BUY TARGET DIAGNOSTICS
+--------------------------------------------------------------------
+local function printTargetDiagnostics(label, targetPart, targetPrompt)
+    print("========== SanDiegoFarm DIAGNOSTIC ==========")
+    print("LABEL:", label)
+
+    if not targetPart then
+        warn("[SanDiegoFarm] TARGET = NIL")
+        print("=============================================")
+        return
+    end
+
+    print("Target Name:", targetPart.Name)
+    print("Target Class:", targetPart.ClassName)
+    print("Target Parent:", targetPart.Parent and targetPart.Parent:GetFullName() or "nil")
+
+    local okPos, pos = pcall(function()
+        return targetPart.Position
+    end)
+
+    if okPos and pos then
+        print("Target Position:", tostring(pos))
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            print("Player Position:", tostring(hrp.Position))
+            print("Distance:", tostring((hrp.Position - pos).Magnitude))
+        end
+        print("Ground Position:", tostring(getGroundedWaypoint(pos)))
+    end
+
+    if targetPrompt then
+        print("Prompt Name:", targetPrompt.Name)
+        print("Prompt Parent:", targetPrompt.Parent and targetPrompt.Parent:GetFullName() or "nil")
+        print("ActionText:", tostring(targetPrompt.ActionText))
+        print("ObjectText:", tostring(targetPrompt.ObjectText))
+        print("Enabled:", tostring(targetPrompt.Enabled))
+        print("HoldDuration:", tostring(targetPrompt.HoldDuration))
+        print("MaxActivationDistance:", tostring(targetPrompt.MaxActivationDistance))
+    else
+        warn("[SanDiegoFarm] PROMPT = NIL")
+    end
+
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+    print("Character:", character and character:GetFullName() or "nil")
+    print("Humanoid:", humanoid and humanoid:GetFullName() or "nil")
+    print("HRP:", hrp and hrp:GetFullName() or "nil")
+    print("Health:", humanoid and tostring(humanoid.Health) or "nil")
+    print("Item Count:", tostring(getItemCount(CONFIG.ItemName)))
+    print("Farm State:", tostring(farmState))
+    print("=============================================")
+end
+
+local function diagnosticFindBuyTarget()
+    local target, prompt = findTarget(CONFIG.ItemName)
+    printTargetDiagnostics("BUY TARGET", target, prompt)
+    return target ~= nil
+end
+
 local function mainLoop()
     if mainLoopRunning then return end
 
@@ -1264,6 +1327,7 @@ local function mainLoop()
 
             if not savedBuyPart or not savedBuyPart.Parent or not savedBuyPrompt or not savedBuyPrompt.Parent then
                 savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName)
+                printTargetDiagnostics("BUY TARGET ACQUIRED", savedBuyPart, savedBuyPrompt)
             end
 
             if not savedBuyPart then
@@ -1278,9 +1342,14 @@ local function mainLoop()
             getInVehicle()
 
             local reached = false
-            local ok = pcall(function()
+            local ok, moveError = pcall(function()
                 reached = goToTarget(savedBuyPart)
             end)
+
+            print("[SanDiegoFarm] BUY movement:", "ok=", ok, "reached=", reached)
+            if not ok then
+                warn("[SanDiegoFarm] BUY movement error:", tostring(moveError))
+            end
 
             if not ok or not reached then
                 savedBuyPart, savedBuyPrompt = nil, nil
@@ -1530,6 +1599,14 @@ local function startFarmSafely()
     end)
 end
 
+MainTab:Button({
+    Title = "🔎 فحص هدف الشراء / Diagnose Buy",
+    Desc = "يفحص الهدف والـPrompt والمسافة في Developer Console.",
+    Callback = function()
+        diagnosticFindBuyTarget()
+    end
+})
+
 MainTab:Toggle({
     Title = "التجميع الآلي / Auto Farm",
     Desc = "تشغيل أو إيقاف التجميع الآلي",
@@ -1584,7 +1661,7 @@ MainTab:Slider({
 })
 
 MainTab:Slider({
-    Title = "ارتفاع التوين1 / Tween Height (Y)",
+    Title = "ارتفاع التوين / Tween Height (Y)",
     Desc = "تعديل الارتفاع عن الأرض",
     Icon = "arrow-up-right",
     Step = 0.1,
