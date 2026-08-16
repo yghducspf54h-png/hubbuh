@@ -11,7 +11,7 @@ local WindUI = WindUILoader()
 
 -- ================================================================
 -- ALMBJL ENGINE v2.1
--- Rights: almbjl
+-- Rights: almmbjl
 -- Based on the provided route/interaction engineering, rebuilt with
 -- explicit state handling, verification, and recovery.
 -- ================================================================
@@ -1138,35 +1138,68 @@ local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
     return false
 end
 
-local function getSellerSafeApproachPositions(targetPart, fallbackPosition)
+local function getSellerSafeApproachPositions(targetPart, targetPrompt, fallbackPosition)
     if not targetPart or not fallbackPosition then return {} end
 
     local sellerPos = targetPart.Position
-    local flat = Vector3.new(
+
+    -- The previous version used fixed 6/9/12 stud distances. That can
+    -- accidentally put the player OUTSIDE the prompt's activation range.
+    -- Use the prompt's real activation distance instead.
+    local maxPromptDistance = 8
+    if targetPrompt then
+        pcall(function()
+            if targetPrompt.MaxActivationDistance and targetPrompt.MaxActivationDistance > 0 then
+                maxPromptDistance = targetPrompt.MaxActivationDistance
+            end
+        end)
+    end
+
+    local nearDistance = math.max(0.75, math.min(maxPromptDistance - 0.50, 4.5))
+    local farDistance = math.max(0.90, math.min(maxPromptDistance - 0.20, 6))
+
+    -- Try several sides of the seller. This handles prompts whose
+    -- RequiresLineOfSight/attachment is directional.
+    local directions = {
+        Vector3.new(1, 0, 0),
+        Vector3.new(-1, 0, 0),
+        Vector3.new(0, 0, 1),
+        Vector3.new(0, 0, -1),
+        Vector3.new(0.707, 0, 0.707),
+        Vector3.new(-0.707, 0, 0.707),
+        Vector3.new(0.707, 0, -0.707),
+        Vector3.new(-0.707, 0, -0.707),
+    }
+
+    -- Prefer the side facing the last safe route position.
+    local towardSafe = Vector3.new(
         fallbackPosition.X - sellerPos.X,
         0,
         fallbackPosition.Z - sellerPos.Z
     )
 
-    if flat.Magnitude < 0.01 then
-        flat = Vector3.new(1, 0, 0)
-    else
-        flat = flat.Unit
+    if towardSafe.Magnitude > 0.01 then
+        towardSafe = towardSafe.Unit
+        table.sort(directions, function(a, b)
+            return a:Dot(towardSafe) > b:Dot(towardSafe)
+        end)
     end
 
-    -- Do NOT drive/tween directly onto the seller part.
-    -- Some seller geometry is slightly below/inside the floor and the
-    -- direct approach can make the vehicle/player drop through it.
     local safeY = fallbackPosition.Y + CONFIG.Height
-    local distances = {6, 9, 12}
     local positions = {}
 
+    -- First try a point comfortably inside the activation radius, then
+    -- a slightly closer point if the first one is blocked by geometry.
+    local distances = {nearDistance, farDistance}
+
     for _, distance in ipairs(distances) do
-        positions[#positions + 1] = Vector3.new(
-            sellerPos.X + flat.X * distance,
-            safeY,
-            sellerPos.Z + flat.Z * distance
-        )
+        for _, dir in ipairs(directions) do
+            positions[#positions + 1] = Vector3.new(
+                sellerPos.X + dir.X * distance,
+                safeY,
+                sellerPos.Z + dir.Z * distance
+            )
+        end
     end
 
     return positions
@@ -1175,9 +1208,16 @@ end
 local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPosition, runId)
     if not targetPart or not isFarmActive(runId) then return false end
 
-    local approaches = getSellerSafeApproachPositions(targetPart, fallbackPosition)
+    local approaches = getSellerSafeApproachPositions(
+        targetPart,
+        targetPrompt,
+        fallbackPosition
+    )
 
-    for attempt, approachPos in ipairs(approaches) do
+    -- Keep this bounded so a bad prompt/geometry does not stall the farm.
+    local maxApproaches = math.min(#approaches, 8)
+
+    for attempt = 1, maxApproaches do
         if not isFarmActive(runId) then return false end
 
         if isCharacterFallingOrDead() then
@@ -1187,10 +1227,9 @@ local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPositi
         end
 
         clearWaylines()
-
-        -- Stay in the vehicle while travelling to the safe point.
         getInVehicle()
 
+        local approachPos = approaches[attempt]
         local arrived, _, fell = moveToPositionVelocity(approachPos)
 
         if fell or not arrived or isCharacterFallingOrDead() then
@@ -1198,14 +1237,14 @@ local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPositi
             if not restoreCharacterToPosition(fallbackPosition) then
                 return false
             end
-            safeWait(0.2 * attempt, runId)
+            safeWait(0.15, runId)
             continue
         end
 
-        -- IMPORTANT: never tween the vehicle onto the seller itself.
-        -- Dismount at the safe point, then interact from a short distance.
+        -- We are now close enough for the prompt, but NOT on top of the
+        -- seller geometry. Exit the vehicle and let the character interact.
         dismountVehicle()
-        task.wait(0.15)
+        task.wait(0.2)
 
         if isCharacterFallingOrDead() then
             if not restoreCharacterToPosition(fallbackPosition) then
@@ -1214,14 +1253,23 @@ local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPositi
             continue
         end
 
+        -- Re-resolve the prompt in case the stored instance became stale.
+        local livePrompt = targetPrompt
+        if not livePrompt or not livePrompt.Parent then
+            livePrompt =
+                (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt"))
+                or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
+                or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
+        end
+
         local sold = performInteractionLoop(
             targetPart,
-            targetPrompt,
+            livePrompt,
             function()
                 return getItemCount(CONFIG.ItemName) <= 0
             end,
-            12,
-            0.08,
+            20,
+            0.10,
             runId
         )
 
@@ -1229,11 +1277,34 @@ local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPositi
             return true
         end
 
-        -- If the prompt was too far away, try the next closer approach.
-        -- If the player dropped, restore before trying again.
         if isCharacterFallingOrDead() then
             if not restoreCharacterToPosition(fallbackPosition) then
                 return false
+            end
+        else
+            -- Move a little closer for the next attempt rather than
+            -- returning all the way to the route checkpoint.
+            local char, hrp = getCharacterRoot()
+            if hrp and livePrompt then
+                local d = (hrp.Position - targetPart.Position).Magnitude
+                if d > 1.5 then
+                    pcall(function()
+                        local dir = Vector3.new(
+                            livePrompt.Parent.Position.X - hrp.Position.X,
+                            0,
+                            livePrompt.Parent.Position.Z - hrp.Position.Z
+                        )
+                        if dir.Magnitude > 0.01 then
+                            dir = dir.Unit
+                            hrp.CFrame = CFrame.new(
+                                livePrompt.Parent.Position.X - dir.X * 1.75,
+                                hrp.Position.Y,
+                                livePrompt.Parent.Position.Z - dir.Z * 1.75
+                            )
+                        end
+                    end)
+                    task.wait(0.12)
+                end
             end
         end
     end
