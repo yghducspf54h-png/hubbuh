@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعود1ي
+    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -100,7 +100,7 @@ local ReadTab = Window:Tab({
 })
 
 local MainTab = Window:Tab({
-    Title = "اوتو فارم الآلي / Auto Farm",
+    Title = "التجميع الآلي / Auto Farm",
     Icon = "bot",
 })
 
@@ -608,10 +608,6 @@ local function getGroundedWaypoint(position)
     return getGroundPosition(position)
 end
 
-local function hasProcessableBackpackItems()
-    return getProcessableItemCount() > 0
-end
-
 
 local function moveToPositionVelocity(targetPos)
     -- Ground-only movement for the user's own game:
@@ -915,6 +911,11 @@ local function getProcessableItemCount()
 		for _, item in ipairs(player.Backpack:GetChildren()) do
 			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
 		end
+
+local function hasProcessableBackpackItems()
+    return getProcessableItemCount() > 0
+end
+
 	end
 	local char = player.Character
 	if char then
@@ -1583,8 +1584,8 @@ local function startFarmSafely()
 end
 
 MainTab:Toggle({
-    Title = "اوتو فارم الآلي / Auto Farm",
-    Desc = "تشغيل أو إيقاف اوتو فارم الآلي",
+    Title = "التجميع الآلي / Auto Farm",
+    Desc = "تشغيل أو إيقاف التجميع الآلي",
     Icon = "power",
     Type = "Toggle",
     Value = isRunning,
