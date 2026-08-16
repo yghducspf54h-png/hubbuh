@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
+    Accent = Color3.fromHex("#006C35"), --1 الأخضر السعودي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -928,8 +928,14 @@ local function performInteractionLoop(targetPart, targetPrompt, conditionFn, max
     while isFarmActive(runId) and attempts < maxAttempts do
         if conditionFn() then return true end
 
+        local freshPrompt =
+            targetPart:FindFirstChildOfClass("ProximityPrompt")
+            or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
+            or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+            or targetPrompt
+
         local ok = pcall(function()
-            interactWith(targetPart, targetPrompt)
+            interactWith(targetPart, freshPrompt)
         end)
 
         if not ok then
@@ -1060,7 +1066,11 @@ local function forceSellerInteraction(targetPart, prompt, fallbackPosition, runI
             end
 
             -- Re-approach after a fall before trying the seller again.
-            if not goToTargetWithFallRecovery(targetPart, fallbackPosition, runId) then
+            local reReached = false
+            pcall(function()
+                reReached = goToTarget(targetPart)
+            end)
+            if not reReached or isCharacterFallingOrDead() then
                 return false
             end
         end
@@ -1176,13 +1186,14 @@ local function mainLoop()
         if autoLaunder and hasProcessableBackpackItems() then
             setFarmState(FarmState.LAUNDER)
 
-            if not savedLaunderPart or not savedLaunderPart.Parent or not savedLaunderPrompt or not savedLaunderPrompt.Parent then
+            if not savedLaunderPart or not savedLaunderPart.Parent then
                 savedLaunderPart, savedLaunderPrompt = findTarget(CONFIG.LaunderName)
                 if not savedLaunderPart then
                     savedLaunderPart, savedLaunderPrompt = findTarget("Launder")
                 end
             end
 
+            -- Never block the whole farm if laundry cannot be found/reached.
             if savedLaunderPart then
                 getInVehicle()
 
@@ -1199,27 +1210,25 @@ local function mainLoop()
                             return getProcessableItemCount() <= 0
                         end,
                         60,
-                        0.08,
+                        0.10,
                         runId
                     )
 
-                    if not launderedFirst and getProcessableItemCount() > 0 then
+                    if launderedFirst or getProcessableItemCount() <= 0 then
+                        consecutiveFailures = 0
+                        getInVehicle()
+                        safeWait(0.10, runId)
+                    else
+                        warn("[SanDiegoFarm] Laundry verification failed; continuing to BUY.")
                         savedLaunderPart, savedLaunderPrompt = nil, nil
-                        if not recoverFarm(runId, "priority laundry verification failed") then break end
-                        continue
                     end
-
-                    getInVehicle()
-                    safeWait(0.1, runId)
                 else
+                    warn("[SanDiegoFarm] Laundry approach failed; continuing to BUY.")
                     savedLaunderPart, savedLaunderPrompt = nil, nil
-                    if not recoverFarm(runId, "priority laundry approach failed") then break end
-                    continue
                 end
             else
+                warn("[SanDiegoFarm] Laundry target not found; continuing to BUY.")
                 savedLaunderPart, savedLaunderPrompt = nil, nil
-                if not recoverFarm(runId, "priority laundry target not found") then break end
-                continue
             end
         end
 
@@ -1454,6 +1463,11 @@ ReadTab:Paragraph({
 })
 
 ReadTab:Paragraph({
+    Title = "🔎 Auto Farm Diagnostics",
+    Content = "أخطاء الحلقة وأهداف الشراء/البيع/الغسيل تظهر في Output بدل ما يتوقف السكربت بصمت."
+})
+
+ReadTab:Paragraph({
     Title = "🛣️ Ground-First Navigation",
     Content = "الحركة تحاول الالتزام بسطح الأرض عبر Raycast، ومع السقوط يرجع لآخر نقطة آمنة ويعيد المحاولة."
 })
@@ -1468,6 +1482,24 @@ ReadTab:Paragraph({
     Content = "إذا واجهت تقطيعاً، فلا تلوم السكريبت بل جهازك! / If you're laggy don't blame the script!!"
 })
 
+local function startFarmSafely()
+    if mainLoopRunning then
+        warn("[SanDiegoFarm] Auto Farm is already running.")
+        return
+    end
+
+    task.spawn(function()
+        local ok, err = xpcall(mainLoop, debug.traceback)
+        if not ok then
+            warn("[SanDiegoFarm] MAIN LOOP ERROR:\n" .. tostring(err))
+            isRunning = false
+            mainLoopRunning = false
+            farmState = FarmState.IDLE
+            pcall(clearWaylines)
+        end
+    end)
+end
+
 MainTab:Toggle({
     Title = "التجميع الآلي / Auto Farm",
     Desc = "تشغيل أو إيقاف التجميع الآلي",
@@ -1477,7 +1509,7 @@ MainTab:Toggle({
     Callback = function(state)
         isRunning = state
         if isRunning then
-            task.spawn(mainLoop)
+            startFarmSafely()
         else
             stopFarmCleanly()
         end
