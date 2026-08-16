@@ -1,5 +1,5 @@
 -- ==========================================
--- PRO COMBAT MASTER KILL-FARM v20261
+-- PRO COMBAT MASTER KILL-FARM v2026 (Target Weapon)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -18,7 +18,8 @@ local Settings = {
 	KillFarm_Enabled = false,
 	BypassAnti = true,
 	SafeZoneCheck = true,
-	AttackDelay = 0.3,
+	TargetWeapon = "AK47", -- اكتب اسم السلاح هنا أو جزء منه
+	AttackDelay = 0.25,
 }
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -27,7 +28,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.fromOffset(260, 260)
+MainFrame.Size = UDim2.fromOffset(280, 330)
 MainFrame.Position = UDim2.new(0, 20, 0, 20)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
@@ -45,14 +46,14 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 15
-Title.Text = "من صنع almbjl_ (Killer)"
+Title.Text = "من صنع almbjl_ (Target Killer)"
 Title.Parent = MainFrame
 
 local ScrollingFrame = Instance.new("ScrollingFrame")
 ScrollingFrame.Size = UDim2.new(1, -10, 1, -45)
 ScrollingFrame.Position = UDim2.new(0, 5, 0, 40)
 ScrollingFrame.BackgroundTransparency = 1
-ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 380)
 ScrollingFrame.ScrollBarThickness = 4
 ScrollingFrame.Parent = MainFrame
 
@@ -82,19 +83,33 @@ local function CreateToggle(name, key)
 	end)
 end
 
-CreateToggle("ESP + اسم السلاح بالشنطة", "ESP_Enabled")
-CreateToggle("فارم قتل جماعي تلقائي", "KillFarm_Enabled")
-CreateToggle("تخطي نظام الحماية (Anti-Cheat)", "BypassAnti")
-CreateToggle("تجنب الـ Safe Zone", "SafeZoneCheck")
+-- مربع نص لتحديد اسم السلاح المطلوب استهدافه بالشنطة
+local WeaponBox = Instance.new("TextBox")
+WeaponBox.Size = UDim2.new(1, -10, 0, 35)
+WeaponBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+WeaponBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+WeaponBox.Font = Enum.Font.GothamBold
+WeaponBox.TextSize = 13
+WeaponBox.Text = Settings.TargetWeapon
+WeaponBox.PlaceholderText = "اكتب اسم السلاح هنا..."
+WeaponBox.Parent = ScrollingFrame
 
--- تجاوز نظام الحماية (Anti-Cheat Bypass) الأساسي
+local BoxCorner = Instance.new("UICorner")
+BoxCorner.CornerRadius = UDim.new(0, 6)
+BoxCorner.Parent = WeaponBox
+
+WeaponBox.FocusLost:Connect(function()
+	Settings.TargetWeapon = WeaponBox.Text
+end)
+
+CreateToggle("ESP + أسلحة الشنطة", "ESP_Enabled")
+CreateToggle("اوتو فارم (بالسلاح المخصص)", "KillFarm_Enabled")
+CreateToggle("تخطي نظام الحماية (Anti-Cheat)", "BypassAnti")
+CreateToggle("تجنب الـ Safe Zone (الي لونه أخضر)", "SafeZoneCheck")
+
+-- تجاوز نظام الحماية (Anti-Cheat Bypass)
 local function ApplyAntiBypass()
 	if not Settings.BypassAnti then return end
-	pcall(function()
-		for _, v in ipairs(getconnections(Script.Error or gameScriptError)) do
-			v:Disable()
-		end
-	end)
 	pcall(function()
 		local mt = getrawmetatable(game)
 		setreadonly(mt, false)
@@ -110,7 +125,35 @@ local function ApplyAntiBypass()
 end
 task.spawn(ApplyAntiBypass)
 
--- ESP يوضح اسم اللاعب + الأسلحة اللي معه بالشنطة
+-- دالة فحص اللون الأخضر أو مناطق الحماية (SafeZone)
+local function IsInSafeZone(char, targetPart)
+	if not Settings.SafeZoneCheck then return false end
+	
+	-- فحص الأجزاء الملونة بالأخضر بالكامل على اللاعب أو البيئة المحيطة
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local col = part.Color
+			-- إذا كانت نسبة اللون الأخضر هي الغالبة (مثل العشب أو الدروع/مناطق الحماية الخضراء)
+			if col.G > col.R and col.G > col.B and col.G > 0.4 then
+				return true
+			end
+		end
+	end
+	
+	-- الفحص التقليدي لأسماء مناطق الأمان
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj.Name:lower():find("safe") or obj.Name:lower():find("zone") or obj.Name:lower():find("spawn") then
+			if obj:IsA("BasePart") then
+				if (targetPart.Position - obj.Position).Magnitude < (obj.Size.Magnitude / 2) then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- ESP يوضح اسم اللاعب والأسلحة
 local function AddESP(char, player)
 	if char and char:FindFirstChild("Head") and not char.Head:FindFirstChild("KillESP") then
 		local bg = Instance.new("BillboardGui")
@@ -181,22 +224,31 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(SetupPlayerESP)
 
--- التحقق من مناطق الأمان SafeZone
-local function IsInSafeZone(targetPart)
-	if not Settings.SafeZoneCheck then return false end
-	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj.Name:lower():find("safe") or obj.Name:lower():find("zone") or obj.Name:lower():find("spawn") then
-			if obj:IsA("BasePart") then
-				if (targetPart.Position - obj.Position).Magnitude < (obj.Size.Magnitude / 2) then
-					return true
-				end
+-- دالة التحقق هل اللاعب يمتلك السلاح المحدد في شنطته
+local function HasTargetWeapon(player, char)
+	if Settings.TargetWeapon == "" then return true end
+	local targetLower = Settings.TargetWeapon:lower()
+	
+	if player:FindFirstChild("Backpack") then
+		for _, item in ipairs(player.Backpack:GetChildren()) do
+			if item.Name:lower():find(targetLower) then
+				return true
 			end
 		end
 	end
+	
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") and item.Name:lower():find(targetLower) then
+				return true
+			end
+		end
+	end
+	
 	return false
 end
 
--- نظام القتل التلقائي الجماعي (Kill Farm)
+-- نظام الأوتو فارم بالتتابع (يقتل لاعب وينتقل للي بعده بالترتيب)
 task.spawn(function()
 	while true do
 		if Settings.KillFarm_Enabled then
@@ -207,23 +259,26 @@ task.spawn(function()
 					local originalPos = hrp.CFrame
 					
 					for _, player in ipairs(Players:GetPlayers()) do
+						if not Settings.KillFarm_Enabled then break end
 						if player ~= LocalPlayer and player.Character then
 							local enemyChar = player.Character
 							local enemyHrp = enemyChar:FindFirstChild("HumanoidRootPart")
 							local enemyHumanoid = enemyChar:FindFirstChildOfClass("Humanoid")
 							
 							if enemyHrp and enemyHumanoid and enemyHumanoid.Health > 0 then
-								if not IsInSafeZone(enemyHrp) then
-									-- الانتقال الفوري للعدو وتصفيته ثم العودة لتجنب الكشف
-									hrp.CFrame = enemyHrp.CFrame + Vector3.new(0, 3, 0)
+								-- التحقق من السلاح المطلوب ومن منطقة الأمان (SafeZone / اللون الأخضر)
+								if HasTargetWeapon(player, enemyChar) and not IsInSafeZone(enemyChar, enemyHrp) then
 									
-									-- محاولة تفعيل السلاح أو ضرب العدو تلقائياً
-									local tool = myChar:FindFirstChildOfClass("Tool")
-									if tool then
-										tool:Activate()
+									-- الاستمرار بمهاجمة اللاعب الحالي حتى ينتهي أو يموت، ثم الانتقال لغيره
+									while enemyHumanoid.Health > 0 and enemyChar.Parent and Settings.KillFarm_Enabled do
+										hrp.CFrame = enemyHrp.CFrame + Vector3.new(0, 3, 0)
+										
+										local tool = myChar:FindFirstChildOfClass("Tool")
+										if tool then
+											tool:Activate()
+										end
+										task.wait(Settings.AttackDelay)
 									end
-									
-									task.wait(Settings.AttackDelay)
 								end
 							end
 						end
@@ -232,6 +287,6 @@ task.spawn(function()
 				end
 			end)
 		end
-		task.wait(1)
+		task.wait(0.5)
 	end
 end)
