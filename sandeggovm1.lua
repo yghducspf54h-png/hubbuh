@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- 1الأخضر السعودي
+    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -561,6 +561,7 @@ local function getNearestWaypointIndex(waypoints, currentPos)
 end
 
 local function moveToPositionVelocity(targetPos)
+	local groundedTarget = getGroundedWaypoint(targetPos)
 	local char = player.Character
 	if not char then return false, false end
 	
@@ -614,7 +615,7 @@ local function moveToPositionVelocity(targetPos)
 		end
 	end)
 
-	local targetPosWithHeight = Vector3.new(targetPos.X, targetPos.Y + CONFIG.Height, targetPos.Z)
+	local targetPosWithHeight = Vector3.new(groundedTarget.X, groundedTarget.Y + CONFIG.Height, groundedTarget.Z)
 	local arrived = false
 	local rubberbandDetected = false
 	local previousPos = movePart.Position
@@ -746,7 +747,7 @@ local function processWaypoints(waypoints, labelPrefix)
 				local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
 				currentIndex = nearestIdx
 				
-				local safeTargetPos = waypoints[nearestIdx] + Vector3.new(0, CONFIG.Height, 0)
+				local safeTargetPos = getGroundedWaypoint(waypoints[nearestIdx]) + Vector3.new(0, CONFIG.Height, 0)
 				local movePart = hrp
 				
 				local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -952,6 +953,36 @@ end
 local FALL_Y_THRESHOLD = 0
 local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
 
+-- Ground-first navigation for a game-owned map.
+local GROUND_RAY_HEIGHT = 120
+local GROUND_RAY_DEPTH = 300
+local GROUND_CLEARANCE = 3.0
+
+local function getGroundPosition(position)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = player.Character and {player.Character} or {}
+
+    local result = workspace:Raycast(
+        position + Vector3.new(0, GROUND_RAY_HEIGHT, 0),
+        Vector3.new(0, -GROUND_RAY_DEPTH, 0),
+        params
+    )
+
+    if result then
+        return result.Position + Vector3.new(0, GROUND_CLEARANCE, 0)
+    end
+    return position
+end
+
+local function getGroundedWaypoint(position)
+    return getGroundPosition(position)
+end
+
+local function hasProcessableBackpackItems()
+    return getProcessableItemCount() > 0
+end
+
 local function getCharacterRoot()
     local char = player.Character
     if not char then return nil, nil end
@@ -975,6 +1006,7 @@ local function isCharacterFallingOrDead()
 end
 
 local function restoreCharacterToPosition(position)
+    local safePosition = getGroundedWaypoint(position)
     local char, hrp = getCharacterRoot()
     if not char or not hrp then return false end
 
@@ -986,11 +1018,57 @@ local function restoreCharacterToPosition(position)
     pcall(function()
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.CFrame = CFrame.new(position + SELL_RECOVERY_OFFSET)
+        hrp.CFrame = CFrame.new(safePosition + SELL_RECOVERY_OFFSET)
     end)
 
     task.wait(0.15)
     return not isCharacterFallingOrDead()
+end
+
+local function forceSellerInteraction(targetPart, prompt, fallbackPosition, runId)
+    if not targetPart or not isFarmActive(runId) then return false end
+
+    for attempt = 1, 6 do
+        if not isFarmActive(runId) then return false end
+
+        local activePrompt =
+            (targetPart:FindFirstChildOfClass("ProximityPrompt"))
+            or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
+            or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+            or prompt
+
+        if activePrompt then
+            pcall(function()
+                activePrompt.Enabled = true
+                activePrompt.HoldDuration = 0
+            end)
+        end
+
+        pcall(function()
+            interactWith(targetPart, activePrompt)
+        end)
+
+        safeWait(0.18, runId)
+
+        if getItemCount(CONFIG.ItemName) <= 0 then
+            return true
+        end
+
+        if isCharacterFallingOrDead() then
+            if not restoreCharacterToPosition(fallbackPosition) then
+                return false
+            end
+
+            -- Re-approach after a fall before trying the seller again.
+            if not goToTargetWithFallRecovery(targetPart, fallbackPosition, runId) then
+                return false
+            end
+        end
+
+        safeWait(0.12 * attempt, runId)
+    end
+
+    return getItemCount(CONFIG.ItemName) <= 0
 end
 
 local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
@@ -1090,6 +1168,62 @@ local function mainLoop()
         if not isCharacterReady() then
             if not recoverFarm(runId, "character not ready") then break end
         end
+
+        ----------------------------------------------------------------
+        -- LAUNDER PRIORITY
+        -- Existing processable goods are handled before buying more.
+        ----------------------------------------------------------------
+        if autoLaunder and hasProcessableBackpackItems() then
+            setFarmState(FarmState.LAUNDER)
+
+            if not savedLaunderPart or not savedLaunderPart.Parent or not savedLaunderPrompt or not savedLaunderPrompt.Parent then
+                savedLaunderPart, savedLaunderPrompt = findTarget(CONFIG.LaunderName)
+                if not savedLaunderPart then
+                    savedLaunderPart, savedLaunderPrompt = findTarget("Launder")
+                end
+            end
+
+            if savedLaunderPart then
+                getInVehicle()
+
+                local reachedLaunder = false
+                local okLaunder = pcall(function()
+                    reachedLaunder = goToTarget(savedLaunderPart)
+                end)
+
+                if okLaunder and reachedLaunder and not isCharacterFallingOrDead() then
+                    local launderedFirst = performInteractionLoop(
+                        savedLaunderPart,
+                        savedLaunderPrompt,
+                        function()
+                            return getProcessableItemCount() <= 0
+                        end,
+                        60,
+                        0.08,
+                        runId
+                    )
+
+                    if not launderedFirst and getProcessableItemCount() > 0 then
+                        savedLaunderPart, savedLaunderPrompt = nil, nil
+                        if not recoverFarm(runId, "priority laundry verification failed") then break end
+                        continue
+                    end
+
+                    getInVehicle()
+                    safeWait(0.1, runId)
+                else
+                    savedLaunderPart, savedLaunderPrompt = nil, nil
+                    if not recoverFarm(runId, "priority laundry approach failed") then break end
+                    continue
+                end
+            else
+                savedLaunderPart, savedLaunderPrompt = nil, nil
+                if not recoverFarm(runId, "priority laundry target not found") then break end
+                continue
+            end
+        end
+
+        if not isFarmActive(runId) then break end
 
         ----------------------------------------------------------------
         -- BUY
@@ -1198,14 +1332,10 @@ local function mainLoop()
                 continue
             end
 
-            local sold = performInteractionLoop(
+            local sold = forceSellerInteraction(
                 savedSellPart,
                 savedSellPrompt,
-                function()
-                    return getItemCount(CONFIG.ItemName) <= 0
-                end,
-                35,
-                0.08,
+                sellerFallback,
                 runId
             )
 
@@ -1321,6 +1451,16 @@ ReadTab:Paragraph({
 ReadTab:Paragraph({
     Title = "🧠 نظام الثبات / Stability",
     Content = "تمت إضافة التحقق بعد العمليات، إعادة المحاولة، كشف التعليق، وإدارة حالات التشغيل بدون تغيير إعدادات الواجهة الأساسية."
+})
+
+ReadTab:Paragraph({
+    Title = "🛣️ Ground-First Navigation",
+    Content = "الحركة تحاول الالتزام بسطح الأرض عبر Raycast، ومع السقوط يرجع لآخر نقطة آمنة ويعيد المحاولة."
+})
+
+ReadTab:Paragraph({
+    Title = "💰 Laundry Priority",
+    Content = "إذا كانت الحقيبة/الشخصية تحتوي أغراضاً قابلة للغسيل، يتم تشغيل الغسيل أولاً قبل شراء جديد."
 })
 
 ReadTab:Paragraph({
