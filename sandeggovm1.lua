@@ -11,7 +11,7 @@ local WindUI = WindUILoader()
 
 -- ================================================================
 -- ALMBJL ENGINE v2.1
--- Rights: almmbjl
+-- Rights: almbjl
 -- Based on the provided route/interaction engineering, rebuilt with
 -- explicit state handling, verification, and recovery.
 -- ================================================================
@@ -116,7 +116,7 @@ local ReadTab = Window:Tab({
 })
 
 local MainTab = Window:Tab({
-    Title = "اوتو فارم الآلي / Auto Farm",
+    Title = "اوتو فارم / Auto Farm",
     Icon = "bot",
 })
 
@@ -1262,18 +1262,46 @@ local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPositi
                 or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
         end
 
-        local sold = performInteractionLoop(
-            targetPart,
-            livePrompt,
-            function()
-                return getItemCount(CONFIG.ItemName) <= 0
-            end,
-            20,
-            0.10,
-            runId
-        )
+        -- IMPORTANT: the seller in this map can take several frames/cycles
+        -- to consume the goods. The reference implementation keeps firing
+        -- the prompt until the inventory actually reaches zero.
+        -- Do the same here instead of stopping after a short 2-second window.
+        local sold = false
+        local attempts = 0
 
-        if sold and getItemCount(CONFIG.ItemName) <= 0 then
+        while isFarmActive(runId) and attempts < 200 do
+            if getItemCount(CONFIG.ItemName) <= 0 then
+                sold = true
+                break
+            end
+
+            -- Re-resolve the live prompt every cycle. Some NPCs recreate or
+            -- re-parent their prompt after a successful/failed interaction.
+            if not livePrompt or not livePrompt.Parent then
+                livePrompt =
+                    (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt"))
+                    or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
+                    or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
+            end
+
+            pcall(function()
+                if livePrompt then
+                    livePrompt.HoldDuration = 0
+                end
+                interactWith(targetPart, livePrompt)
+            end)
+
+            attempts = attempts + 1
+
+            if getItemCount(CONFIG.ItemName) <= 0 then
+                sold = true
+                break
+            end
+
+            task.wait()
+        end
+
+        if sold or getItemCount(CONFIG.ItemName) <= 0 then
             return true
         end
 
@@ -1600,8 +1628,8 @@ ReadTab:Paragraph({
 })
 
 MainTab:Toggle({
-    Title = "اوتو فارم الآلي / Auto Farm",
-    Desc = "تشغيل أو إيقاف اوتو فارم الآلي",
+    Title = "اوتو فارم / Auto Farm",
+    Desc = "تشغيل أو إيقاف اوتو فارم",
     Icon = "power",
     Type = "Toggle",
     Value = isRunning,
