@@ -4,7 +4,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 WindUI:AddTheme({
     Name = "SaudiTheme",
     
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي2
+    Accent = Color3.fromHex("#006C35"), -- الأخضر السعود1ي
     Background = Color3.fromHex("#0A0F0D"),
     BackgroundTransparency = 0,
     Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
@@ -430,23 +430,42 @@ end
 -- 🧠 TARGET & ROUTING HELPERS
 --------------------------------------------------------------------
 local function findTarget(keyword)
-	local key = string.lower(keyword)
-	for _, prompt in ipairs(workspace:GetDescendants()) do
+    local key = string.lower(keyword)
+    local bestPart, bestPrompt, bestScore = nil, nil, -math.huge
+
+    for _, prompt in ipairs(workspace:GetDescendants()) do
 		if prompt:IsA("ProximityPrompt") then
 			local objText = string.lower(prompt.ObjectText or "")
 			local actText = string.lower(prompt.ActionText or "")
 			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
 			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
 				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-				if targetPart:IsA("BasePart") then return targetPart, prompt
-				elseif targetPart:IsA("Model") then
-					local part = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-					if part then return part, prompt end
-				end
+                local candidate
+
+                if targetPart:IsA("BasePart") then
+                    candidate = targetPart
+                elseif targetPart:IsA("Model") then
+                    candidate = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
+                end
+
+                if candidate then
+                    local score = 0
+                    if prompt.Enabled then score += 10 end
+                    if candidate.CanCollide then score += 3 end
+                    if objText == key then score += 20 end
+                    if actText == key then score += 15 end
+
+                    if score > bestScore then
+                        bestScore = score
+                        bestPart = candidate
+                        bestPrompt = prompt
+                    end
+                end
 			end
 		end
-	end
-	return nil, nil
+    end
+
+    return bestPart, bestPrompt
 end
 
 local function findNearestTargetToPos(keyword, pos)
@@ -559,6 +578,40 @@ local function getNearestWaypointIndex(waypoints, currentPos)
 	end
 	return closestIdx
 end
+
+local FALL_Y_THRESHOLD = 0
+local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
+
+-- Ground-first navigation for a game-owned map.
+local GROUND_RAY_HEIGHT = 120
+local GROUND_RAY_DEPTH = 300
+local GROUND_CLEARANCE = 3.0
+
+local function getGroundPosition(position)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = player.Character and {player.Character} or {}
+
+    local result = workspace:Raycast(
+        position + Vector3.new(0, GROUND_RAY_HEIGHT, 0),
+        Vector3.new(0, -GROUND_RAY_DEPTH, 0),
+        params
+    )
+
+    if result then
+        return result.Position + Vector3.new(0, GROUND_CLEARANCE, 0)
+    end
+    return position
+end
+
+local function getGroundedWaypoint(position)
+    return getGroundPosition(position)
+end
+
+local function hasProcessableBackpackItems()
+    return getProcessableItemCount() > 0
+end
+
 
 local function moveToPositionVelocity(targetPos)
     -- Ground-only movement for the user's own game:
@@ -673,9 +726,23 @@ local function moveToPositionVelocity(targetPos)
 end
 
 local function moveToTargetVelocity(targetPart)
-	if not targetPart then return false end
-	local arrived, rubberband = moveToPositionVelocity(targetPart.Position)
-	return arrived
+    if not targetPart then
+        warn("[SanDiegoFarm] moveToTargetVelocity: targetPart is nil")
+        return false
+    end
+
+    local arrived, rubberband = moveToPositionVelocity(targetPart.Position)
+
+    if not arrived then
+        warn(
+            "[SanDiegoFarm] Movement failed:",
+            targetPart:GetFullName(),
+            "Position=",
+            tostring(targetPart.Position)
+        )
+    end
+
+    return arrived
 end
 
 local function tweenToInteract(targetPart)
@@ -743,9 +810,25 @@ local function tweenToInteract(targetPart)
 end
 
 local function goToTarget(targetPart)
-	local reached = moveToTargetVelocity(targetPart)
-	if not reached or not isRunning then return false end
-	return tweenToInteract(targetPart)
+    if not targetPart or not isRunning then return false end
+
+    for attempt = 1, 2 do
+        if not isRunning then return false end
+
+        local reached = moveToTargetVelocity(targetPart)
+        if reached then
+            local interactedPosition = tweenToInteract(targetPart)
+            if interactedPosition then
+                return true
+            end
+        end
+
+        if attempt < 2 then
+            task.wait(0.25)
+        end
+    end
+
+    return false
 end
 
 local function processWaypoints(waypoints, labelPrefix)
@@ -978,39 +1061,6 @@ local function performInteractionLoop(targetPart, targetPrompt, conditionFn, max
     return conditionFn()
 end
 
-local FALL_Y_THRESHOLD = 0
-local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
-
--- Ground-first navigation for a game-owned map.
-local GROUND_RAY_HEIGHT = 120
-local GROUND_RAY_DEPTH = 300
-local GROUND_CLEARANCE = 3.0
-
-local function getGroundPosition(position)
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = player.Character and {player.Character} or {}
-
-    local result = workspace:Raycast(
-        position + Vector3.new(0, GROUND_RAY_HEIGHT, 0),
-        Vector3.new(0, -GROUND_RAY_DEPTH, 0),
-        params
-    )
-
-    if result then
-        return result.Position + Vector3.new(0, GROUND_CLEARANCE, 0)
-    end
-    return position
-end
-
-local function getGroundedWaypoint(position)
-    return getGroundPosition(position)
-end
-
-local function hasProcessableBackpackItems()
-    return getProcessableItemCount() > 0
-end
-
 local function getCharacterRoot()
     local char = player.Character
     if not char then return nil, nil end
@@ -1177,69 +1227,6 @@ end
 --------------------------------------------------------------------
 -- 🔄 MAIN LOOP
 --------------------------------------------------------------------
---------------------------------------------------------------------
--- 🔎 BUY TARGET DIAGNOSTICS
---------------------------------------------------------------------
-local function printTargetDiagnostics(label, targetPart, targetPrompt)
-    print("========== SanDiegoFarm DIAGNOSTIC ==========")
-    print("LABEL:", label)
-
-    if not targetPart then
-        warn("[SanDiegoFarm] TARGET = NIL")
-        print("=============================================")
-        return
-    end
-
-    print("Target Name:", targetPart.Name)
-    print("Target Class:", targetPart.ClassName)
-    print("Target Parent:", targetPart.Parent and targetPart.Parent:GetFullName() or "nil")
-
-    local okPos, pos = pcall(function()
-        return targetPart.Position
-    end)
-
-    if okPos and pos then
-        print("Target Position:", tostring(pos))
-        local character = player.Character
-        local hrp = character and character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            print("Player Position:", tostring(hrp.Position))
-            print("Distance:", tostring((hrp.Position - pos).Magnitude))
-        end
-        print("Ground Position:", tostring(getGroundedWaypoint(pos)))
-    end
-
-    if targetPrompt then
-        print("Prompt Name:", targetPrompt.Name)
-        print("Prompt Parent:", targetPrompt.Parent and targetPrompt.Parent:GetFullName() or "nil")
-        print("ActionText:", tostring(targetPrompt.ActionText))
-        print("ObjectText:", tostring(targetPrompt.ObjectText))
-        print("Enabled:", tostring(targetPrompt.Enabled))
-        print("HoldDuration:", tostring(targetPrompt.HoldDuration))
-        print("MaxActivationDistance:", tostring(targetPrompt.MaxActivationDistance))
-    else
-        warn("[SanDiegoFarm] PROMPT = NIL")
-    end
-
-    local character = player.Character
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-
-    print("Character:", character and character:GetFullName() or "nil")
-    print("Humanoid:", humanoid and humanoid:GetFullName() or "nil")
-    print("HRP:", hrp and hrp:GetFullName() or "nil")
-    print("Health:", humanoid and tostring(humanoid.Health) or "nil")
-    print("Item Count:", tostring(getItemCount(CONFIG.ItemName)))
-    print("Farm State:", tostring(farmState))
-    print("=============================================")
-end
-
-local function diagnosticFindBuyTarget()
-    local target, prompt = findTarget(CONFIG.ItemName)
-    printTargetDiagnostics("BUY TARGET", target, prompt)
-    return target ~= nil
-end
-
 local function mainLoop()
     if mainLoopRunning then return end
 
@@ -1327,7 +1314,6 @@ local function mainLoop()
 
             if not savedBuyPart or not savedBuyPart.Parent or not savedBuyPrompt or not savedBuyPrompt.Parent then
                 savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName)
-                printTargetDiagnostics("BUY TARGET ACQUIRED", savedBuyPart, savedBuyPrompt)
             end
 
             if not savedBuyPart then
@@ -1342,14 +1328,9 @@ local function mainLoop()
             getInVehicle()
 
             local reached = false
-            local ok, moveError = pcall(function()
+            local ok = pcall(function()
                 reached = goToTarget(savedBuyPart)
             end)
-
-            print("[SanDiegoFarm] BUY movement:", "ok=", ok, "reached=", reached)
-            if not ok then
-                warn("[SanDiegoFarm] BUY movement error:", tostring(moveError))
-            end
 
             if not ok or not reached then
                 savedBuyPart, savedBuyPrompt = nil, nil
@@ -1587,6 +1568,8 @@ local function startFarmSafely()
         return
     end
 
+    print("[SanDiegoFarm] Auto Farm STARTED")
+
     task.spawn(function()
         local ok, err = xpcall(mainLoop, debug.traceback)
         if not ok then
@@ -1599,17 +1582,9 @@ local function startFarmSafely()
     end)
 end
 
-MainTab:Button({
-    Title = "🔎 فحص هدف الشراء / Diagnose Buy",
-    Desc = "يفحص الهدف والـPrompt والمسافة في Developer Console.",
-    Callback = function()
-        diagnosticFindBuyTarget()
-    end
-})
-
 MainTab:Toggle({
-    Title = "التجميع الآلي / Auto Farm",
-    Desc = "تشغيل أو إيقاف التجميع الآلي",
+    Title = "اوتو فارم الآلي / Auto Farm",
+    Desc = "تشغيل أو إيقاف اوتو فارم الآلي",
     Icon = "power",
     Type = "Toggle",
     Value = isRunning,
