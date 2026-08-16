@@ -1,4 +1,20 @@
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+if type(loadstring) ~= "function" then
+    error("[ALMBJL] loadstring is unavailable in this environment.")
+end
+
+local WindUILoader = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))
+if type(WindUILoader) ~= "function" then
+    error("[ALMBJL] WindUI loader failed to compile.")
+end
+
+local WindUI = WindUILoader()
+
+-- ================================================================
+-- ALMBJL ENGINE v2.0
+-- Rights: almbjl
+-- Based on the provided route/interaction engineering, rebuilt with
+-- explicit state handling, verification, and recovery.
+-- ================================================================
 
 -- 🇸🇦 Custom Theme: Saudi Green & Gold Edition (خلفية ونمط مستوحى من السعودية)
 WindUI:AddTheme({
@@ -56,9 +72,9 @@ WindUI:AddTheme({
 
 -- 🪟 نافذة السكريبت مع حقوق "المبجل" والمملكة
 local Window = WindUI:CreateWindow({
-    Title = "🇸🇦 🌴 San Diego Auto Farm | المبجل",
+    Title = "🇸🇦 🌴 San Diego Auto Farm | almbjl",
     Icon = "monitor",
-    Author = "By: المبجل (Al-Mubajjil)",
+    Author = "By: almbjl",
     Folder = "SanDiegoFarmSaudi",
     Size = UDim2.fromOffset(580, 460),
     Transparent = false,
@@ -68,7 +84,7 @@ local Window = WindUI:CreateWindow({
     User = {
         Enabled = true,
         Anonymous = false,
-        Callback = function() print("المبجل - تم النقر بواسطة المستخدم") end,
+        Callback = function() print("[ALMBJL] San Diego Auto Farm") end,
     },
 })
 
@@ -87,7 +103,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v1.2 | حقوق المبجل & السعودية",
+    Title = "v2.0 | حقوق almbjl",
     Icon = "shield-check",
     Color = Color3.fromHex("#C5A059"),
     Radius = 10,
@@ -430,42 +446,23 @@ end
 -- 🧠 TARGET & ROUTING HELPERS
 --------------------------------------------------------------------
 local function findTarget(keyword)
-    local key = string.lower(keyword)
-    local bestPart, bestPrompt, bestScore = nil, nil, -math.huge
-
-    for _, prompt in ipairs(workspace:GetDescendants()) do
+	local key = string.lower(keyword)
+	for _, prompt in ipairs(workspace:GetDescendants()) do
 		if prompt:IsA("ProximityPrompt") then
 			local objText = string.lower(prompt.ObjectText or "")
 			local actText = string.lower(prompt.ActionText or "")
 			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
 			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
 				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-                local candidate
-
-                if targetPart:IsA("BasePart") then
-                    candidate = targetPart
-                elseif targetPart:IsA("Model") then
-                    candidate = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-                end
-
-                if candidate then
-                    local score = 0
-                    if prompt.Enabled then score += 10 end
-                    if candidate.CanCollide then score += 3 end
-                    if objText == key then score += 20 end
-                    if actText == key then score += 15 end
-
-                    if score > bestScore then
-                        bestScore = score
-                        bestPart = candidate
-                        bestPrompt = prompt
-                    end
-                end
+				if targetPart:IsA("BasePart") then return targetPart, prompt
+				elseif targetPart:IsA("Model") then
+					local part = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
+					if part then return part, prompt end
+				end
 			end
 		end
-    end
-
-    return bestPart, bestPrompt
+	end
+	return nil, nil
 end
 
 local function findNearestTargetToPos(keyword, pos)
@@ -579,294 +576,308 @@ local function getNearestWaypointIndex(waypoints, currentPos)
 	return closestIdx
 end
 
-local FALL_Y_THRESHOLD = 0
+local FALL_Y_THRESHOLD = 2
 local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
+local DEATH_RECOVERY_WAIT = 0.5
 
--- Ground-first navigation for a game-owned map.
-local GROUND_RAY_HEIGHT = 120
-local GROUND_RAY_DEPTH = 300
-local GROUND_CLEARANCE = 3.0
-
-local function getGroundPosition(position)
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = player.Character and {player.Character} or {}
-
-    local result = workspace:Raycast(
-        position + Vector3.new(0, GROUND_RAY_HEIGHT, 0),
-        Vector3.new(0, -GROUND_RAY_DEPTH, 0),
-        params
-    )
-
-    if result then
-        return result.Position + Vector3.new(0, GROUND_CLEARANCE, 0)
-    end
-    return position
-end
-
-local function getGroundedWaypoint(position)
-    return getGroundPosition(position)
-end
-
+-- Forward declarations used by the movement/route layer.
+local isCharacterFallingOrDead
+local restoreCharacterToPosition
 
 local function moveToPositionVelocity(targetPos)
-    -- Ground-only movement for the user's own game:
-    -- use Roblox's Humanoid/Pathfinding movement instead of BodyVelocity,
-    -- noclip, or airborne CFrame travel. This avoids fighting the game's
-    -- normal movement/validation systems.
     local char = player.Character
-    if not char then return false, false end
+    if not char then return false, false, true end
 
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not hrp or humanoid.Health <= 0 then
-        return false, false
-    end
+    if not hrp or not humanoid then return false, false, true end
 
-    -- If the previous route left us in a vehicle, leave it before walking.
-    if humanoid.SeatPart then
-        dismountVehicle()
-        task.wait(0.15)
-        char = player.Character
-        humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not hrp then return false, false end
-    end
+    local seat = humanoid.SeatPart
+    local vehicleModel = getVehicleModel(seat)
+    local movePart = (seat and vehicleModel) and (vehicleModel.PrimaryPart or seat) or hrp
+    if not movePart then return false, false, true end
 
-    local groundedTarget = getGroundedWaypoint(targetPos)
-    local target = Vector3.new(
-        groundedTarget.X,
-        groundedTarget.Y + 2.5,
-        groundedTarget.Z
-    )
+    local floatPart = Instance.new("Part")
+    floatPart.Name = "ALMBJL_AntiFallPlatform"
+    floatPart.Size = Vector3.new(30, 1, 30)
+    floatPart.Anchored = true
+    floatPart.CanCollide = true
+    floatPart.Transparency = 1
+    floatPart.Parent = workspace
 
-    local PathfindingService = game:GetService("PathfindingService")
-    local path = PathfindingService:CreatePath({
-        AgentRadius = 2.5,
-        AgentHeight = 5,
-        AgentCanJump = true,
-        AgentCanClimb = true,
-        WaypointSpacing = 5
-    })
+    local bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+    bodyVel.Velocity = Vector3.zero
+    bodyVel.Parent = movePart
 
-    local computed = pcall(function()
-        path:ComputeAsync(hrp.Position, target)
+    local bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+    bodyGyro.P = 10000
+    bodyGyro.CFrame = movePart.CFrame
+    bodyGyro.Parent = movePart
+
+    local arrived = false
+    local rubberbandDetected = false
+    local fallDetected = false
+    local previousPos = movePart.Position
+
+    local noclipConnection = RunService.Stepped:Connect(function()
+        if not isRunning then return end
+
+        if movePart and movePart.Parent then
+            floatPart.CFrame = movePart.CFrame * CFrame.new(0, -3.5, 0)
+        end
+
+        if player.Character then
+            for _, part in ipairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part ~= floatPart then
+                    part.CanCollide = false
+                end
+            end
+        end
+
+        if vehicleModel then
+            for _, part in ipairs(vehicleModel:GetDescendants()) do
+                if part:IsA("BasePart") and part ~= floatPart then
+                    part.CanCollide = false
+                end
+            end
+        end
     end)
 
-    local waypoints = {}
-    if computed and path.Status == Enum.PathStatus.Success then
-        waypoints = path:GetWaypoints()
-    end
+    local targetPosWithHeight = Vector3.new(targetPos.X, targetPos.Y + CONFIG.Height, targetPos.Z)
+    local stopThreshold = math.clamp(CONFIG.Speed * 0.04, 6, 15)
 
-    -- If the pathfinder cannot build a path, use short grounded MoveTo
-    -- segments instead of teleporting or applying physics forces.
-    if #waypoints == 0 then
-        waypoints = {
-            {
-                Position = target,
-                Action = Enum.PathWaypointAction.Walk
-            }
-        }
-    end
-
-    for _, waypoint in ipairs(waypoints) do
-        if not isRunning then return false, false end
-        if not humanoid or humanoid.Health <= 0 then return false, false end
-
-        local waypointPos = getGroundedWaypoint(waypoint.Position)
-
-        if waypoint.Action == Enum.PathWaypointAction.Jump then
-            humanoid.Jump = true
+    local renderConnection = RunService.Heartbeat:Connect(function()
+        if not isRunning or not movePart or not movePart.Parent then
+            fallDetected = true
+            return
         end
 
-        humanoid:MoveTo(waypointPos)
+        local liveChar = player.Character
+        local liveHumanoid = liveChar and liveChar:FindFirstChildOfClass("Humanoid")
+        local liveHrp = liveChar and liveChar:FindFirstChild("HumanoidRootPart")
 
-        local distance = (hrp.Position - waypointPos).Magnitude
-        local timeout = math.clamp(distance / math.max(CONFIG.Speed / 8, 8) + 4, 4, 18)
-        local started = tick()
-
-        while isRunning and humanoid.Health > 0 do
-            local current = hrp.Position
-            local horizontalDistance =
-                (Vector3.new(current.X, 0, current.Z) -
-                 Vector3.new(waypointPos.X, 0, waypointPos.Z)).Magnitude
-
-            if horizontalDistance <= 5 then
-                break
-            end
-
-            -- If the character drops below the map, stop immediately.
-            if current.Y < FALL_Y_THRESHOLD then
-                humanoid:MoveTo(current)
-                return false, false
-            end
-
-            if tick() - started >= timeout then
-                humanoid:MoveTo(current)
-                return false, false
-            end
-
-            task.wait(0.05)
+        if not liveHumanoid or not liveHrp or liveHumanoid.Health <= 0 or liveHrp.Position.Y < FALL_Y_THRESHOLD then
+            fallDetected = true
+            bodyVel.Velocity = Vector3.zero
+            return
         end
 
-        if not isRunning or humanoid.Health <= 0 then
-            return false, false
+        local currentPos = movePart.Position
+        local moveDelta = (currentPos - previousPos).Magnitude
+        local distToTarget = (targetPosWithHeight - currentPos).Magnitude
+
+        if moveDelta > 45 and distToTarget > 20 then
+            rubberbandDetected = true
+            bodyVel.Velocity = Vector3.zero
+            return
+        end
+
+        previousPos = currentPos
+
+        if distToTarget <= stopThreshold then
+            arrived = true
+            bodyVel.Velocity = Vector3.zero
+            return
+        end
+
+        local speedFactor = math.clamp(distToTarget / 40, 0.25, 1)
+        local currentSpeed = CONFIG.Speed * speedFactor
+        local direction = (targetPosWithHeight - currentPos)
+
+        if direction.Magnitude > 0.01 then
+            bodyVel.Velocity = direction.Unit * currentSpeed
+            bodyGyro.CFrame = CFrame.lookAt(
+                currentPos,
+                Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z)
+            )
+        end
+    end)
+
+    while isRunning and not arrived and not rubberbandDetected and not fallDetected do
+        task.wait(0.01)
+    end
+
+    if noclipConnection then noclipConnection:Disconnect() end
+    if renderConnection then renderConnection:Disconnect() end
+
+    pcall(function() bodyVel:Destroy() end)
+    pcall(function() bodyGyro:Destroy() end)
+    pcall(function() floatPart:Destroy() end)
+
+    if movePart and movePart.Parent then
+        movePart.AssemblyLinearVelocity = Vector3.zero
+        movePart.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    if player.Character then
+        for _, part in ipairs(player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
         end
     end
 
-    local finalDistance =
-        (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
-         Vector3.new(target.X, 0, target.Z)).Magnitude
-
-    return finalDistance <= 7, false
+    return arrived, rubberbandDetected, fallDetected
 end
 
 local function moveToTargetVelocity(targetPart)
-    if not targetPart then
-        warn("[SanDiegoFarm] moveToTargetVelocity: targetPart is nil")
-        return false
-    end
-
-    local arrived, rubberband = moveToPositionVelocity(targetPart.Position)
-
-    if not arrived then
-        warn(
-            "[SanDiegoFarm] Movement failed:",
-            targetPart:GetFullName(),
-            "Position=",
-            tostring(targetPart.Position)
-        )
-    end
-
-    return arrived
+    if not targetPart then return false, false end
+    local arrived, rubberband, fallDetected = moveToPositionVelocity(targetPart.Position)
+    return arrived, fallDetected
 end
 
 local function tweenToInteract(targetPart)
+    if not targetPart then return false end
     local char = player.Character
-    if not char or not targetPart then return false end
+	if not char then return false end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp or not humanoid then return false end
 
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not hrp or humanoid.Health <= 0 then return false end
+	local seat = humanoid.SeatPart
+	local vehicleModel = getVehicleModel(seat)
+	local groundTargetCFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
 
-    if humanoid.SeatPart then
+	if seat and vehicleModel then
+		local duration = math.clamp((vehicleModel.PrimaryPart.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
+		local cframeValue = Instance.new("CFrameValue")
+		cframeValue.Value = vehicleModel:GetPivot()
+
+		local tween = TweenService:Create(cframeValue, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Value = groundTargetCFrame})
+		local conn = cframeValue.Changed:Connect(function(newCFrame)
+			if vehicleModel and vehicleModel.Parent then vehicleModel:PivotTo(newCFrame) end
+		end)
+
+		tween:Play()
+        local elapsed = 0
+        while elapsed < duration do
+            if isCharacterFallingOrDead() then
+                pcall(function() tween:Cancel() end)
+                conn:Disconnect()
+                cframeValue:Destroy()
+                return false
+            end
+            task.wait(0.03)
+            elapsed = elapsed + 0.03
+        end
+        conn:Disconnect()
+        cframeValue:Destroy()
+
+        if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
         dismountVehicle()
-        task.wait(0.15)
-        char = player.Character
-        humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not hrp then return false end
+        return not isCharacterFallingOrDead()
+	else
+		local duration = math.clamp((hrp.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
+		local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = groundTargetCFrame})
+		tween:Play()
+        local elapsed = 0
+        while elapsed < duration do
+            if isCharacterFallingOrDead() then
+                pcall(function() tween:Cancel() end)
+                return false
+            end
+            task.wait(0.03)
+            elapsed = elapsed + 0.03
+        end
+
+        if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
+        return not isCharacterFallingOrDead()
+    end
+end
+
+local function goToTarget(targetPart)
+    local reached, fell = moveToTargetVelocity(targetPart)
+    if fell or not reached or not isRunning then
+        return false
     end
 
-    local prompt =
-        targetPart:FindFirstChildOfClass("ProximityPrompt")
-        or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
-        or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+    -- A second validation catches the short tween-to-interact phase too.
+    if isCharacterFallingOrDead() then
+        return false
+    end
 
-    local targetPos = getGroundedWaypoint(targetPart.Position)
+    return tweenToInteract(targetPart)
+end
 
-    -- Stand a little away from the target so the interaction is performed
-    -- from a normal on-foot position.
-    if prompt then
-        local activationDistance = math.max(prompt.MaxActivationDistance or 10, 6)
-        local offset = targetPos - hrp.Position
-        if offset.Magnitude > activationDistance * 0.75 then
-            local approach = targetPos - offset.Unit * math.min(activationDistance * 0.55, 5)
-            approach = getGroundedWaypoint(approach)
-            humanoid:MoveTo(approach)
+local function processWaypoints(waypoints, labelPrefix)
+    local currentIndex = 1
+    local lastSafePosition = waypoints[1]
 
-            local started = tick()
-            while isRunning and humanoid.Health > 0 do
-                local d = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
-                           Vector3.new(approach.X, 0, approach.Z)).Magnitude
-                if d <= 4.5 then break end
-                if hrp.Position.Y < FALL_Y_THRESHOLD then return false end
-                if tick() - started > 8 then return false end
-                task.wait(0.05)
-            end
+    while isRunning and currentIndex <= #waypoints do
+        if currentIndex == 1 then
+            getInVehicle()
         end
-    else
-        humanoid:MoveTo(targetPos)
-        local started = tick()
-        while isRunning and humanoid.Health > 0 do
-            local d = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
-                       Vector3.new(targetPos.X, 0, targetPos.Z)).Magnitude
-            if d <= 5 then break end
-            if hrp.Position.Y < FALL_Y_THRESHOLD then return false end
-            if tick() - started > 8 then return false end
+
+        drawForwardPath(waypoints, currentIndex)
+
+        local targetPos = waypoints[currentIndex]
+        local arrived, rubberbandDetected, fallDetected = moveToPositionVelocity(targetPos)
+
+        if fallDetected then
+            clearWaylines()
+
+            -- Return to the last confirmed safe checkpoint, then retry the
+            -- same waypoint instead of skipping ahead or continuing while dead.
+            if restoreCharacterToPosition(lastSafePosition) then
+                task.wait(DEATH_RECOVERY_WAIT)
+                continue
+            end
+
+            -- If the character actually died, wait for Roblox to respawn and
+            -- restart the route from the last known safe checkpoint.
+            local newChar = player.Character or player.CharacterAdded:Wait()
+            if newChar then
+                newChar:WaitForChild("HumanoidRootPart", 5)
+                newChar:WaitForChild("Humanoid", 5)
+                task.wait(DEATH_RECOVERY_WAIT)
+            end
+
+            if not isRunning then
+                break
+            end
+
+            currentIndex = math.max(1, getNearestWaypointIndex(waypoints, lastSafePosition))
+        elseif rubberbandDetected then
+            task.wait(0.3)
+
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            if hrp then
+                local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
+                currentIndex = nearestIdx
+
+                local safeTargetPos = waypoints[nearestIdx] + Vector3.new(0, CONFIG.Height, 0)
+                local movePart = hrp
+
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.SeatPart then
+                    local vModel = getVehicleModel(humanoid.SeatPart)
+                    if vModel then
+                        movePart = vModel.PrimaryPart or humanoid.SeatPart
+                    end
+                end
+
+                local recoverTween = TweenService:Create(
+                    movePart,
+                    TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+                    {CFrame = CFrame.new(safeTargetPos)}
+                )
+                recoverTween:Play()
+                recoverTween.Completed:Wait()
+                task.wait(0.1)
+            end
+        elseif arrived then
+            lastSafePosition = targetPos
+            currentIndex = currentIndex + 1
+        else
             task.wait(0.05)
         end
     end
 
-    if CONFIG.TweenDelay > 0 then
-        task.wait(CONFIG.TweenDelay)
-    end
-
-    return isRunning and humanoid.Health > 0 and hrp.Position.Y >= FALL_Y_THRESHOLD
-end
-
-local function goToTarget(targetPart)
-    if not targetPart or not isRunning then return false end
-
-    for attempt = 1, 2 do
-        if not isRunning then return false end
-
-        local reached = moveToTargetVelocity(targetPart)
-        if reached then
-            local interactedPosition = tweenToInteract(targetPart)
-            if interactedPosition then
-                return true
-            end
-        end
-
-        if attempt < 2 then
-            task.wait(0.25)
-        end
-    end
-
-    return false
-end
-
-local function processWaypoints(waypoints, labelPrefix)
-	local currentIndex = 1
-
-	while isRunning and currentIndex <= #waypoints do
-		if currentIndex == 1 then getInVehicle() end
-		
-		drawForwardPath(waypoints, currentIndex)
-		
-		local targetPos = getGroundedWaypoint(waypoints[currentIndex])
-		local arrived, rubberbandDetected = moveToPositionVelocity(targetPos)
-
-		if rubberbandDetected then
-			task.wait(0.3)
-
-			local char = player.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			
-			if hrp then
-				local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
-				currentIndex = nearestIdx
-				
-				local safeTargetPos = getGroundedWaypoint(waypoints[nearestIdx]) + Vector3.new(0, CONFIG.Height, 0)
-				local movePart = hrp
-				
-				local humanoid = char:FindFirstChildOfClass("Humanoid")
-				if humanoid and humanoid.SeatPart then
-					local vModel = getVehicleModel(humanoid.SeatPart)
-					if vModel then movePart = vModel.PrimaryPart or humanoid.SeatPart end
-				end
-
-				local recoverTween = TweenService:Create(movePart, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(safeTargetPos)})
-				recoverTween:Play()
-				recoverTween.Completed:Wait()
-				task.wait(0.1)
-			end
-		elseif arrived then
-			currentIndex = currentIndex + 1
-		end
-	end
-	clearWaylines()
+    clearWaylines()
 end
 
 --------------------------------------------------------------------
@@ -911,11 +922,6 @@ local function getProcessableItemCount()
 		for _, item in ipairs(player.Backpack:GetChildren()) do
 			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
 		end
-
-local function hasProcessableBackpackItems()
-    return getProcessableItemCount() > 0
-end
-
 	end
 	local char = player.Character
 	if char then
@@ -966,7 +972,7 @@ local mainLoopRunning = false
 local lastStateChange = 0
 local consecutiveFailures = 0
 local MAX_CONSECUTIVE_FAILURES = 5
-local STATE_TIMEOUT = 90
+local STATE_TIMEOUT = 45
 
 local function setFarmState(state)
     farmState = state
@@ -1000,12 +1006,12 @@ local function recoverFarm(runId, reason)
     setFarmState(FarmState.RECOVER)
     consecutiveFailures = consecutiveFailures + 1
 
-    warn("[SanDiegoFarm] Recovery:", reason or "unknown")
+    warn("[ALMBJL] Recovery:", reason or "unknown")
 
     pcall(clearWaylines)
 
     if consecutiveFailures >= MAX_CONSECUTIVE_FAILURES then
-        warn("[SanDiegoFarm] Too many consecutive failures; pausing farm.")
+        warn("[ALMBJL] Too many consecutive failures; pausing farm.")
         isRunning = false
         farmState = FarmState.IDLE
         return false
@@ -1034,18 +1040,12 @@ local function performInteractionLoop(targetPart, targetPrompt, conditionFn, max
     while isFarmActive(runId) and attempts < maxAttempts do
         if conditionFn() then return true end
 
-        local freshPrompt =
-            targetPart:FindFirstChildOfClass("ProximityPrompt")
-            or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
-            or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-            or targetPrompt
-
         local ok = pcall(function()
-            interactWith(targetPart, freshPrompt)
+            interactWith(targetPart, targetPrompt)
         end)
 
         if not ok then
-            warn("[SanDiegoFarm] Interaction error")
+            warn("[ALMBJL] Interaction error")
         end
 
         attempts = attempts + 1
@@ -1068,7 +1068,7 @@ local function getCharacterRoot()
     return char, char:FindFirstChild("HumanoidRootPart")
 end
 
-local function isCharacterFallingOrDead()
+isCharacterFallingOrDead = function()
     local char, hrp = getCharacterRoot()
     if not char or not hrp then return true end
 
@@ -1084,8 +1084,7 @@ local function isCharacterFallingOrDead()
     return false
 end
 
-local function restoreCharacterToPosition(position)
-    local safePosition = getGroundedWaypoint(position)
+restoreCharacterToPosition = function(position)
     local char, hrp = getCharacterRoot()
     if not char or not hrp then return false end
 
@@ -1097,61 +1096,11 @@ local function restoreCharacterToPosition(position)
     pcall(function()
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.CFrame = CFrame.new(safePosition + SELL_RECOVERY_OFFSET)
+        hrp.CFrame = CFrame.new(position + SELL_RECOVERY_OFFSET)
     end)
 
     task.wait(0.15)
     return not isCharacterFallingOrDead()
-end
-
-local function forceSellerInteraction(targetPart, prompt, fallbackPosition, runId)
-    if not targetPart or not isFarmActive(runId) then return false end
-
-    for attempt = 1, 6 do
-        if not isFarmActive(runId) then return false end
-
-        local activePrompt =
-            (targetPart:FindFirstChildOfClass("ProximityPrompt"))
-            or (targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
-            or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-            or prompt
-
-        if activePrompt then
-            pcall(function()
-                activePrompt.Enabled = true
-                activePrompt.HoldDuration = 0
-            end)
-        end
-
-        pcall(function()
-            interactWith(targetPart, activePrompt)
-        end)
-
-        safeWait(0.18, runId)
-
-        if getItemCount(CONFIG.ItemName) <= 0 then
-            return true
-        end
-
-        if isCharacterFallingOrDead() then
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-
-            -- Re-approach after a fall before trying the seller again.
-            local reReached = false
-            pcall(function()
-                reReached = goToTarget(targetPart)
-            end)
-            if not reReached or isCharacterFallingOrDead() then
-                return false
-            end
-        end
-
-        safeWait(0.12 * attempt, runId)
-    end
-
-    return getItemCount(CONFIG.ItemName) <= 0
 end
 
 local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
@@ -1253,61 +1202,6 @@ local function mainLoop()
         end
 
         ----------------------------------------------------------------
-        -- LAUNDER PRIORITY
-        -- Existing processable goods are handled before buying more.
-        ----------------------------------------------------------------
-        if autoLaunder and hasProcessableBackpackItems() then
-            setFarmState(FarmState.LAUNDER)
-
-            if not savedLaunderPart or not savedLaunderPart.Parent then
-                savedLaunderPart, savedLaunderPrompt = findTarget(CONFIG.LaunderName)
-                if not savedLaunderPart then
-                    savedLaunderPart, savedLaunderPrompt = findTarget("Launder")
-                end
-            end
-
-            -- Never block the whole farm if laundry cannot be found/reached.
-            if savedLaunderPart then
-                getInVehicle()
-
-                local reachedLaunder = false
-                local okLaunder = pcall(function()
-                    reachedLaunder = goToTarget(savedLaunderPart)
-                end)
-
-                if okLaunder and reachedLaunder and not isCharacterFallingOrDead() then
-                    local launderedFirst = performInteractionLoop(
-                        savedLaunderPart,
-                        savedLaunderPrompt,
-                        function()
-                            return getProcessableItemCount() <= 0
-                        end,
-                        60,
-                        0.10,
-                        runId
-                    )
-
-                    if launderedFirst or getProcessableItemCount() <= 0 then
-                        consecutiveFailures = 0
-                        getInVehicle()
-                        safeWait(0.10, runId)
-                    else
-                        warn("[SanDiegoFarm] Laundry verification failed; continuing to BUY.")
-                        savedLaunderPart, savedLaunderPrompt = nil, nil
-                    end
-                else
-                    warn("[SanDiegoFarm] Laundry approach failed; continuing to BUY.")
-                    savedLaunderPart, savedLaunderPrompt = nil, nil
-                end
-            else
-                warn("[SanDiegoFarm] Laundry target not found; continuing to BUY.")
-                savedLaunderPart, savedLaunderPrompt = nil, nil
-            end
-        end
-
-        if not isFarmActive(runId) then break end
-
-        ----------------------------------------------------------------
         -- BUY
         ----------------------------------------------------------------
         if getItemCount(CONFIG.ItemName) < CONFIG.Amount then
@@ -1318,11 +1212,8 @@ local function mainLoop()
             end
 
             if not savedBuyPart then
-                savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName)
-                if not savedBuyPart then
-                    if not recoverFarm(runId, "buy target not found") then break end
-                    continue
-                end
+                if not recoverFarm(runId, "buy target not found") then break end
+                continue
             end
 
             setFarmState(FarmState.BUY)
@@ -1417,10 +1308,14 @@ local function mainLoop()
                 continue
             end
 
-            local sold = forceSellerInteraction(
+            local sold = performInteractionLoop(
                 savedSellPart,
                 savedSellPrompt,
-                sellerFallback,
+                function()
+                    return getItemCount(CONFIG.ItemName) <= 0
+                end,
+                35,
+                0.08,
                 runId
             )
 
@@ -1530,58 +1425,23 @@ end
 
 ReadTab:Paragraph({
     Title = "⚠️ تنبيه هام / Warning",
-    Content = "تم تطوير وتعديل هذا السكريبت بواسطة (المبجل) - السعودية 🇸🇦.\nThis script is developed and customized by Al-Mubajjil."
+    Content = "ALMBJL ENGINE v2.0\nتم بناء وتطوير هذا الإصدار بأسلوب almbjl مع الحفاظ على هندسة المسارات الأصلية. 🇸🇦\nRights: almbjl"
+})
+
+ReadTab:Paragraph({
+    Title = "🏗️ ALMBJL ENGINE / Architecture",
+    Content = "State Machine + Route Recovery + Item Verification + Seller Fall Recovery + Safe Checkpoints + Interaction Retry.\nكل مرحلة لها حالة واضحة وإعادة محاولة مستقلة."
 })
 
 ReadTab:Paragraph({
     Title = "🧠 نظام الثبات / Stability",
-    Content = "تمت إضافة التحقق بعد العمليات، إعادة المحاولة، كشف التعليق، وإدارة حالات التشغيل بدون تغيير إعدادات الواجهة الأساسية."
-})
-
-ReadTab:Paragraph({
-    Title = "🔎 Auto Farm Diagnostics",
-    Content = "أخطاء الحلقة وأهداف الشراء/البيع/الغسيل تظهر في Output بدل ما يتوقف السكربت بصمت."
-})
-
-ReadTab:Paragraph({
-    Title = "🛣️ Ground-First Navigation",
-    Content = "الحركة تحاول الالتزام بسطح الأرض عبر Raycast، ومع السقوط يرجع لآخر نقطة آمنة ويعيد المحاولة."
-})
-
-ReadTab:Paragraph({
-    Title = "🚶 Ground Pathfinding",
-    Content = "الحركة تستخدم Humanoid/Pathfinding على الأرض بدل BodyVelocity أو النقل الهوائي، لتتوافق مع نظام الحركة والتحقق الطبيعي في الماب."
-})
-
-ReadTab:Paragraph({
-    Title = "💰 Laundry Priority",
-    Content = "إذا كانت الحقيبة/الشخصية تحتوي أغراضاً قابلة للغسيل، يتم تشغيل الغسيل أولاً قبل شراء جديد."
+    Content = "تمت إضافة التحقق بعد العمليات، إعادة المحاولة، كشف السقوط/الموت أثناء الحركة، ونقطة رجوع آمنة للبائع والمسارات."
 })
 
 ReadTab:Paragraph({
     Title = "ℹ️ ملاحظة الأداء / Performance",
     Content = "إذا واجهت تقطيعاً، فلا تلوم السكريبت بل جهازك! / If you're laggy don't blame the script!!"
 })
-
-local function startFarmSafely()
-    if mainLoopRunning then
-        warn("[SanDiegoFarm] Auto Farm is already running.")
-        return
-    end
-
-    print("[SanDiegoFarm] Auto Farm STARTED")
-
-    task.spawn(function()
-        local ok, err = xpcall(mainLoop, debug.traceback)
-        if not ok then
-            warn("[SanDiegoFarm] MAIN LOOP ERROR:\n" .. tostring(err))
-            isRunning = false
-            mainLoopRunning = false
-            farmState = FarmState.IDLE
-            pcall(clearWaylines)
-        end
-    end)
-end
 
 MainTab:Toggle({
     Title = "التجميع الآلي / Auto Farm",
@@ -1592,7 +1452,7 @@ MainTab:Toggle({
     Callback = function(state)
         isRunning = state
         if isRunning then
-            startFarmSafely()
+            task.spawn(mainLoop)
         else
             stopFarmCleanly()
         end
