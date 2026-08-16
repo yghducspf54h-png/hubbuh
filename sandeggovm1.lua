@@ -1472,60 +1472,99 @@ local function mainLoop()
         if not isFarmActive(runId) then break end
 
         ----------------------------------------------------------------
-        -- SELL
+        -- SELL (reference-style implementation)
         ----------------------------------------------------------------
         if autoSell and getItemCount(CONFIG.ItemName) > 0 then
             setFarmState(FarmState.SELL)
 
-            local lastBuyPos = postBuyWaypoints[#postBuyWaypoints]
-
-            if not savedSellPart or not savedSellPart.Parent or not savedSellPrompt or not savedSellPrompt.Parent then
-                savedSellPart, savedSellPrompt = findNearestTargetToPos(CONFIG.SellName, lastBuyPos)
-                if not savedSellPart then
-                    savedSellPart, savedSellPrompt = findNearestTargetToPos("Smuggle", lastBuyPos)
-                end
+            -- Match the reference seller flow: resolve the nearest seller
+            -- from the final post-buy checkpoint, go directly to that target,
+            -- dismount, then repeatedly fire the exact saved prompt until the
+            -- inventory count reaches zero.
+            local lastPos = postBuyWaypoints[#postBuyWaypoints]
+            local sellPart, sellPrompt = findNearestTargetToPos(CONFIG.SellName, lastPos)
+            if not sellPart then
+                sellPart, sellPrompt = findNearestTargetToPos("Smuggle", lastPos)
             end
 
-            if not savedSellPart then
+            if sellPart then
+                getInVehicle()
+
+                local reached = false
+                local ok = pcall(function()
+                    reached = goToTarget(sellPart)
+                end)
+
+                if ok and reached and isFarmActive(runId) then
+                    -- goToTarget may already dismount in this build; calling
+                    -- it again is harmless and keeps the reference sequence.
+                    pcall(dismountVehicle)
+                    task.wait(0.1)
+
+                    local t = 0
+                    while isFarmActive(runId) and getItemCount(CONFIG.ItemName) > 0 and t < 200 do
+                        -- Keep the exact prompt instance selected with the
+                        -- seller, just like the reference implementation.
+                        pcall(function()
+                            interactWith(sellPart, sellPrompt)
+                        end)
+                        task.wait()
+                        t = t + 1
+                    end
+
+                    if getItemCount(CONFIG.ItemName) > 0 then
+                        -- Do NOT abandon the seller immediately. Re-resolve it
+                        -- once and give the prompt another full 200-cycle pass.
+                        local retryPart, retryPrompt = findNearestTargetToPos(CONFIG.SellName, lastPos)
+                        if not retryPart then
+                            retryPart, retryPrompt = findNearestTargetToPos("Smuggle", lastPos)
+                        end
+
+                        if retryPart then
+                            for retry = 1, 2 do
+                                if not isFarmActive(runId) then break end
+                                local retryCount = 0
+                                while isFarmActive(runId) and getItemCount(CONFIG.ItemName) > 0 and retryCount < 200 do
+                                    pcall(function()
+                                        interactWith(retryPart, retryPrompt)
+                                    end)
+                                    task.wait()
+                                    retryCount = retryCount + 1
+                                end
+                                if getItemCount(CONFIG.ItemName) <= 0 then break end
+                            end
+                        end
+                    end
+
+                    if getItemCount(CONFIG.ItemName) <= 0 then
+                        consecutiveFailures = 0
+                        setFarmState(FarmState.VERIFY_SELL)
+                        getInVehicle()
+                    else
+                        -- Selling failed: recover to the known safe checkpoint
+                        -- and let the main loop reacquire the seller instead of
+                        -- moving on with unsold goods.
+                        setFarmState(FarmState.VERIFY_SELL)
+                        if not restoreCharacterToPosition(lastPos) then
+                            if not recoverFarm(runId, "seller interaction failed") then break end
+                        else
+                            if not recoverFarm(runId, "seller did not consume goods") then break end
+                        end
+                        continue
+                    end
+                else
+                    -- Preserve the anti-fall behavior: if the direct seller
+                    -- approach fails, restore to the last safe post-buy point.
+                    if isCharacterFallingOrDead() then
+                        restoreCharacterToPosition(lastPos)
+                    end
+                    if not recoverFarm(runId, "could not reach seller") then break end
+                    continue
+                end
+            else
                 if not recoverFarm(runId, "sell target not found") then break end
                 continue
             end
-
-            -- The seller's physical part can sit slightly inside/under
-            -- the floor. Approach a safe point beside it instead of
-            -- tweening the vehicle/player directly onto the seller.
-            local sellerFallback = lastBuyPos
-
-            local sold = sellAtSafeSellerPosition(
-                savedSellPart,
-                savedSellPrompt,
-                sellerFallback,
-                runId
-            )
-
-            setFarmState(FarmState.VERIFY_SELL)
-
-            if not sold and getItemCount(CONFIG.ItemName) > 0 then
-                savedSellPart, savedSellPrompt = nil, nil
-                if not recoverFarm(runId, "sell verification failed") then break end
-                continue
-            end
-
-            -- If selling caused a drop/death, do not continue to the next route.
-            -- Restore to the safe point and reacquire the seller.
-            if isCharacterFallingOrDead() and getItemCount(CONFIG.ItemName) > 0 then
-                if not restoreCharacterToPosition(sellerFallback) then
-                    if not recoverFarm(runId, "player fell after seller approach") then break end
-                    continue
-                end
-
-                savedSellPart, savedSellPrompt = nil, nil
-                if not recoverFarm(runId, "retry seller after fall") then break end
-                continue
-            end
-
-            consecutiveFailures = 0
-            getInVehicle()
         end
 
         if not isFarmActive(runId) then break end
@@ -1618,7 +1657,7 @@ ReadTab:Paragraph({
 })
 
 ReadTab:Paragraph({
-    Title = "🧠 نظام الثبات / Stability",
+    Title = "user discord : almbjl",
     Content = "تمت إضافة التحقق بعد العمليات، إعادة المحاولة، كشف السقوط/الموت أثناء الحركة، ونقطة رجوع آمنة للبائع والمسارات."
 })
 
