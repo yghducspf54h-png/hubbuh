@@ -23,7 +23,7 @@ ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.fromOffset(260, 180)
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -90)
+MainFrame.Position = UDim2.new(0, 20, 0, 20)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -40,7 +40,7 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 15
-Title.Text = "من صنع_almbjl"
+Title.Text = "من صنع almbjl_"
 Title.Parent = MainFrame
 
 local function CreateToggle(name, yPos, key)
