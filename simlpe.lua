@@ -1,4 +1,3 @@
-```
 if getgenv().SimpleSpyExecuted and type(getgenv().SimpleSpyShutdown) == "function" then
     getgenv().SimpleSpyShutdown()
 end
@@ -2336,4 +2335,3 @@ if configs.supersecretdevtoggle then
         NotSound:Play()
     end)
 end
-```
