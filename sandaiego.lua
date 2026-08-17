@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl
+-- By المبجّل • Discord: almbjl1
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -43,7 +43,7 @@ local maxRings = 10
 local walkSpeed = 22
 
 --========================
--- حركة بدون كشف
+-- حركة طبيعية بدون كشف
 --========================
 local function moveTo(pos)
     hum.WalkSpeed = walkSpeed
