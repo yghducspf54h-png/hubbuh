@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl2
+-- By المبجّل • Discord: almbjl3
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -101,16 +101,26 @@ end
 --========================
 local function sellSpam()
     local root = Root()
-    stopMovement() -- يوقف الحركة قبل البيع عشان ما يهنق
+    stopMovement()
 
-    local before = player.leaderstats.Money.Value
+    -- 🔧 تحقق من وجود leaderstats قبل القراءة
+    local stats = player:FindFirstChild("leaderstats")
+    if not stats then
+        repeat
+            task.wait(0.2)
+            stats = player:FindFirstChild("leaderstats")
+        until stats
+    end
+
+    local moneyStat = stats:FindFirstChild("Money")
+    local before = moneyStat and moneyStat.Value or 0
 
     for i = 1, 100 do
         SellRemote:FireServer(NPC["Seller4"])
         AntiCheatRemote:InvokeServer()
         task.wait(0.05)
 
-        if player.leaderstats.Money.Value > before then
+        if moneyStat and moneyStat.Value > before then
             print("✔ انباع فعليًا")
             break
         end
