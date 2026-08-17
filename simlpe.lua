@@ -1,174 +1,308 @@
--- ==========================================================
--- [!] سكربت الاستغلال والتحكم الشامل والمطور لأقصى حد (MAX UI)
--- ==========================================================
-local CoreGui = game:GetService("CoreGui")
+--!strict
+-- Remote Security Tester
+-- LocalScript
+-- ضع السكربت في StarterPlayer > StarterPlayerScripts
+-- للاختبار داخل Roblox Studio
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local LocalPlayer = Players.LocalPlayer
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
--- إزالة أي واجهة قديمة لمنع التكرار
-if CoreGui:FindFirstChild("MaxCustomExploitUI") then
-    CoreGui.MaxCustomExploitUI:Destroy()
+local function getCharacter()
+	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MaxCustomExploitUI"
-ScreenGui.Parent = CoreGui
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 450, 0, 520)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -260)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Parent = ScreenGui
-
--- شريط العنوان
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 45)
-Title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Title.TextColor3 = Color3.fromRGB(0, 255, 128)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 16
-Title.Text = "⚡ لوحة التحكم القصوى (MAX EXPLOIT CONTROL) ⚡"
-Title.Parent = MainFrame
-
--- حاوية الأزرار والإعدادات (ScrollingFrame)
-local ScrollContainer = Instance.new("ScrollingFrame")
-ScrollContainer.Size = UDim2.new(1, -20, 1, -60)
-ScrollContainer.Position = UDim2.new(0, 10, 0, 50)
-ScrollContainer.BackgroundTransparency = 1
-ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, 750)
-ScrollContainer.Parent = MainFrame
-
--- وظيفة مساعدة لإنشاء الأزرار والحقول المخصصة
-local yPos = 10
-local function createSectionTitle(text)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 0, 30)
-    lbl.Position = UDim2.new(0, 0, 0, yPos)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = Color3.fromRGB(255, 200, 0)
-    lbl.Font = Enum.Font.SourceSansBold
-    lbl.TextSize = 14
-    lbl.Text = text
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = ScrollContainer
-    yPos = yPos + 35
+local function getHumanoid()
+	local character = getCharacter()
+	return character:FindFirstChildOfClass("Humanoid")
 end
 
-local function createButton(name, color, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 35)
-    btn.Position = UDim2.new(0, 0, 0, yPos)
-    btn.BackgroundColor3 = color
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 14
-    btn.Text = name
-    btn.Parent = ScrollContainer
-    
-    btn.MouseButton1Click:Connect(callback)
-    yPos = yPos + 45
+local function getValue(name: string)
+	local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+	if not leaderstats then
+		return nil
+	end
+
+	local obj = leaderstats:FindFirstChild(name)
+
+	if obj and obj:IsA("ValueBase") then
+		return obj.Value
+	end
+
+	return nil
 end
 
--- ==================== [1. قسم الـ FunnelShop والـ Trails] ====================
-createSectionTitle("--- [1] إدارة المتجر والـ Trails ---")
+local function snapshot()
+	local humanoid = getHumanoid()
 
-createButton("فتح FunnelShop (open)", Color3.fromRGB(0, 120, 215), function()
-    local args = {"open"}
-    pcall(function()
-        ReplicatedStorage.Remotes.FunnelShop:FireServer(unpack(args))
-        print("[+] تم فتح FunnelShop بنجاح")
-    end)
+	return {
+		WalkSpeed = humanoid and humanoid.WalkSpeed or nil,
+		Wins = getValue("Wins"),
+		Level = getValue("Level"),
+		XP = getValue("XP"),
+		Rebirths = getValue("Rebirths"),
+	}
+end
+
+local function compare(before, after)
+	local changes = {}
+
+	for key, oldValue in pairs(before) do
+		local newValue = after[key]
+
+		if oldValue ~= nil
+			and newValue ~= nil
+			and oldValue ~= newValue then
+
+			table.insert(
+				changes,
+				string.format(
+					"%s: %s -> %s",
+					key,
+					tostring(oldValue),
+					tostring(newValue)
+				)
+			)
+		end
+	end
+
+	return changes
+end
+
+-- =========================================================
+-- GUI
+-- =========================================================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "RemoteSecurityTester"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local main = Instance.new("Frame")
+main.Size = UDim2.fromOffset(520, 520)
+main.Position = UDim2.new(0.5, -260, 0.5, -260)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+main.BorderSizePixel = 0
+main.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = main
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.BackgroundTransparency = 1
+title.Text = "REMOTE SECURITY TESTER"
+title.TextSize = 20
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Parent = main
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Position = UDim2.fromOffset(15, 45)
+subtitle.Size = UDim2.new(1, -30, 0, 30)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "LocalPlayer • Studio Security Audit"
+subtitle.TextSize = 13
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextColor3 = Color3.fromRGB(170, 170, 170)
+subtitle.Parent = main
+
+local valueBox = Instance.new("TextBox")
+valueBox.Position = UDim2.fromOffset(25, 90)
+valueBox.Size = UDim2.fromOffset(470, 45)
+valueBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+valueBox.TextColor3 = Color3.new(1, 1, 1)
+valueBox.PlaceholderText = "Enter speed value..."
+valueBox.Text = "16"
+valueBox.TextSize = 16
+valueBox.Font = Enum.Font.Gotham
+valueBox.ClearTextOnFocus = false
+valueBox.Parent = main
+
+local valueCorner = Instance.new("UICorner")
+valueCorner.CornerRadius = UDim.new(0, 8)
+valueCorner.Parent = valueBox
+
+local testButton = Instance.new("TextButton")
+testButton.Position = UDim2.fromOffset(25, 150)
+testButton.Size = UDim2.fromOffset(225, 45)
+testButton.BackgroundColor3 = Color3.fromRGB(55, 100, 180)
+testButton.Text = "TEST UPDATE SPEED"
+testButton.TextColor3 = Color3.new(1, 1, 1)
+testButton.TextSize = 14
+testButton.Font = Enum.Font.GothamBold
+testButton.Parent = main
+
+local testCorner = Instance.new("UICorner")
+testCorner.CornerRadius = UDim.new(0, 8)
+testCorner.Parent = testButton
+
+local snapshotButton = Instance.new("TextButton")
+snapshotButton.Position = UDim2.fromOffset(270, 150)
+snapshotButton.Size = UDim2.fromOffset(225, 45)
+snapshotButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+snapshotButton.Text = "CURRENT STATE"
+snapshotButton.TextColor3 = Color3.new(1, 1, 1)
+snapshotButton.TextSize = 14
+snapshotButton.Font = Enum.Font.GothamBold
+snapshotButton.Parent = main
+
+local log = Instance.new("TextLabel")
+log.Position = UDim2.fromOffset(25, 215)
+log.Size = UDim2.fromOffset(470, 270)
+log.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+log.TextColor3 = Color3.fromRGB(220, 220, 220)
+log.TextSize = 13
+log.Font = Enum.Font.Code
+log.TextXAlignment = Enum.TextXAlignment.Left
+log.TextYAlignment = Enum.TextYAlignment.Top
+log.TextWrapped = true
+log.Text = "Waiting for test...\n"
+log.Parent = main
+
+local logCorner = Instance.new("UICorner")
+logCorner.CornerRadius = UDim.new(0, 8)
+logCorner.Parent = log
+
+local function write(text: string)
+	log.Text ..= "\n" .. text
+end
+
+local function clearLog()
+	log.Text = ""
+end
+
+-- =========================================================
+-- Current State
+-- =========================================================
+
+snapshotButton.MouseButton1Click:Connect(function()
+	clearLog()
+
+	local state = snapshot()
+
+	write("===== CURRENT STATE =====")
+	write("WalkSpeed: " .. tostring(state.WalkSpeed))
+	write("Wins: " .. tostring(state.Wins))
+	write("Level: " .. tostring(state.Level))
+	write("XP: " .. tostring(state.XP))
+	write("Rebirths: " .. tostring(state.Rebirths))
 end)
 
-createButton("شراء GreenTrail (Wins)", Color3.fromRGB(0, 170, 120), function()
-    local args = {"GreenTrail", "Wins"}
-    pcall(function()
-        ReplicatedStorage.Remotes.BuyTrail:InvokeServer(unpack(args))
-        print("[+] تم شراء GreenTrail")
-    end)
+-- =========================================================
+-- UpdateSpeed Security Test
+-- =========================================================
+
+testButton.MouseButton1Click:Connect(function()
+	local remote = Remotes:FindFirstChild("UpdateSpeed")
+
+	if not remote then
+		clearLog()
+		write("[ERROR] UpdateSpeed not found.")
+		return
+	end
+
+	if not remote:IsA("RemoteEvent") then
+		clearLog()
+		write("[ERROR] UpdateSpeed is not a RemoteEvent.")
+		return
+	end
+
+	local value = tonumber(valueBox.Text)
+
+	if value == nil then
+		clearLog()
+		write("[ERROR] Enter a numeric value.")
+		return
+	end
+
+	clearLog()
+
+	write("===== UPDATE SPEED TEST =====")
+	write("Requested value: " .. tostring(value))
+
+	local before = snapshot()
+
+	local ok, err = pcall(function()
+		remote:FireServer(value)
+	end)
+
+	if not ok then
+		write("[ERROR] Remote rejected locally:")
+		write(tostring(err))
+		return
+	end
+
+	task.wait(0.75)
+
+	local after = snapshot()
+
+	write("Server response observed.")
+	write("WalkSpeed before: " .. tostring(before.WalkSpeed))
+	write("WalkSpeed after:  " .. tostring(after.WalkSpeed))
+
+	local changes = compare(before, after)
+
+	if #changes == 0 then
+		write("")
+		write("[PASS]")
+		write("No unauthorized state change detected.")
+	else
+		write("")
+		write("[WARNING]")
+		write("State changed after the request:")
+
+		for _, change in ipairs(changes) do
+			write("• " .. change)
+		end
+
+		write("")
+		write("Review server-side validation.")
+	end
 end)
 
-createButton("شراء GodlikeTrail (Wins)", Color3.fromRGB(0, 170, 120), function()
-    local args = {"GodlikeTrail", "Wins"}
-    pcall(function()
-        ReplicatedStorage.Remotes.BuyTrail:InvokeServer(unpack(args))
-        print("[+] تم شراء GodlikeTrail")
-    end)
+-- =========================================================
+-- Drag Window
+-- =========================================================
+
+local UserInputService = game:GetService("UserInputService")
+
+local dragging = false
+local dragStart: Vector2
+local startPosition: UDim2
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPosition = main.Position
+	end
 end)
 
--- ==================== [2. قسم الخطوات والجوائز] ====================
-createSectionTitle("--- [2] نظام الخطوات والجوائز ---")
-
-createButton("تجهيز وتفعيل Award3 (EquipStepAward)", Color3.fromRGB(180, 50, 180), function()
-    local args = {"Award3"}
-    pcall(function()
-        ReplicatedStorage.Remotes.EquipStepAward:FireServer(unpack(args))
-        print("[+] تم تفعيل Award3")
-    end)
+title.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
 end)
 
--- ==================== [3. قسم الـ Rebirth والـ Treadmill (مع التحكم بالعدد والكمية)] ====================
-createSectionTitle("--- [3] التحكم بالـ Rebirth & Treadmill (أقصى حد) ---")
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging then
+		return
+	end
 
-createButton("تنفيذ Rebirth (إرسال الأمر)", Color3.fromRGB(220, 50, 50), function()
-    pcall(function()
-        ReplicatedStorage.Remotes.Rebirth:FireServer()
-        print("[+] تم تنفيذ Rebirth بنجاح")
-    end)
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+		return
+	end
+
+	local delta = input.Position - dragStart
+
+	main.Position = UDim2.new(
+		startPosition.X.Scale,
+		startPosition.X.Offset + delta.X,
+		startPosition.Y.Scale,
+		startPosition.Y.Offset + delta.Y
+	)
 end)
-
-createButton("تفعيل TreadmillSignal (true)", Color3.fromRGB(50, 150, 220), function()
-    local args = {true}
-    pcall(function()
-        ReplicatedStorage.Remotes.TreadmillSignal:FireServer(unpack(args))
-        print("[+] تم تفعيل TreadmillSignal")
-    end)
-end)
-
-createButton("تملك الجهاز (PromptOwnerTreadmill)", Color3.fromRGB(200, 120, 0), function()
-    pcall(function()
-        ReplicatedStorage.Remotes.PromptOwnerTreadmill:FireServer()
-        print("[+] تم تملك جهاز الجري (PromptOwnerTreadmill)")
-    end)
-end)
-
--- ==================== [4. نظام التكرار الأقصى (Spam Loop)] ====================
-createSectionTitle("--- [4] تكرار هجومي للريموتات (Custom Spam) ---")
-
-local isSpamming = false
-createButton("تبديل سبام Rebirth السريع (تشغيل / إيقاف)", Color3.fromRGB(100, 100, 100), function()
-    isSpamming = not isSpamming
-    if isSpamming then
-        print("[!] بدأت عملية السبام الأقصى للـ Rebirth...")
-        task.spawn(function()
-            while isSpamming do
-                pcall(function()
-                    ReplicatedStorage.Remotes.Rebirth:FireServer()
-                end)
-                task.wait(0.1) -- التكرار بأقصى سرعة
-            end
-        end)
-    else
-        print("[!] توقف السبام.")
-    end
-end)
-
--- زر الإغلاق للواجهة
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(1, -20, 0, 35)
-CloseBtn.Position = UDim2.new(0, 10, 0, yPos)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(150, 20, 20)
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.TextSize = 14
-CloseBtn.Text = "إغلاق اللوحة بالكامل"
-CloseBtn.Parent = ScrollContainer
-
-CloseBtn.MouseButton1Click:Connect(function()
-    isSpamming = false
-    ScreenGui:Destroy()
-end)
-
-print("[+] تم تحميل لوحة التحكم القصوى (MAX EXPLOIT UI) بنجاح على الشاشة!")
