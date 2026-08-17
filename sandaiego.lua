@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring
--- By المبجّل • 1Discord: almbjl
+-- By المبجّل • Discord: almbjl
 --====================================================
 
 ---------------------------
@@ -21,54 +21,18 @@ local Route = {
             category = "Path",
             name = "To sll",
             points = {
-                {
-                    position = Vector3.new(6854.121, 17.223, 20.914),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(6844.108, 17.223, 142.581),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(6795.110, 17.223, 142.215),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(4754.197, 16.411, 143.214),
-                    movementMode = "Vehicle",
-                },
-                {
-                    position = Vector3.new(3793.107, 16.413, 144.526),
-                    movementMode = "Vehicle",
-                },
-                {
-                    position = Vector3.new(2780.473, 17.248, 149.317),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(1549.154, 16.410, 135.654),
-                    movementMode = "Vehicle",
-                },
-                {
-                    position = Vector3.new(1400.638, 16.388, 135.813),
-                    movementMode = "Vehicle",
-                },
-                {
-                    position = Vector3.new(1378.808, 16.373, 105.375),
-                    movementMode = "Vehicle",
-                },
-                {
-                    position = Vector3.new(262.297, 17.223, 94.578),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(259.445, 17.244, -40.166),
-                    movementMode = "Walk",
-                },
-                {
-                    position = Vector3.new(215.130, 17.244, -39.732),
-                    movementMode = "Walk",
-                },
+                {position = Vector3.new(6854.121, 17.223, 20.914)},
+                {position = Vector3.new(6844.108, 17.223, 142.581)},
+                {position = Vector3.new(6795.110, 17.223, 142.215)},
+                {position = Vector3.new(4754.197, 16.411, 143.214)},
+                {position = Vector3.new(3793.107, 16.413, 144.526)},
+                {position = Vector3.new(2780.473, 17.248, 149.317)},
+                {position = Vector3.new(1549.154, 16.410, 135.654)},
+                {position = Vector3.new(1400.638, 16.388, 135.813)},
+                {position = Vector3.new(1378.808, 16.373, 105.375)},
+                {position = Vector3.new(262.297, 17.223, 94.578)},
+                {position = Vector3.new(259.445, 17.244, -40.166)},
+                {position = Vector3.new(215.130, 17.244, -39.732)},
             },
         },
     },
@@ -80,14 +44,14 @@ local Route = {
 local RS = game:GetService("ReplicatedStorage")
 local Remotes = RS:WaitForChild("__remotes")
 
-local PurchaseWorldBuyableItem = Remotes:WaitForChild("WorldBuyableItemService"):WaitForChild("PurchaseWorldBuyableItem")
-local GetVehicleState = Remotes:WaitForChild("VehicleService"):WaitForChild("GetVehicleState")
-local SellSmuggledGoods = Remotes:WaitForChild("SmuggleService"):WaitForChild("SellSmuggledGoods")
-local CanManageServer = Remotes:WaitForChild("CustomServerService"):WaitForChild("CanManageServer")
+local PurchaseWorldBuyableItem = Remotes.WorldBuyableItemService.PurchaseWorldBuyableItem
+local GetVehicleState = Remotes.VehicleService.GetVehicleState
+local SellSmuggledGoods = Remotes.SmuggleService.SellSmuggledGoods
+local CanManageServer = Remotes.CustomServerService.CanManageServer
 
-local WorldBuyableItems = workspace:WaitForChild("WorldBuyableItems"):WaitForChild("CivilianArea")
-local Vehicles = workspace:WaitForChild("Vehicles")
-local NPC = workspace:WaitForChild("NPC")
+local WorldBuyableItems = workspace.WorldBuyableItems.CivilianArea
+local Vehicles = workspace.Vehicles
+local NPC = workspace.NPC
 
 ---------------------------
 -- PLAYER / SERVICES
@@ -242,182 +206,4 @@ autoBtn.MouseButton1Click:Connect(function()
     autoBtn.BackgroundColor3 = autoFarmEnabled and Color3.fromRGB(55, 150, 90) or Color3.fromRGB(55, 95, 180)
 end)
 
-ringsBox.FocusLost:Connect(function()
-    local n = tonumber(ringsBox.Text) or 5
-    maxRings = math.clamp(n, 1, 8)
-    ringsBox.Text = tostring(maxRings)
-end)
-
-heightBox.FocusLost:Connect(function()
-    local n = tonumber(heightBox.Text) or 5
-    flyHeight = math.clamp(n, 1, 30)
-    heightBox.Text = tostring(flyHeight)
-end)
-
-speedBox.FocusLost:Connect(function()
-    local n = tonumber(speedBox.Text) or 60
-    flySpeed = math.clamp(n, 10, 200)
-    speedBox.Text = tostring(flySpeed)
-end)
-
-showRouteBtn.MouseButton1Click:Connect(function()
-    print("========== ROUTE ==========")
-    for i, point in ipairs(Route.steps[2].points) do
-        print(i, point.position)
-    end
-    print("==================================")
-end)
-
----------------------------
--- DRAG WINDOW
----------------------------
-local dragging = false
-local dragStart
-local startPos
-
-header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = main.Position
-    end
-end)
-
-header.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
----------------------------
--- ANTI-STUCK + MOVEMENT
----------------------------
-local function antiStuckCheck(root, lastPos)
-    return (root.Position - lastPos).Magnitude >= 2
-end
-
-local function moveTo(pos)
-    local root = getRoot()
-    local target = Vector3.new(pos.X, pos.Y + flyHeight, pos.Z)
-    local dist = (root.Position - target).Magnitude
-    local t = dist / flySpeed
-
-    local tween = TweenService:Create(
-        root,
-        TweenInfo.new(t, Enum.EasingStyle.Linear),
-        {CFrame = CFrame.new(target)}
-    )
-
-    tween:Play()
-
-    local lastPos = root.Position
-    for i = 1, math.floor(t * 2) do
-        task.wait(0.5)
-        if not autoFarmEnabled then return end
-
-        if not antiStuckCheck(root, lastPos) then
-            tween:Cancel()
-            tween:Play()
-        end
-
-        lastPos = root.Position
-    end
-
-    tween.Completed:Wait()
-end
-
-local function movePathForward()
-    for _, point in ipairs(Route.steps[2].points) do
-        if not autoFarmEnabled then break end
-        moveTo(point.position)
-    end
-end
-
-local function movePathBackward()
-    for i = #Route.steps[2].points, 1, -1 do
-        if not autoFarmEnabled then break end
-        moveTo(Route.steps[2].points[i].position)
-    end
-end
-
----------------------------
--- ACTIONS (BUY / SELL / ANTI-CHEAT)
----------------------------
-local function buyRing()
-    local args = {
-        WorldBuyableItems:WaitForChild("Fake Diamond Ring")
-    }
-    PurchaseWorldBuyableItem:FireServer(unpack(args))
-end
-
-local function pingVehicle()
-    local args = {
-        Vehicles:WaitForChild("Dodge Durango RT")
-    }
-    GetVehicleState:InvokeServer(unpack(args))
-end
-
-local function sellGoods()
-    local args = {
-        NPC:WaitForChild("Seller4")
-    }
-    SellSmuggledGoods:FireServer(unpack(args))
-end
-
-local function antiCheatPing()
-    pcall(function()
-        CanManageServer:InvokeServer()
-    end)
-end
-
----------------------------
--- AUTO FARM LOOP
----------------------------
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if not autoFarmEnabled then continue end
-
-        -- 1) الذهاب لنقطة الشراء
-        local buyPos = Route.steps[1].position
-        moveTo(buyPos)
-
-        -- 2) شراء الخواتم
-        for i = 1, maxRings do
-            if not autoFarmEnabled then break end
-            buyRing()
-            pingVehicle()
-            antiCheatPing()
-            task.wait(0.2)
-        end
-
-        -- 3) الذهاب لنقطة البيع عبر المسار
-        movePathForward()
-
-        -- 4) انتظار 3 ثواني قبل البيع
-        task.wait(3)
-
-        -- 5) إرسال أوامر البيع بسرعة (بدون سبام قوي)
-        for i = 1, 3 do
-            if not autoFarmEnabled then break end
-            sellGoods()
-            antiCheatPing()
-            task.wait(0.2)
-        end
-
-        -- 6) الرجوع من نفس الطريق بالعكس
-        movePathBackward()
-    end
-end)
+ringsBox.FocusLost:
