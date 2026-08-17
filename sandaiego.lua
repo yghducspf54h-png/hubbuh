@@ -1,10 +1,15 @@
 --====================================================
 -- Auto Farm - Fake Diamond Ring
--- By almbjl (المبجّل)
+-- By almbjl1 (المبجّل)
 --====================================================
 
+-- تحميل WindUI مع تأخير بسيط لضمان ظهور الأزرار
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+task.wait(1)
 
+--====================================================
+-- بيانات المسار
+--====================================================
 local Route = {
     name = "AutoFarm_Main",
     steps = {
@@ -14,7 +19,6 @@ local Route = {
             name = "Buy Fake Diamond Ring",
             position = Vector3.new(6820.941, 17.421, 20.054),
         },
-
         {
             type = "Path",
             category = "Path",
@@ -37,6 +41,9 @@ local Route = {
     },
 }
 
+--====================================================
+-- الريموتات
+--====================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("__remotes")
 
@@ -56,9 +63,8 @@ local function getRoot()
 end
 
 --====================================================
--- WindUI
+-- واجهة WindUI
 --====================================================
-
 local window = WindUI:CreateWindow({
     Title = "Auto Farm • Fake Diamond Ring | المبجّل",
     Subtitle = "Discord: almbjl",
@@ -105,7 +111,7 @@ mainTab:CreateSlider({
 })
 
 mainTab:CreateButton({
-    Name = "إظهار المسار",
+    Name = "إظهار المسار في الـ Output",
     Callback = function()
         print("========== ROUTE ==========")
         for i, p in ipairs(Route.steps[2].points) do
@@ -115,8 +121,9 @@ mainTab:CreateButton({
 })
 
 --====================================================
--- Anti-Stuck System
+-- نظام Anti‑Stuck
 --====================================================
+local TweenService = game:GetService("TweenService")
 
 local function antiStuckCheck(root, lastPos)
     local moved = (root.Position - lastPos).Magnitude
@@ -128,12 +135,6 @@ local function safeReset()
     local buyPos = Route.steps[1].position
     root.CFrame = CFrame.new(buyPos.X, buyPos.Y + flyHeight, buyPos.Z)
 end
-
---====================================================
--- Movement
---====================================================
-
-local TweenService = game:GetService("TweenService")
 
 local function moveTo(targetPos)
     local root = getRoot()
@@ -153,7 +154,6 @@ local function moveTo(targetPos)
 
     for i = 1, math.floor(timeNeeded * 2) do
         task.wait(0.5)
-
         if not autoFarmEnabled then return end
 
         if not antiStuckCheck(root, lastPos) then
@@ -183,9 +183,8 @@ local function moveAlongPath()
 end
 
 --====================================================
--- Actions
+-- أوامر الشراء والبيع
 --====================================================
-
 local function buyRing()
     PurchaseWorldBuyableItem:FireServer(WorldBuyableItems["Fake Diamond Ring"])
 end
@@ -205,22 +204,20 @@ local function pingServer()
 end
 
 --====================================================
--- Auto Farm Loop
+-- لوب الأوتو فارم
 --====================================================
-
 task.spawn(function()
     while true do
         task.wait(0.2)
-
         if not autoFarmEnabled then continue end
 
         local root = getRoot()
 
-        -- 1) الذهاب لنقطة الشراء
+        -- الذهاب لنقطة الشراء
         local buyPos = Route.steps[1].position
         moveTo(Vector3.new(buyPos.X, buyPos.Y + flyHeight, buyPos.Z))
 
-        -- 2) شراء الخواتم
+        -- شراء الخواتم
         for i = 1, maxRings do
             if not autoFarmEnabled then break end
             buyRing()
@@ -229,10 +226,10 @@ task.spawn(function()
             task.wait(0.2)
         end
 
-        -- 3) الذهاب لنقطة البيع عبر المسار
+        -- الذهاب لنقطة البيع
         moveAlongPath()
 
-        -- 4) بيع البضاعة
+        -- بيع البضاعة
         sellGoods()
         pingServer()
     end
