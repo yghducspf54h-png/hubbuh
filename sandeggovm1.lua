@@ -1,5 +1,5 @@
 --[[
-    AUTO FARM ROUTE BUILDER
+    AUTO FAR1M ROUTE BUILDER
     Recorder + Path Editor
     For your own Roblox game
 
@@ -868,78 +868,116 @@ UndoButton.MouseButton1Click:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPORT
+-- EXPORT WINDOW
 --------------------------------------------------
 
-local function serialize(value, indent)
-    indent = indent or 0
+local ExportWindow = Instance.new("Frame")
+ExportWindow.Name = "ExportWindow"
+ExportWindow.Visible = false
+ExportWindow.Size = UDim2.fromOffset(680, 480)
+ExportWindow.Position = UDim2.new(0.5, -340, 0.5, -240)
+ExportWindow.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+ExportWindow.BorderSizePixel = 0
+ExportWindow.ZIndex = 50
+ExportWindow.Parent = Gui
 
-    local prefix = string.rep("    ", indent)
+local ExportCorner = Instance.new("UICorner")
+ExportCorner.CornerRadius = UDim.new(0, 10)
+ExportCorner.Parent = ExportWindow
 
-    if typeof(value) == "string" then
-        return string.format("%q", value)
+--------------------------------------------------
+-- EXPORT HEADER
+--------------------------------------------------
 
-    elseif typeof(value) == "number" then
-        return string.format("%.6f", value)
+local ExportHeader = Instance.new("Frame")
+ExportHeader.Size = UDim2.new(1, 0, 0, 45)
+ExportHeader.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+ExportHeader.BorderSizePixel = 0
+ExportHeader.ZIndex = 51
+ExportHeader.Parent = ExportWindow
 
-    elseif typeof(value) == "boolean" then
-        return tostring(value)
+local ExportHeaderCorner = Instance.new("UICorner")
+ExportHeaderCorner.CornerRadius = UDim.new(0, 10)
+ExportHeaderCorner.Parent = ExportHeader
 
-    elseif typeof(value) == "Vector3" then
-        return string.format(
-            "Vector3.new(%.6f, %.6f, %.6f)",
-            value.X,
-            value.Y,
-            value.Z
-        )
+local ExportTitle = Instance.new("TextLabel")
+ExportTitle.Size = UDim2.new(1, -60, 1, 0)
+ExportTitle.Position = UDim2.fromOffset(15, 0)
+ExportTitle.BackgroundTransparency = 1
+ExportTitle.Text = "EXPORT LUA"
+ExportTitle.TextColor3 = Color3.fromRGB(240, 240, 245)
+ExportTitle.Font = Enum.Font.GothamBold
+ExportTitle.TextSize = 14
+ExportTitle.TextXAlignment = Enum.TextXAlignment.Left
+ExportTitle.ZIndex = 52
+ExportTitle.Parent = ExportHeader
 
-    elseif typeof(value) == "CFrame" then
-        local components = {value:GetComponents()}
+local ExportClose = Instance.new("TextButton")
+ExportClose.Size = UDim2.fromOffset(35, 35)
+ExportClose.Position = UDim2.new(1, -43, 0, 5)
+ExportClose.BackgroundColor3 = Color3.fromRGB(150, 45, 55)
+ExportClose.BorderSizePixel = 0
+ExportClose.Text = "×"
+ExportClose.TextColor3 = Color3.new(1, 1, 1)
+ExportClose.Font = Enum.Font.GothamBold
+ExportClose.TextSize = 20
+ExportClose.ZIndex = 52
+ExportClose.Parent = ExportHeader
 
-        local result = "CFrame.new("
+local ExportCloseCorner = Instance.new("UICorner")
+ExportCloseCorner.CornerRadius = UDim.new(0, 7)
+ExportCloseCorner.Parent = ExportClose
 
-        for i, number in ipairs(components) do
-            result ..= string.format("%.6f", number)
+--------------------------------------------------
+-- CODE BOX
+--------------------------------------------------
 
-            if i < #components then
-                result ..= ", "
-            end
-        end
+local ExportCode = Instance.new("TextBox")
+ExportCode.Size = UDim2.new(1, -30, 1, -105)
+ExportCode.Position = UDim2.fromOffset(15, 55)
+ExportCode.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+ExportCode.BorderSizePixel = 0
+ExportCode.Text = ""
+ExportCode.TextColor3 = Color3.fromRGB(220, 220, 225)
+ExportCode.PlaceholderText = "Lua export will appear here..."
+ExportCode.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
+ExportCode.Font = Enum.Font.Code
+ExportCode.TextSize = 12
+ExportCode.TextXAlignment = Enum.TextXAlignment.Left
+ExportCode.TextYAlignment = Enum.TextYAlignment.Top
+ExportCode.MultiLine = true
+ExportCode.ClearTextOnFocus = false
+ExportCode.TextEditable = true
+ExportCode.ZIndex = 51
+ExportCode.Parent = ExportWindow
 
-        result ..= ")"
+local ExportCodeCorner = Instance.new("UICorner")
+ExportCodeCorner.CornerRadius = UDim.new(0, 7)
+ExportCodeCorner.Parent = ExportCode
 
-        return result
+--------------------------------------------------
+-- CLOSE BUTTON
+--------------------------------------------------
 
-    elseif typeof(value) == "table" then
-        local lines = {"{"}
+local ExportCloseBottom = Instance.new("TextButton")
+ExportCloseBottom.Size = UDim2.fromOffset(100, 35)
+ExportCloseBottom.Position = UDim2.new(1, -115, 1, -45)
+ExportCloseBottom.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+ExportCloseBottom.BorderSizePixel = 0
+ExportCloseBottom.Text = "Close"
+ExportCloseBottom.TextColor3 = Color3.new(1, 1, 1)
+ExportCloseBottom.Font = Enum.Font.GothamBold
+ExportCloseBottom.TextSize = 11
+ExportCloseBottom.ZIndex = 51
+ExportCloseBottom.Parent = ExportWindow
 
-        for key, item in pairs(value) do
-            local keyText
+local ExportBottomCorner = Instance.new("UICorner")
+ExportBottomCorner.CornerRadius = UDim.new(0, 7)
+ExportBottomCorner.Parent = ExportCloseBottom
 
-            if type(key) == "string" then
-                keyText = "[" .. string.format("%q", key) .. "]"
-            else
-                keyText = "[" .. tostring(key) .. "]"
-            end
-
-            table.insert(
-                lines,
-                prefix .. "    " ..
-                keyText ..
-                " = " ..
-                serialize(item, indent + 1) ..
-                ","
-            )
-        end
-
-        table.insert(lines, prefix .. "}")
-
-        return table.concat(lines, "\n")
-
-    else
-        return "nil"
-    end
-end
+--------------------------------------------------
+-- EXPORT FUNCTION
+--------------------------------------------------
 
 local function buildExport()
     local export = {}
@@ -1004,31 +1042,75 @@ local function buildExport()
     return table.concat(export, "\n")
 end
 
-local ExportButton = Instance.new("TextButton")
-ExportButton.Size = UDim2.fromOffset(105, 35)
-ExportButton.Position = UDim2.new(1, -110, 1, -43)
-ExportButton.BackgroundColor3 = Color3.fromRGB(55,95,180)
-ExportButton.BorderSizePixel = 0
-ExportButton.Text = "Export Lua"
-ExportButton.TextColor3 = Color3.new(1,1,1)
-ExportButton.Font = Enum.Font.GothamBold
-ExportButton.TextSize = 10
-ExportButton.Parent = Content
-
-local ExportCorner = Instance.new("UICorner")
-ExportCorner.CornerRadius = UDim.new(0,6)
-ExportCorner.Parent = ExportButton
+--------------------------------------------------
+-- EXPORT BUTTON
+--------------------------------------------------
 
 ExportButton.MouseButton1Click:Connect(function()
     local code = buildExport()
 
-    print("========== AUTO FARM ROUTE ==========")
-    print(code)
-    print("======================================")
+    ExportCode.Text = code
+    ExportWindow.Visible = true
 
-    Status.Text = "● EXPORTED"
+    Status.Text = "● EXPORT READY"
+end)
 
-    -- يظهر أيضاً في Output في Roblox Studio.
+--------------------------------------------------
+-- CLOSE EXPORT WINDOW
+--------------------------------------------------
+
+ExportClose.MouseButton1Click:Connect(function()
+    ExportWindow.Visible = false
+end)
+
+ExportCloseBottom.MouseButton1Click:Connect(function()
+    ExportWindow.Visible = false
+end)
+
+--------------------------------------------------
+-- DRAG EXPORT WINDOW
+--------------------------------------------------
+
+local exportDragging = false
+local exportDragStart
+local exportStartPosition
+
+ExportHeader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        exportDragging = true
+        exportDragStart = input.Position
+        exportStartPosition = ExportWindow.Position
+    end
+end)
+
+ExportHeader.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        exportDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not exportDragging then
+        return
+    end
+
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
+    end
+
+    local delta = input.Position - exportDragStart
+
+    ExportWindow.Position = UDim2.new(
+        exportStartPosition.X.Scale,
+        exportStartPosition.X.Offset + delta.X,
+        exportStartPosition.Y.Scale,
+        exportStartPosition.Y.Offset + delta.Y
+    )
 end)
 
 --------------------------------------------------
