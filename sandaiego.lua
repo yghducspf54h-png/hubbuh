@@ -1,167 +1,190 @@
 --====================================================
--- Auto Farm - Fake Diamond Ring
+-- Custom GUI • Auto Farm Interface
 -- By almbjl (المبجّل)
 --====================================================
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-task.wait(1)
-
-local window = WindUI:Window({
-    Title = "Auto Farm • Fake Diamond Ring | المبجّل",
-    Subtitle = "Discord: almbjl",
-    Theme = "Dark",
-})
-
-local tab = window:Tab("Auto Farm")
-
-local autoFarmEnabled = false
-local flyHeight = 5
-local flySpeed = 60
-local maxRings = 5
-
-tab:Toggle({
-    Name = "تشغيل الأوتو فارم",
-    Default = false,
-    Callback = function(v)
-        autoFarmEnabled = v
-    end,
-})
-
-tab:Slider({
-    Name = "عدد Fake Diamond Ring",
-    Min = 1, Max = 8, Default = 5,
-    Callback = function(v)
-        maxRings = v
-    end,
-})
-
-tab:Slider({
-    Name = "ارتفاع فوق الأرض",
-    Min = 2, Max = 20, Default = 5,
-    Callback = function(v)
-        flyHeight = v
-    end,
-})
-
-tab:Slider({
-    Name = "سرعة الطيران",
-    Min = 20, Max = 120, Default = 60,
-    Callback = function(v)
-        flySpeed = v
-    end,
-})
-
-tab:Button({
-    Name = "إظهار المسار في الـ Output",
-    Callback = function()
-        print("========== ROUTE ==========")
-        print("المسار جاهز ✅")
-    end,
-})
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoFarmGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
 --====================================================
--- نظام Anti‑Stuck + الأوتو فارم
+-- نافذة رئيسية
 --====================================================
+local main = Instance.new("Frame")
+main.Size = UDim2.fromOffset(760, 540)
+main.Position = UDim2.new(0.5, -380, 0.5, -270)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+main.BorderSizePixel = 0
+main.Parent = gui
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Remotes = ReplicatedStorage:WaitForChild("__remotes")
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = main
 
-local PurchaseWorldBuyableItem = Remotes.WorldBuyableItemService.PurchaseWorldBuyableItem
-local GetVehicleState = Remotes.VehicleService.GetVehicleState
-local SellSmuggledGoods = Remotes.SmuggleService.SellSmuggledGoods
-local CanManageServer = Remotes.CustomServerService.CanManageServer
+--====================================================
+-- الهيدر
+--====================================================
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 48)
+header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+header.BorderSizePixel = 0
+header.Parent = main
 
-local WorldBuyableItems = workspace.WorldBuyableItems.CivilianArea
-local Vehicles = workspace.Vehicles
-local NPC = workspace.NPC
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 10)
+headerCorner.Parent = header
 
-local player = game.Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -150, 1, 0)
+title.Position = UDim2.fromOffset(15, 0)
+title.BackgroundTransparency = 1
+title.Text = "Auto Farm • Fake Diamond Ring | المبجّل"
+title.TextColor3 = Color3.fromRGB(240, 240, 245)
+title.TextSize = 16
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
 
-local function getRoot()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
+--====================================================
+-- أزرار التحكم (تصغير، تكبير، إغلاق)
+--====================================================
+local function makeButton(parent, text, color, xOffset)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.fromOffset(35, 35)
+    btn.Position = UDim2.new(1, xOffset, 0, 7)
+    btn.Text = text
+    btn.TextSize = 18
+    btn.Font = Enum.Font.GothamBold
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = color
+    btn.BorderSizePixel = 0
+    btn.Parent = parent
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0,7)
+    c.Parent = btn
+    return btn
 end
 
-local function antiStuckCheck(root, lastPos)
-    local moved = (root.Position - lastPos).Magnitude
-    return moved >= 2
-end
+local minimize = makeButton(header, "—", Color3.fromRGB(45,45,52), -115)
+local maximize = makeButton(header, "□", Color3.fromRGB(45,45,52), -75)
+local close = makeButton(header, "×", Color3.fromRGB(150,45,55), -35)
 
-local function safeReset()
-    local root = getRoot()
-    root.CFrame = CFrame.new(6820.941, 17.421 + flyHeight, 20.054)
-end
+--====================================================
+-- نافذة تأكيد الإغلاق
+--====================================================
+local confirmFrame = Instance.new("Frame")
+confirmFrame.Size = UDim2.fromOffset(300, 160)
+confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -80)
+confirmFrame.BackgroundColor3 = Color3.fromRGB(25,25,30)
+confirmFrame.Visible = false
+confirmFrame.Parent = gui
 
-local function moveTo(targetPos)
-    local root = getRoot()
-    local lastPos = root.Position
-    local stuckCount = 0
+local confirmCorner = Instance.new("UICorner")
+confirmCorner.CornerRadius = UDim.new(0,10)
+confirmCorner.Parent = confirmFrame
 
-    local dist = (root.Position - targetPos).Magnitude
-    local timeNeeded = dist / flySpeed
+local confirmText = Instance.new("TextLabel")
+confirmText.Size = UDim2.new(1, 0, 0, 60)
+confirmText.Position = UDim2.fromOffset(0, 20)
+confirmText.BackgroundTransparency = 1
+confirmText.Text = "هل أنت متأكد أنك تريد الإغلاق؟"
+confirmText.TextColor3 = Color3.fromRGB(230,230,235)
+confirmText.Font = Enum.Font.GothamBold
+confirmText.TextSize = 14
+confirmText.Parent = confirmFrame
 
-    local tween = TweenService:Create(root, TweenInfo.new(timeNeeded, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
-    tween:Play()
+local yesBtn = makeButton(confirmFrame, "نعم", Color3.fromRGB(55,150,90), -180)
+yesBtn.Position = UDim2.fromOffset(40, 90)
+local noBtn = makeButton(confirmFrame, "لا", Color3.fromRGB(150,45,55), -80)
+noBtn.Position = UDim2.fromOffset(180, 90)
 
-    for i = 1, math.floor(timeNeeded * 2) do
-        task.wait(0.5)
-        if not autoFarmEnabled then return end
+yesBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
 
-        if not antiStuckCheck(root, lastPos) then
-            stuckCount += 1
-            if stuckCount >= 3 then
-                safeReset()
-                return
-            end
-            tween:Cancel()
-            tween:Play()
-        else
-            stuckCount = 0
-        end
+noBtn.MouseButton1Click:Connect(function()
+    confirmFrame.Visible = false
+end)
 
-        lastPos = root.Position
+close.MouseButton1Click:Connect(function()
+    confirmFrame.Visible = true
+end)
+
+--====================================================
+-- محتوى داخلي منثقِب (نوافذ داخلية)
+--====================================================
+local content = Instance.new("Frame")
+content.Position = UDim2.fromOffset(10, 58)
+content.Size = UDim2.new(1, -20, 1, -68)
+content.BackgroundColor3 = Color3.fromRGB(25,25,30)
+content.BorderSizePixel = 0
+content.Parent = main
+
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0,8)
+contentCorner.Parent = content
+
+-- نافذة داخلية منثقبة
+local inner = Instance.new("Frame")
+inner.Size = UDim2.new(1, -20, 1, -20)
+inner.Position = UDim2.fromOffset(10, 10)
+inner.BackgroundColor3 = Color3.fromRGB(30,30,36)
+inner.BorderSizePixel = 0
+inner.Parent = content
+
+local innerCorner = Instance.new("UICorner")
+innerCorner.CornerRadius = UDim.new(0,10)
+innerCorner.Parent = inner
+
+local innerLabel = Instance.new("TextLabel")
+innerLabel.Size = UDim2.new(1, -20, 0, 40)
+innerLabel.Position = UDim2.fromOffset(10, 10)
+innerLabel.BackgroundTransparency = 1
+innerLabel.Text = "واجهة المبجّل الاحترافية"
+innerLabel.TextColor3 = Color3.fromRGB(200,200,210)
+innerLabel.Font = Enum.Font.GothamBold
+innerLabel.TextSize = 14
+innerLabel.Parent = inner
+
+--====================================================
+-- حقوق واسم المستخدم
+--====================================================
+local footer = Instance.new("TextLabel")
+footer.Size = UDim2.new(1, 0, 0, 30)
+footer.Position = UDim2.new(0, 0, 1, -30)
+footer.BackgroundTransparency = 1
+footer.Text = "Discord: almbjl  •  © المبجّل"
+footer.TextColor3 = Color3.fromRGB(150,150,160)
+footer.Font = Enum.Font.Gotham
+footer.TextSize = 12
+footer.Parent = main
+
+--====================================================
+-- وظائف التصغير والتكبير
+--====================================================
+local minimized = false
+local maximized = false
+
+minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    content.Visible = not minimized
+    if minimized then
+        main.Size = UDim2.fromOffset(main.Size.X.Offset, 48)
+    else
+        main.Size = UDim2.fromOffset(760, 540)
     end
+end)
 
-    tween.Completed:Wait()
-end
-
-local function buyRing()
-    PurchaseWorldBuyableItem:FireServer(WorldBuyableItems["Fake Diamond Ring"])
-end
-
-local function pingVehicle()
-    GetVehicleState:InvokeServer(Vehicles["Dodge Durango RT"])
-end
-
-local function sellGoods()
-    SellSmuggledGoods:FireServer(NPC.Seller4)
-end
-
-local function pingServer()
-    pcall(function()
-        CanManageServer:InvokeServer()
-    end)
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if not autoFarmEnabled then continue end
-
-        local root = getRoot()
-        moveTo(Vector3.new(6820.941, 17.421 + flyHeight, 20.054))
-
-        for i = 1, maxRings do
-            if not autoFarmEnabled then break end
-            buyRing()
-            pingVehicle()
-            pingServer()
-            task.wait(0.2)
-        end
-
-        moveTo(Vector3.new(215.130, 17.244 + flyHeight, -39.732))
-        sellGoods()
-        pingServer()
+maximize.MouseButton1Click:Connect(function()
+    maximized = not maximized
+    if maximized then
+        main.Size = UDim2.fromOffset(960, 640)
+        main.Position = UDim2.new(0.5, -480, 0.5, -320)
+    else
+        main.Size = UDim2.fromOffset(760, 540)
+        main.Position = UDim2.new(0.5, -380, 0.5, -270)
     end
 end)
