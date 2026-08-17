@@ -1,6 +1,6 @@
 --====================================================
--- Auto Farm • Fake Diamond Ring
--- By المبجّل • Discord: almbjl
+-- Auto Farm • Fake Diamond Ring (Speed Mode)
+-- By المبجّل • Discord: almbjl1
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -13,10 +13,9 @@ local Items = workspace.WorldBuyableItems.CivilianArea
 local NPC = workspace.NPC
 local player = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
-local UIS = game:GetService("UserInputService")
 
 --========================
--- المسار الجديد + رفع آخر نقطة
+-- المسار الجديد
 --========================
 local Route = {
     BuyPos = Vector3.new(6820.766, 17.421, 19.468),
@@ -36,256 +35,126 @@ local Route = {
         Vector3.new(206.688, 17.082, -53.580),
         Vector3.new(207.952, 17.244, -44.035),
 
-        -- ⭐ أهم نقطة: رفع آخر نقطة فوق الأرض حتى لا يلمس الأرض نهائيًا
-        Vector3.new(207.952, 17.244 + 1.5, -44.035),
+        -- ⭐ آخر نقطة فوق الأرض (عدم لمس الأرض نهائيًا)
+        Vector3.new(207.952, 17.244 + 2, -44.035),
     }
 }
 
 local autoFarm = false
-local maxRings, flyHeight, flySpeed = 5, 0, 120
-local activeTween = nil
+local maxRings = 10
+local speed = 120
 
+--========================
+-- نظام الحركة الجديد (بدون طيران)
+--========================
 local function Root()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
+    return player.Character:WaitForChild("HumanoidRootPart")
 end
 
-local function stopAllMovement()
-    if activeTween then
-        activeTween:Cancel()
-        activeTween = nil
-    end
-    Root().Anchored = false
-end
-
-local function antiCheat()
-    pcall(function()
-        AntiCheatRemote:InvokeServer()
-    end)
-end
-
-local function buyRing()
-    BuyRemote:FireServer(Items["Fake Diamond Ring"])
-end
-
--- نظام بيع متحقق
-local function sellGoods()
+local function floatMode()
     local root = Root()
-    root.CFrame = root.CFrame + Vector3.new(0, 0.8, 0)
 
-    local success = false
-    for attempt = 1, 5 do
-        SellRemote:FireServer(NPC["Seller4"])
-        antiCheat()
-        task.wait(0.3)
-
-        if player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Money") then
-            success = true
-            break
-        end
+    if not root:FindFirstChild("BV") then
+        local bv = Instance.new("BodyVelocity", root)
+        bv.Name = "BV"
+        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        bv.Velocity = Vector3.new(0, 0, 0)
     end
 
-    if not success then
-        print("⚠️ السيرفر ما قبل البيع، إعادة المحاولة لاحقًا")
+    if not root:FindFirstChild("BG") then
+        local bg = Instance.new("BodyGyro", root)
+        bg.Name = "BG"
+        bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        bg.CFrame = root.CFrame
     end
 end
 
 local function moveTo(pos)
+    floatMode()
     local root = Root()
-    local target = Vector3.new(pos.X, pos.Y + flyHeight + 0.5, pos.Z)
-    local dist = (root.Position - target).Magnitude
-    local t = dist / flySpeed
 
-    root.Anchored = true
-    activeTween = TweenService:Create(root, TweenInfo.new(t, Enum.EasingStyle.Linear), {CFrame = CFrame.new(target)})
-    activeTween:Play()
-
-    local lastPos = root.Position
-    local stuckTimer = 0
-
-    while activeTween and activeTween.PlaybackState == Enum.PlaybackState.Playing do
-        task.wait(0.2)
-        if not autoFarm then
-            stopAllMovement()
-            return
-        end
-
-        local moved = (root.Position - lastPos).Magnitude
-        if moved < 0.5 then
-            stuckTimer += 0.2
-            if stuckTimer >= 3 then
-                print("⚠️ تجاوز الإحداثية بسبب التعليق")
-                stopAllMovement()
-                return
-            end
-        else
-            stuckTimer = 0
-        end
-
-        lastPos = root.Position
+    while autoFarm and (root.Position - pos).Magnitude > 3 do
+        root.BV.Velocity = (pos - root.Position).Unit * speed
+        task.wait()
     end
 
-    root.CFrame = CFrame.new(target)
-    root.Anchored = false
+    root.BV.Velocity = Vector3.new(0,0,0)
 end
 
-local function moveForward()
-    for _, p in ipairs(Route.Points) do
-        if not autoFarm then break end
-        moveTo(p)
-    end
-end
-
-local function moveBackward()
-    for i = #Route.Points, 1, -1 do
-        if not autoFarm then break end
-        moveTo(Route.Points[i])
-    end
-end
-
-local function safeBuyLoop()
+--========================
+-- شراء حسب العدد
+--========================
+local function buyRings()
     for i = 1, maxRings do
         if not autoFarm then break end
-        buyRing()
-        antiCheat()
-        task.wait(0.4)
+        BuyRemote:FireServer(Items["Fake Diamond Ring"])
+        AntiCheatRemote:InvokeServer()
+        task.wait(0.2)
     end
 end
 
+--========================
+-- بيع سبام لين يتأكد إنه انباع
+--========================
+local function sellSpam()
+    local root = Root()
+    root.CFrame = root.CFrame + Vector3.new(0, 1.5, 0)
+
+    local before = player.leaderstats.Money.Value
+
+    for i = 1, 20 do
+        SellRemote:FireServer(NPC["Seller4"])
+        AntiCheatRemote:InvokeServer()
+        task.wait(0.1)
+
+        if player.leaderstats.Money.Value > before then
+            print("✔ انباع فعليًا")
+            break
+        end
+    end
+end
+
+--========================
+-- اللوب الأساسي
+--========================
 task.spawn(function()
     while true do
         task.wait(0.2)
         if not autoFarm then continue end
 
         moveTo(Route.BuyPos)
-        safeBuyLoop()
-        moveForward()
-        task.wait(3)
+        buyRings()
 
-        for i = 1, 5 do
+        for _, p in ipairs(Route.Points) do
             if not autoFarm then break end
-            sellGoods()
-            task.wait(0.2)
+            moveTo(p)
         end
 
-        moveBackward()
+        sellSpam()
+
+        for i = #Route.Points, 1, -1 do
+            if not autoFarm then break end
+            moveTo(Route.Points[i])
+        end
     end
 end)
 
 --========================
--- واجهة بسيطة متحركة
+-- واجهة
 --========================
 local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.ResetOnSpawn = false
 
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.fromOffset(260, 190)
-main.Position = UDim2.new(0.5, -130, 0.4, -95)
-main.BackgroundColor3 = Color3.fromRGB(25,25,30)
-Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
+local btn = Instance.new("TextButton", gui)
+btn.Size = UDim2.fromOffset(160, 40)
+btn.Position = UDim2.new(0.05, 0, 0.05, 0)
+btn.BackgroundColor3 = Color3.fromRGB(60,120,200)
+btn.TextColor3 = Color3.new(1,1,1)
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 14
+btn.Text = "Auto Farm: OFF"
 
-local header = Instance.new("TextLabel", main)
-header.Size = UDim2.new(1,0,0,30)
-header.BackgroundColor3 = Color3.fromRGB(35,35,40)
-header.Text = "Auto Farm • المبجّل"
-header.TextColor3 = Color3.new(1,1,1)
-header.Font = Enum.Font.GothamBold
-header.TextSize = 13
-Instance.new("UICorner", header).CornerRadius = UDim.new(0,10)
-
-local dragging, dragStart, startPos = false, nil, nil
-
-header.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = i.Position
-        startPos = main.Position
-    end
-end)
-
-header.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
-end)
-
-UIS.InputChanged:Connect(function(i)
-    if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = i.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                                  startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-local function Label(txt, y)
-    local l = Instance.new("TextLabel", main)
-    l.Size = UDim2.new(1,-20,0,18)
-    l.Position = UDim2.fromOffset(10,y)
-    l.BackgroundTransparency = 1
-    l.Text = txt
-    l.TextColor3 = Color3.new(1,1,1)
-    l.Font = Enum.Font.GothamBold
-    l.TextSize = 12
-    return l
-end
-
-local function Box(y, default)
-    local b = Instance.new("TextBox", main)
-    b.Size = UDim2.fromOffset(80,24)
-    b.Position = UDim2.fromOffset(10,y)
-    b.BackgroundColor3 = Color3.fromRGB(40,40,45)
-    b.Text = tostring(default)
-    b.TextColor3 = Color3.new(1,1,1)
-    b.Font = Enum.Font.Gotham
-    b.TextSize = 12
-    b.ClearTextOnFocus = false
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
-    return b
-end
-
-local function Button(txt, y)
-    local b = Instance.new("TextButton", main)
-    b.Size = UDim2.fromOffset(140,28)
-    b.Position = UDim2.fromOffset(110,y)
-    b.BackgroundColor3 = Color3.fromRGB(60,120,200)
-    b.Text = txt
-    b.TextColor3 = Color3.new(1,1,1)
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 12
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
-    return b
-end
-
-Label("عدد الخواتم (1-8)", 40)
-local ringsBox = Box(60, maxRings)
-
-Label("ارتفاع الطيران (محاذاة الأرض = 0)", 90)
-local heightBox = Box(110, flyHeight)
-
-Label("سرعة الطيران", 140)
-local speedBox = Box(160, flySpeed)
-
-local autoBtn = Button("Auto Farm: OFF", 10)
-
-autoBtn.MouseButton1Click:Connect(function()
+btn.MouseButton1Click:Connect(function()
     autoFarm = not autoFarm
-    autoBtn.Text = autoFarm and "Auto Farm: ON" or "Auto Farm: OFF"
-    if not autoFarm then
-        stopAllMovement()
-    end
-end)
-
-ringsBox.FocusLost:Connect(function()
-    maxRings = math.clamp(tonumber(ringsBox.Text) or maxRings, 1, 8)
-    ringsBox.Text = tostring(maxRings)
-end)
-
-heightBox.FocusLost:Connect(function()
-    flyHeight = tonumber(heightBox.Text) or flyHeight
-    heightBox.Text = tostring(flyHeight)
-end)
-
-speedBox.FocusLost:Connect(function()
-    flySpeed = math.clamp(tonumber(speedBox.Text) or flySpeed, 20, 200)
-    speedBox.Text = tostring(flySpeed)
+    btn.Text = autoFarm and "Auto Farm: ON" or "Auto Farm: OFF"
 end)
