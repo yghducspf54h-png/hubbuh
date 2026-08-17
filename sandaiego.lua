@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl1
+-- By المبجّل • Discord: almbjl
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -12,10 +12,11 @@ local AntiCheatRemote = Remotes.CustomServerService.CanManageServer
 local Items = workspace.WorldBuyableItems.CivilianArea
 local NPC = workspace.NPC
 local player = game.Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
+local char = player.Character or player.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
 
 --========================
--- المسار الجديد
+-- المسار
 --========================
 local Route = {
     BuyPos = Vector3.new(6820.766, 17.421, 19.468),
@@ -34,51 +35,23 @@ local Route = {
         Vector3.new(192.914, 17.223, -54.420),
         Vector3.new(206.688, 17.082, -53.580),
         Vector3.new(207.952, 17.244, -44.035),
-
-        -- ⭐ آخر نقطة فوق الأرض (عدم لمس الأرض نهائيًا)
-        Vector3.new(207.952, 17.244 + 2, -44.035),
     }
 }
 
 local autoFarm = false
 local maxRings = 10
-local speed = 120
+local walkSpeed = 22
 
 --========================
--- نظام الحركة الجديد (بدون طيران)
+-- حركة بدون كشف
 --========================
-local function Root()
-    return player.Character:WaitForChild("HumanoidRootPart")
-end
-
-local function floatMode()
-    local root = Root()
-
-    if not root:FindFirstChild("BV") then
-        local bv = Instance.new("BodyVelocity", root)
-        bv.Name = "BV"
-        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        bv.Velocity = Vector3.new(0, 0, 0)
-    end
-
-    if not root:FindFirstChild("BG") then
-        local bg = Instance.new("BodyGyro", root)
-        bg.Name = "BG"
-        bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-        bg.CFrame = root.CFrame
-    end
-end
-
 local function moveTo(pos)
-    floatMode()
-    local root = Root()
+    hum.WalkSpeed = walkSpeed
+    hum:MoveTo(pos)
 
-    while autoFarm and (root.Position - pos).Magnitude > 3 do
-        root.BV.Velocity = (pos - root.Position).Unit * speed
+    while autoFarm and (char.PrimaryPart.Position - pos).Magnitude > 4 do
         task.wait()
     end
-
-    root.BV.Velocity = Vector3.new(0,0,0)
 end
 
 --========================
@@ -89,20 +62,17 @@ local function buyRings()
         if not autoFarm then break end
         BuyRemote:FireServer(Items["Fake Diamond Ring"])
         AntiCheatRemote:InvokeServer()
-        task.wait(0.2)
+        task.wait(0.15)
     end
 end
 
 --========================
--- بيع سبام لين يتأكد إنه انباع
+-- سبام بيع لين يتأكد إنه انباع
 --========================
 local function sellSpam()
-    local root = Root()
-    root.CFrame = root.CFrame + Vector3.new(0, 1.5, 0)
-
     local before = player.leaderstats.Money.Value
 
-    for i = 1, 20 do
+    for i = 1, 30 do
         SellRemote:FireServer(NPC["Seller4"])
         AntiCheatRemote:InvokeServer()
         task.wait(0.1)
@@ -122,16 +92,20 @@ task.spawn(function()
         task.wait(0.2)
         if not autoFarm then continue end
 
+        -- شراء
         moveTo(Route.BuyPos)
         buyRings()
 
+        -- الذهاب للبائع
         for _, p in ipairs(Route.Points) do
             if not autoFarm then break end
             moveTo(p)
         end
 
+        -- بيع سبام
         sellSpam()
 
+        -- الرجوع
         for i = #Route.Points, 1, -1 do
             if not autoFarm then break end
             moveTo(Route.Points[i])
@@ -145,9 +119,15 @@ end)
 local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.ResetOnSpawn = false
 
-local btn = Instance.new("TextButton", gui)
-btn.Size = UDim2.fromOffset(160, 40)
-btn.Position = UDim2.new(0.05, 0, 0.05, 0)
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromOffset(220, 150)
+frame.Position = UDim2.new(0.05, 0, 0.15, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,35)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+
+local btn = Instance.new("TextButton", frame)
+btn.Size = UDim2.fromOffset(200, 35)
+btn.Position = UDim2.fromOffset(10, 10)
 btn.BackgroundColor3 = Color3.fromRGB(60,120,200)
 btn.TextColor3 = Color3.new(1,1,1)
 btn.Font = Enum.Font.GothamBold
@@ -157,4 +137,36 @@ btn.Text = "Auto Farm: OFF"
 btn.MouseButton1Click:Connect(function()
     autoFarm = not autoFarm
     btn.Text = autoFarm and "Auto Farm: ON" or "Auto Farm: OFF"
+end)
+
+local ringsBox = Instance.new("TextBox", frame)
+ringsBox.Size = UDim2.fromOffset(80, 30)
+ringsBox.Position = UDim2.fromOffset(10, 60)
+ringsBox.BackgroundColor3 = Color3.fromRGB(45,45,50)
+ringsBox.Text = tostring(maxRings)
+ringsBox.TextColor3 = Color3.new(1,1,1)
+ringsBox.Font = Enum.Font.Gotham
+ringsBox.TextSize = 12
+ringsBox.ClearTextOnFocus = false
+Instance.new("UICorner", ringsBox).CornerRadius = UDim.new(0,6)
+
+ringsBox.FocusLost:Connect(function()
+    maxRings = math.clamp(tonumber(ringsBox.Text) or maxRings, 1, 10)
+    ringsBox.Text = tostring(maxRings)
+end)
+
+local speedBox = Instance.new("TextBox", frame)
+speedBox.Size = UDim2.fromOffset(80, 30)
+speedBox.Position = UDim2.fromOffset(110, 60)
+speedBox.BackgroundColor3 = Color3.fromRGB(45,45,50)
+speedBox.Text = tostring(walkSpeed)
+speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 12
+speedBox.ClearTextOnFocus = false
+Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0,6)
+
+speedBox.FocusLost:Connect(function()
+    walkSpeed = math.clamp(tonumber(speedBox.Text) or walkSpeed, 10, 40)
+    speedBox.Text = tostring(walkSpeed)
 end)
