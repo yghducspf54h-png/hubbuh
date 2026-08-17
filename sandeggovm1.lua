@@ -1,49 +1,37 @@
---[[
-    AUTO FAR1M ROUTE BUILDER
-    Recorder + Path Editor
-    For your own Roblox game
+--!strict
 
-    Features:
-    - Action recording
-    - Separate path recording
-    - Custom categories
-    - Custom names
-    - Position + rotation capture
-    - Drag window
-    - Resize window
-    - Minimize
-    - Undo
-    - Delete / reorder
-    - Lua export
-]]
+-- ============================================================
+-- AUTO FARM ROUTE BUILDER
+-- Route Recorder / Editor / Exporter
+-- ============================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
 
---------------------------------------------------
+-- ============================================================
 -- DATA
---------------------------------------------------
+-- ============================================================
 
 local Route = {
-    name = "AutoFarm_Main",
-    steps = {},
+	name = "AutoFarm_Main",
+	steps = {},
 }
 
 local Categories = {
-    "Start",
-    "Buy",
-    "Sell",
-    "Interact",
-    "Pickup",
-    "Dropoff",
-    "Wait",
-    "Bank",
-    "Custom",
+	"Start",
+	"Buy",
+	"Sell",
+	"Interact",
+	"Pickup",
+	"Dropoff",
+	"Wait",
+	"Bank",
+	"Custom",
 }
 
-local selectedCategory = "Buy"
+local selectedCategory = "Start"
 local selectedStep = nil
 
 local recordingPath = false
@@ -51,103 +39,329 @@ local pathPoints = {}
 
 local undoStack = {}
 
---------------------------------------------------
+-- ============================================================
 -- HELPERS
---------------------------------------------------
+-- ============================================================
 
 local function getCharacter()
-    return Player.Character
+	return Player.Character or Player.CharacterAdded:Wait()
 end
 
-local function getRoot()
-    local character = getCharacter()
-    if not character then
-        return nil
-    end
+local function getMovementTarget()
+	local character = getCharacter()
 
-    return character:FindFirstChild("HumanoidRootPart")
-end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-local function getPosition()
-    local root = getRoot()
+	-- Vehicle
+	if humanoid and humanoid.SeatPart then
+		local seat = humanoid.SeatPart
 
-    if not root then
-        return nil
-    end
+		local vehicleModel = seat:FindFirstAncestorOfClass("Model")
 
-    return root.Position
+		if vehicleModel then
+			local root =
+				vehicleModel.PrimaryPart
+				or vehicleModel:FindFirstChild("VehicleSeat", true)
+				or vehicleModel:FindFirstChildWhichIsA("BasePart")
+
+			if root and root:IsA("BasePart") then
+				return root.CFrame, "Vehicle"
+			end
+		end
+
+		return seat.CFrame, "Vehicle"
+	end
+
+	-- Walking
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+
+	if hrp and hrp:IsA("BasePart") then
+		return hrp.CFrame, "Walk"
+	end
+
+	return nil, "Walk"
 end
 
 local function getCFrame()
-    local root = getRoot()
+	local cf = getMovementTarget()
 
-    if not root then
-        return nil
-    end
-
-    return root.CFrame
+	return cf
 end
 
 local function cloneSteps()
-    local copy = {}
+	local result = {}
 
-    for i, step in ipairs(Route.steps) do
-        copy[i] = table.clone(step)
-    end
+	for i, step in ipairs(Route.steps) do
+		local copiedStep = {}
 
-    return copy
+		for key, value in pairs(step) do
+			if key == "points" and type(value) == "table" then
+				copiedStep.points = {}
+
+				for j, point in ipairs(value) do
+					copiedStep.points[j] = {
+						position = point.position,
+						rotation = point.rotation,
+						movementMode = point.movementMode,
+					}
+				end
+			else
+				copiedStep[key] = value
+			end
+		end
+
+		result[i] = copiedStep
+	end
+
+	return result
 end
 
 local function saveUndo()
-    table.insert(undoStack, cloneSteps())
+	table.insert(undoStack, cloneSteps())
 
-    if #undoStack > 50 then
-        table.remove(undoStack, 1)
-    end
+	if #undoStack > 30 then
+		table.remove(undoStack, 1)
+	end
 end
 
-local function formatVector(v)
-    return string.format(
-        "%.2f, %.2f, %.2f",
-        v.X,
-        v.Y,
-        v.Z
-    )
+local function formatNumber(number)
+	return string.format("%.3f", number)
 end
 
---------------------------------------------------
+local function formatVector3(v)
+	return string.format(
+		"Vector3.new(%s, %s, %s)",
+		formatNumber(v.X),
+		formatNumber(v.Y),
+		formatNumber(v.Z)
+	)
+end
+
+local function formatCFrameRotation(cf)
+	local x, y, z = cf:ToOrientation()
+
+	return string.format(
+		"CFrame.Angles(%s, %s, %s)",
+		formatNumber(x),
+		formatNumber(y),
+		formatNumber(z)
+	)
+end
+
+-- ============================================================
+-- EXPORT SERIALIZER
+-- ============================================================
+
+local function serialize(value, indent)
+	indent = indent or 0
+
+	local spacing = string.rep("    ", indent)
+	local nextSpacing = string.rep("    ", indent + 1)
+
+	if typeof(value) == "string" then
+		return string.format("%q", value)
+
+	elseif typeof(value) == "number" then
+		return formatNumber(value)
+
+	elseif typeof(value) == "boolean" then
+		return tostring(value)
+
+	elseif typeof(value) == "Vector3" then
+		return formatVector3(value)
+
+	elseif typeof(value) == "CFrame" then
+		return string.format(
+			"CFrame.new(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+			formatNumber(value.X),
+			formatNumber(value.Y),
+			formatNumber(value.Z),
+
+			formatNumber(value.XVector.X),
+			formatNumber(value.XVector.Y),
+			formatNumber(value.XVector.Z),
+
+			formatNumber(value.YVector.X),
+			formatNumber(value.YVector.Y),
+			formatNumber(value.YVector.Z),
+
+			formatNumber(value.ZVector.X),
+			formatNumber(value.ZVector.Y),
+			formatNumber(value.ZVector.Z)
+		)
+
+	elseif type(value) == "table" then
+		local lines = {}
+
+		table.insert(lines, "{")
+
+		for key, val in pairs(value) do
+			local keyString
+
+			if type(key) == "number" then
+				keyString = "[" .. tostring(key) .. "]"
+			else
+				keyString = "[" .. string.format("%q", tostring(key)) .. "]"
+			end
+
+			table.insert(
+				lines,
+				nextSpacing
+					.. keyString
+					.. " = "
+					.. serialize(val, indent + 1)
+					.. ","
+			)
+		end
+
+		table.insert(lines, spacing .. "}")
+
+		return table.concat(lines, "\n")
+	end
+
+	return "nil"
+end
+
+local function buildExport()
+	local output = {}
+
+	table.insert(output, "-- ====================================================")
+	table.insert(output, "-- AUTO FARM ROUTE")
+	table.insert(output, "-- Generated by Route Builder")
+	table.insert(output, "-- ====================================================")
+	table.insert(output, "")
+	table.insert(output, "local Route = {")
+	table.insert(output, '    name = "'
+		.. Route.name:gsub('"', '\\"')
+		.. '",')
+	table.insert(output, "    steps = {")
+
+	for index, step in ipairs(Route.steps) do
+		table.insert(output, "        {")
+
+		table.insert(
+			output,
+			'            type = ' .. string.format("%q", step.type) .. ","
+		)
+
+		table.insert(
+			output,
+			'            category = '
+				.. string.format("%q", step.category or "")
+				.. ","
+		)
+
+		table.insert(
+			output,
+			'            name = '
+				.. string.format("%q", step.name or "")
+				.. ","
+		)
+
+		if step.type == "Action" then
+			if step.position then
+				table.insert(
+					output,
+					"            position = "
+						.. serialize(step.position)
+						.. ","
+				)
+			end
+
+			if step.rotation then
+				table.insert(
+					output,
+					"            rotation = "
+						.. serialize(step.rotation)
+						.. ","
+				)
+			end
+		end
+
+		if step.type == "Path" then
+			table.insert(output, "            points = {")
+
+			for pointIndex, point in ipairs(step.points or {}) do
+				table.insert(output, "                {")
+
+				table.insert(
+					output,
+					"                    position = "
+						.. serialize(point.position)
+						.. ","
+				)
+
+				table.insert(
+					output,
+					"                    rotation = "
+						.. serialize(point.rotation)
+						.. ","
+				)
+
+				table.insert(
+					output,
+					'                    movementMode = '
+						.. string.format(
+							"%q",
+							point.movementMode or "Walk"
+						)
+						.. ","
+				)
+
+				table.insert(output, "                },")
+			end
+
+			table.insert(output, "            },")
+		end
+
+		table.insert(output, "        },")
+
+		if index < #Route.steps then
+			table.insert(output, "")
+		end
+	end
+
+	table.insert(output, "    },")
+	table.insert(output, "}")
+	table.insert(output, "")
+	table.insert(output, "return Route")
+
+	return table.concat(output, "\n")
+end
+
+-- ============================================================
 -- GUI
---------------------------------------------------
+-- ============================================================
 
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "AutoFarmRouteBuilder"
-Gui.ResetOnSpawn = false
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-Gui.Parent = Player:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoFarmRouteBuilder"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
 
---------------------------------------------------
+-- ============================================================
 -- MAIN WINDOW
---------------------------------------------------
+-- ============================================================
 
 local Main = Instance.new("Frame")
 Main.Name = "Main"
-Main.Size = UDim2.fromOffset(760, 540)
-Main.Position = UDim2.new(0.5, -380, 0.5, -270)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+Main.Size = UDim2.fromOffset(780, 560)
+Main.Position = UDim2.new(0.5, -390, 0.5, -280)
+Main.BackgroundColor3 = Color3.fromRGB(22, 24, 30)
 Main.BorderSizePixel = 0
-Main.Parent = Gui
+Main.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = Main
 
---------------------------------------------------
+-- ============================================================
 -- HEADER
---------------------------------------------------
+-- ============================================================
 
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 48)
-Header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+Header.BackgroundColor3 = Color3.fromRGB(30, 33, 41)
 Header.BorderSizePixel = 0
 Header.Parent = Main
 
@@ -156,744 +370,628 @@ HeaderCorner.CornerRadius = UDim.new(0, 10)
 HeaderCorner.Parent = Header
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -150, 1, 0)
-Title.Position = UDim2.fromOffset(15, 0)
+Title.Size = UDim2.new(0, 300, 1, 0)
+Title.Position = UDim2.fromOffset(16, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "AUTO FARM  •  ROUTE BUILDER"
-Title.TextColor3 = Color3.fromRGB(240, 240, 245)
-Title.TextSize = 16
+Title.Text = "AUTO FARM ROUTE BUILDER"
+Title.TextColor3 = Color3.fromRGB(235, 235, 240)
 Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.fromOffset(120, 48)
-Status.Position = UDim2.new(1, -215, 0, 0)
+Status.Size = UDim2.new(0, 210, 1, 0)
+Status.Position = UDim2.new(0.5, -105, 0, 0)
 Status.BackgroundTransparency = 1
 Status.Text = "● READY"
-Status.TextColor3 = Color3.fromRGB(100, 220, 130)
-Status.TextSize = 12
+Status.TextColor3 = Color3.fromRGB(100, 210, 130)
 Status.Font = Enum.Font.GothamBold
+Status.TextSize = 11
 Status.Parent = Header
 
---------------------------------------------------
--- HEADER BUTTONS
---------------------------------------------------
-
 local Minimize = Instance.new("TextButton")
-Minimize.Size = UDim2.fromOffset(35, 35)
-Minimize.Position = UDim2.new(1, -115, 0, 7)
+Minimize.Size = UDim2.fromOffset(35, 30)
+Minimize.Position = UDim2.new(1, -115, 0, 9)
+Minimize.BackgroundTransparency = 1
 Minimize.Text = "—"
-Minimize.TextSize = 20
+Minimize.TextColor3 = Color3.fromRGB(220, 220, 225)
 Minimize.Font = Enum.Font.GothamBold
-Minimize.TextColor3 = Color3.new(1,1,1)
-Minimize.BackgroundColor3 = Color3.fromRGB(45,45,52)
-Minimize.BorderSizePixel = 0
+Minimize.TextSize = 18
 Minimize.Parent = Header
 
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0,7)
-MinCorner.Parent = Minimize
-
 local Maximize = Instance.new("TextButton")
-Maximize.Size = UDim2.fromOffset(35, 35)
-Maximize.Position = UDim2.new(1, -75, 0, 7)
+Maximize.Size = UDim2.fromOffset(35, 30)
+Maximize.Position = UDim2.new(1, -78, 0, 9)
+Maximize.BackgroundTransparency = 1
 Maximize.Text = "□"
-Maximize.TextSize = 17
+Maximize.TextColor3 = Color3.fromRGB(220, 220, 225)
 Maximize.Font = Enum.Font.GothamBold
-Maximize.TextColor3 = Color3.new(1,1,1)
-Maximize.BackgroundColor3 = Color3.fromRGB(45,45,52)
-Maximize.BorderSizePixel = 0
+Maximize.TextSize = 15
 Maximize.Parent = Header
 
-local MaxCorner = Instance.new("UICorner")
-MaxCorner.CornerRadius = UDim.new(0,7)
-MaxCorner.Parent = Maximize
-
 local Close = Instance.new("TextButton")
-Close.Size = UDim2.fromOffset(35, 35)
-Close.Position = UDim2.new(1, -35, 0, 7)
+Close.Size = UDim2.fromOffset(35, 30)
+Close.Position = UDim2.new(1, -40, 0, 9)
+Close.BackgroundTransparency = 1
 Close.Text = "×"
-Close.TextSize = 20
+Close.TextColor3 = Color3.fromRGB(240, 100, 100)
 Close.Font = Enum.Font.GothamBold
-Close.TextColor3 = Color3.new(1,1,1)
-Close.BackgroundColor3 = Color3.fromRGB(150, 45, 55)
-Close.BorderSizePixel = 0
+Close.TextSize = 20
 Close.Parent = Header
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0,7)
-CloseCorner.Parent = Close
-
---------------------------------------------------
+-- ============================================================
 -- CONTENT
---------------------------------------------------
+-- ============================================================
 
 local Content = Instance.new("Frame")
-Content.Position = UDim2.fromOffset(10, 58)
-Content.Size = UDim2.new(1, -20, 1, -68)
+Content.Size = UDim2.new(1, 0, 1, -48)
+Content.Position = UDim2.fromOffset(0, 48)
 Content.BackgroundTransparency = 1
 Content.Parent = Main
 
---------------------------------------------------
+-- ============================================================
 -- LEFT PANEL
---------------------------------------------------
+-- ============================================================
 
-local Left = Instance.new("Frame")
-Left.Size = UDim2.fromOffset(210, 1)
-Left.SizeConstraint = Enum.SizeConstraint.RelativeYY
-Left.BackgroundColor3 = Color3.fromRGB(25,25,30)
-Left.BorderSizePixel = 0
-Left.Parent = Content
-
--- We'll manually size left panel based on window width.
-Left.Size = UDim2.new(0, 210, 1, 0)
+local LeftPanel = Instance.new("Frame")
+LeftPanel.Size = UDim2.new(0, 245, 1, -20)
+LeftPanel.Position = UDim2.fromOffset(10, 10)
+LeftPanel.BackgroundColor3 = Color3.fromRGB(27, 29, 36)
+LeftPanel.BorderSizePixel = 0
+LeftPanel.Parent = Content
 
 local LeftCorner = Instance.new("UICorner")
-LeftCorner.CornerRadius = UDim.new(0,8)
-LeftCorner.Parent = Left
+LeftCorner.CornerRadius = UDim.new(0, 8)
+LeftCorner.Parent = LeftPanel
 
-local LeftTitle = Instance.new("TextLabel")
-LeftTitle.Size = UDim2.new(1, -20, 0, 35)
-LeftTitle.Position = UDim2.fromOffset(10, 5)
-LeftTitle.BackgroundTransparency = 1
-LeftTitle.Text = "ROUTE STEPS"
-LeftTitle.TextColor3 = Color3.fromRGB(180,180,190)
-LeftTitle.Font = Enum.Font.GothamBold
-LeftTitle.TextSize = 12
-LeftTitle.TextXAlignment = Enum.TextXAlignment.Left
-LeftTitle.Parent = Left
+local RouteTitle = Instance.new("TextLabel")
+RouteTitle.Size = UDim2.new(1, -20, 0, 30)
+RouteTitle.Position = UDim2.fromOffset(10, 8)
+RouteTitle.BackgroundTransparency = 1
+RouteTitle.Text = "ROUTE STEPS"
+RouteTitle.TextColor3 = Color3.fromRGB(180, 185, 195)
+RouteTitle.Font = Enum.Font.GothamBold
+RouteTitle.TextSize = 11
+RouteTitle.TextXAlignment = Enum.TextXAlignment.Left
+RouteTitle.Parent = LeftPanel
 
-local StepList = Instance.new("ScrollingFrame")
-StepList.Position = UDim2.fromOffset(8, 42)
-StepList.Size = UDim2.new(1, -16, 1, -50)
-StepList.BackgroundTransparency = 1
-StepList.BorderSizePixel = 0
-StepList.ScrollBarThickness = 4
-StepList.CanvasSize = UDim2.new()
-StepList.Parent = Left
+local StepsScroll = Instance.new("ScrollingFrame")
+StepsScroll.Size = UDim2.new(1, -16, 1, -82)
+StepsScroll.Position = UDim2.fromOffset(8, 42)
+StepsScroll.BackgroundTransparency = 1
+StepsScroll.BorderSizePixel = 0
+StepsScroll.ScrollBarThickness = 4
+StepsScroll.CanvasSize = UDim2.new()
+StepsScroll.Parent = LeftPanel
 
-local StepLayout = Instance.new("UIListLayout")
-StepLayout.Padding = UDim.new(0, 5)
-StepLayout.Parent = StepList
+local StepsLayout = Instance.new("UIListLayout")
+StepsLayout.Padding = UDim.new(0, 5)
+StepsLayout.Parent = StepsScroll
 
---------------------------------------------------
+local function refreshStepList()
+	for _, child in ipairs(StepsScroll:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for index, step in ipairs(Route.steps) do
+		local Button = Instance.new("TextButton")
+		Button.Size = UDim2.new(1, -5, 0, 42)
+		Button.BackgroundColor3 =
+			selectedStep == index
+			and Color3.fromRGB(50, 70, 105)
+			or Color3.fromRGB(36, 39, 47)
+
+		Button.BorderSizePixel = 0
+		Button.Text = ""
+		Button.Parent = StepsScroll
+
+		local Corner = Instance.new("UICorner")
+		Corner.CornerRadius = UDim.new(0, 6)
+		Corner.Parent = Button
+
+		local Text = Instance.new("TextLabel")
+		Text.Size = UDim2.new(1, -12, 1, 0)
+		Text.Position = UDim2.fromOffset(6, 0)
+		Text.BackgroundTransparency = 1
+
+		local prefix = step.type == "Path" and "PATH" or step.category
+
+		local pointCount = ""
+
+		if step.type == "Path" then
+			pointCount = " [" .. tostring(#(step.points or {})) .. " points]"
+		end
+
+		Text.Text = tostring(index)
+			.. ". "
+			.. prefix
+			.. " • "
+			.. (step.name or "Unnamed")
+			.. pointCount
+
+		Text.TextColor3 = Color3.fromRGB(225, 225, 230)
+		Text.Font = Enum.Font.Gotham
+		Text.TextSize = 10
+		Text.TextXAlignment = Enum.TextXAlignment.Left
+		Text.TextTruncate = Enum.TextTruncate.AtEnd
+		Text.Parent = Button
+
+		Button.MouseButton1Click:Connect(function()
+			selectedStep = index
+			refreshStepList()
+		end)
+	end
+
+	task.defer(function()
+		StepsScroll.CanvasSize = UDim2.fromOffset(
+			0,
+			StepsLayout.AbsoluteContentSize.Y + 10
+		)
+	end)
+end
+
+-- ============================================================
 -- RIGHT PANEL
---------------------------------------------------
+-- ============================================================
 
-local Right = Instance.new("Frame")
-Right.Position = UDim2.fromOffset(220, 0)
-Right.Size = UDim2.new(1, -220, 1, 0)
-Right.BackgroundColor3 = Color3.fromRGB(25,25,30)
-Right.BorderSizePixel = 0
-Right.Parent = Content
+local RightPanel = Instance.new("Frame")
+RightPanel.Size = UDim2.new(1, -265, 1, -20)
+RightPanel.Position = UDim2.fromOffset(255, 10)
+RightPanel.BackgroundColor3 = Color3.fromRGB(27, 29, 36)
+RightPanel.BorderSizePixel = 0
+RightPanel.Parent = Content
 
 local RightCorner = Instance.new("UICorner")
-RightCorner.CornerRadius = UDim.new(0,8)
-RightCorner.Parent = Right
+RightCorner.CornerRadius = UDim.new(0, 8)
+RightCorner.Parent = RightPanel
 
---------------------------------------------------
--- TAB BUTTONS
---------------------------------------------------
+-- ============================================================
+-- TABS
+-- ============================================================
 
 local ActionTab = Instance.new("TextButton")
-ActionTab.Size = UDim2.new(0.5, -7, 0, 38)
-ActionTab.Position = UDim2.fromOffset(8, 8)
-ActionTab.Text = "ACTION"
-ActionTab.Font = Enum.Font.GothamBold
-ActionTab.TextSize = 12
-ActionTab.TextColor3 = Color3.new(1,1,1)
-ActionTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
+ActionTab.Size = UDim2.fromOffset(120, 35)
+ActionTab.Position = UDim2.fromOffset(12, 10)
+ActionTab.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
 ActionTab.BorderSizePixel = 0
-ActionTab.Parent = Right
+ActionTab.Text = "ACTION"
+ActionTab.TextColor3 = Color3.new(1, 1, 1)
+ActionTab.Font = Enum.Font.GothamBold
+ActionTab.TextSize = 11
+ActionTab.Parent = RightPanel
 
-local ActionCorner = Instance.new("UICorner")
-ActionCorner.CornerRadius = UDim.new(0,7)
-ActionCorner.Parent = ActionTab
+local ActionTabCorner = Instance.new("UICorner")
+ActionTabCorner.CornerRadius = UDim.new(0, 6)
+ActionTabCorner.Parent = ActionTab
 
 local PathTab = Instance.new("TextButton")
-PathTab.Size = UDim2.new(0.5, -7, 0, 38)
-PathTab.Position = UDim2.new(0.5, 0, 0, 8)
-PathTab.Text = "PATH"
-PathTab.Font = Enum.Font.GothamBold
-PathTab.TextSize = 12
-PathTab.TextColor3 = Color3.new(1,1,1)
-PathTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
+PathTab.Size = UDim2.fromOffset(120, 35)
+PathTab.Position = UDim2.fromOffset(138, 10)
+PathTab.BackgroundColor3 = Color3.fromRGB(40, 42, 50)
 PathTab.BorderSizePixel = 0
-PathTab.Parent = Right
+PathTab.Text = "PATH"
+PathTab.TextColor3 = Color3.fromRGB(200, 200, 205)
+PathTab.Font = Enum.Font.GothamBold
+PathTab.TextSize = 11
+PathTab.Parent = RightPanel
 
-local PathCorner = Instance.new("UICorner")
-PathCorner.CornerRadius = UDim.new(0,7)
-PathCorner.Parent = PathTab
+local PathTabCorner = Instance.new("UICorner")
+PathTabCorner.CornerRadius = UDim.new(0, 6)
+PathTabCorner.Parent = PathTab
 
---------------------------------------------------
+-- ============================================================
 -- ACTION PANEL
---------------------------------------------------
+-- ============================================================
 
 local ActionPanel = Instance.new("Frame")
-ActionPanel.Position = UDim2.fromOffset(10, 58)
-ActionPanel.Size = UDim2.new(1, -20, 1, -68)
+ActionPanel.Size = UDim2.new(1, -24, 1, -145)
+ActionPanel.Position = UDim2.fromOffset(12, 55)
 ActionPanel.BackgroundTransparency = 1
-ActionPanel.Parent = Right
+ActionPanel.Parent = RightPanel
 
-local function makeLabel(parent, text, y)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -10, 0, 24)
-    label.Position = UDim2.fromOffset(5, y)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(175,175,185)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 11
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = parent
-    return label
-end
-
-local function makeBox(parent, y, placeholder)
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1, -10, 0, 38)
-    box.Position = UDim2.fromOffset(5, y)
-    box.BackgroundColor3 = Color3.fromRGB(35,35,42)
-    box.BorderSizePixel = 0
-    box.PlaceholderText = placeholder or ""
-    box.PlaceholderColor3 = Color3.fromRGB(100,100,110)
-    box.TextColor3 = Color3.new(1,1,1)
-    box.TextSize = 12
-    box.Font = Enum.Font.Gotham
-    box.ClearTextOnFocus = false
-    box.Parent = parent
-
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,7)
-    c.Parent = box
-
-    return box
-end
-
-makeLabel(ActionPanel, "CATEGORY", 5)
+local CategoryLabel = Instance.new("TextLabel")
+CategoryLabel.Size = UDim2.new(1, 0, 0, 22)
+CategoryLabel.BackgroundTransparency = 1
+CategoryLabel.Text = "CATEGORY"
+CategoryLabel.TextColor3 = Color3.fromRGB(170, 175, 185)
+CategoryLabel.Font = Enum.Font.GothamBold
+CategoryLabel.TextSize = 10
+CategoryLabel.TextXAlignment = Enum.TextXAlignment.Left
+CategoryLabel.Parent = ActionPanel
 
 local CategoryButton = Instance.new("TextButton")
-CategoryButton.Size = UDim2.new(1, -10, 0, 38)
-CategoryButton.Position = UDim2.fromOffset(5, 29)
-CategoryButton.BackgroundColor3 = Color3.fromRGB(35,35,42)
+CategoryButton.Size = UDim2.new(1, 0, 0, 38)
+CategoryButton.Position = UDim2.fromOffset(0, 25)
+CategoryButton.BackgroundColor3 = Color3.fromRGB(38, 41, 49)
 CategoryButton.BorderSizePixel = 0
-CategoryButton.Text = "Buy"
-CategoryButton.TextColor3 = Color3.new(1,1,1)
+CategoryButton.Text = selectedCategory .. " ▼"
+CategoryButton.TextColor3 = Color3.fromRGB(230, 230, 235)
 CategoryButton.Font = Enum.Font.Gotham
-CategoryButton.TextSize = 12
+CategoryButton.TextSize = 11
+CategoryButton.TextXAlignment = Enum.TextXAlignment.Left
 CategoryButton.Parent = ActionPanel
 
-local CategoryCorner = Instance.new("UICorner")
-CategoryCorner.CornerRadius = UDim.new(0,7)
-CategoryCorner.Parent = CategoryButton
+local CategoryButtonCorner = Instance.new("UICorner")
+CategoryButtonCorner.CornerRadius = UDim.new(0, 6)
+CategoryButtonCorner.Parent = CategoryButton
 
-makeLabel(ActionPanel, "NAME", 77)
-local NameBox = makeBox(ActionPanel, 101, "مثال: Buy_Burger")
+local NameLabel = Instance.new("TextLabel")
+NameLabel.Size = UDim2.new(1, 0, 0, 22)
+NameLabel.Position = UDim2.fromOffset(0, 76)
+NameLabel.BackgroundTransparency = 1
+NameLabel.Text = "POINT NAME"
+NameLabel.TextColor3 = Color3.fromRGB(170, 175, 185)
+NameLabel.Font = Enum.Font.GothamBold
+NameLabel.TextSize = 10
+NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+NameLabel.Parent = ActionPanel
 
-local PositionInfo = makeLabel(ActionPanel, "CURRENT POSITION", 153)
+local NameBox = Instance.new("TextBox")
+NameBox.Size = UDim2.new(1, 0, 0, 38)
+NameBox.Position = UDim2.fromOffset(0, 101)
+NameBox.BackgroundColor3 = Color3.fromRGB(38, 41, 49)
+NameBox.BorderSizePixel = 0
+NameBox.PlaceholderText = "مثال: Buy_Burger"
+NameBox.Text = ""
+NameBox.TextColor3 = Color3.fromRGB(235, 235, 240)
+NameBox.PlaceholderColor3 = Color3.fromRGB(120, 125, 135)
+NameBox.Font = Enum.Font.Gotham
+NameBox.TextSize = 11
+NameBox.ClearTextOnFocus = false
+NameBox.Parent = ActionPanel
+
+local NameCorner = Instance.new("UICorner")
+NameCorner.CornerRadius = UDim.new(0, 6)
+NameCorner.Parent = NameBox
+
+local PositionLabel = Instance.new("TextLabel")
+PositionLabel.Size = UDim2.new(1, 0, 0, 22)
+PositionLabel.Position = UDim2.fromOffset(0, 152)
+PositionLabel.BackgroundTransparency = 1
+PositionLabel.Text = "CURRENT POSITION"
+PositionLabel.TextColor3 = Color3.fromRGB(170, 175, 185)
+PositionLabel.Font = Enum.Font.GothamBold
+PositionLabel.TextSize = 10
+PositionLabel.TextXAlignment = Enum.TextXAlignment.Left
+PositionLabel.Parent = ActionPanel
 
 local PositionValue = Instance.new("TextLabel")
-PositionValue.Size = UDim2.new(1, -10, 0, 38)
-PositionValue.Position = UDim2.fromOffset(5, 177)
-PositionValue.BackgroundColor3 = Color3.fromRGB(30,30,36)
+PositionValue.Size = UDim2.new(1, 0, 0, 38)
+PositionValue.Position = UDim2.fromOffset(0, 177)
+PositionValue.BackgroundColor3 = Color3.fromRGB(33, 36, 43)
 PositionValue.BorderSizePixel = 0
-PositionValue.Text = "—"
-PositionValue.TextColor3 = Color3.fromRGB(200,200,210)
+PositionValue.Text = "X: 0 | Y: 0 | Z: 0"
+PositionValue.TextColor3 = Color3.fromRGB(195, 200, 210)
 PositionValue.Font = Enum.Font.Code
-PositionValue.TextSize = 11
+PositionValue.TextSize = 10
 PositionValue.Parent = ActionPanel
 
-local PosCorner = Instance.new("UICorner")
-PosCorner.CornerRadius = UDim.new(0,7)
-PosCorner.Parent = PositionValue
+local PositionCorner = Instance.new("UICorner")
+PositionCorner.CornerRadius = UDim.new(0, 6)
+PositionCorner.Parent = PositionValue
 
 local SaveAction = Instance.new("TextButton")
-SaveAction.Size = UDim2.new(1, -10, 0, 48)
-SaveAction.Position = UDim2.fromOffset(5, 230)
-SaveAction.BackgroundColor3 = Color3.fromRGB(55,150,90)
+SaveAction.Size = UDim2.new(1, 0, 0, 42)
+SaveAction.Position = UDim2.fromOffset(0, 228)
+SaveAction.BackgroundColor3 = Color3.fromRGB(55, 140, 90)
 SaveAction.BorderSizePixel = 0
-SaveAction.Text = "📍  تسجيل النقطة"
-SaveAction.TextColor3 = Color3.new(1,1,1)
+SaveAction.Text = "📍  RECORD ACTION POINT"
+SaveAction.TextColor3 = Color3.new(1, 1, 1)
 SaveAction.Font = Enum.Font.GothamBold
-SaveAction.TextSize = 13
+SaveAction.TextSize = 11
 SaveAction.Parent = ActionPanel
 
 local SaveCorner = Instance.new("UICorner")
-SaveCorner.CornerRadius = UDim.new(0,8)
+SaveCorner.CornerRadius = UDim.new(0, 6)
 SaveCorner.Parent = SaveAction
 
-local CustomCategory = makeBox(ActionPanel, 300, "اسم تصنيف جديد")
+local CustomLabel = Instance.new("TextLabel")
+CustomLabel.Size = UDim2.new(1, 0, 0, 22)
+CustomLabel.Position = UDim2.fromOffset(0, 285)
+CustomLabel.BackgroundTransparency = 1
+CustomLabel.Text = "CUSTOM CATEGORY"
+CustomLabel.TextColor3 = Color3.fromRGB(170, 175, 185)
+CustomLabel.Font = Enum.Font.GothamBold
+CustomLabel.TextSize = 10
+CustomLabel.TextXAlignment = Enum.TextXAlignment.Left
+CustomLabel.Parent = ActionPanel
+
+local CustomBox = Instance.new("TextBox")
+CustomBox.Size = UDim2.new(1, -80, 0, 36)
+CustomBox.Position = UDim2.fromOffset(0, 310)
+CustomBox.BackgroundColor3 = Color3.fromRGB(38, 41, 49)
+CustomBox.BorderSizePixel = 0
+CustomBox.PlaceholderText = "مثال: Fuel"
+CustomBox.Text = ""
+CustomBox.TextColor3 = Color3.fromRGB(235, 235, 240)
+CustomBox.PlaceholderColor3 = Color3.fromRGB(120, 125, 135)
+CustomBox.Font = Enum.Font.Gotham
+CustomBox.TextSize = 11
+CustomBox.ClearTextOnFocus = false
+CustomBox.Parent = ActionPanel
+
+local CustomCorner = Instance.new("UICorner")
+CustomCorner.CornerRadius = UDim.new(0, 6)
+CustomCorner.Parent = CustomBox
 
 local AddCategory = Instance.new("TextButton")
-AddCategory.Size = UDim2.new(1, -10, 0, 38)
-AddCategory.Position = UDim2.fromOffset(5, 344)
-AddCategory.BackgroundColor3 = Color3.fromRGB(50,50,58)
+AddCategory.Size = UDim2.fromOffset(70, 36)
+AddCategory.Position = UDim2.new(1, -70, 0, 310)
+AddCategory.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
 AddCategory.BorderSizePixel = 0
-AddCategory.Text = "+ إضافة تصنيف"
-AddCategory.TextColor3 = Color3.new(1,1,1)
+AddCategory.Text = "+ ADD"
+AddCategory.TextColor3 = Color3.new(1, 1, 1)
 AddCategory.Font = Enum.Font.GothamBold
-AddCategory.TextSize = 11
+AddCategory.TextSize = 10
 AddCategory.Parent = ActionPanel
 
-local AddCatCorner = Instance.new("UICorner")
-AddCatCorner.CornerRadius = UDim.new(0,7)
-AddCatCorner.Parent = AddCategory
+local AddCategoryCorner = Instance.new("UICorner")
+AddCategoryCorner.CornerRadius = UDim.new(0, 6)
+AddCategoryCorner.Parent = AddCategory
 
---------------------------------------------------
--- CATEGORY POPUP
---------------------------------------------------
-
-local CategoryPopup = Instance.new("Frame")
-CategoryPopup.Visible = false
-CategoryPopup.Position = UDim2.fromOffset(5, 67)
-CategoryPopup.Size = UDim2.new(1, -10, 0, 180)
-CategoryPopup.BackgroundColor3 = Color3.fromRGB(32,32,38)
-CategoryPopup.BorderSizePixel = 0
-CategoryPopup.ZIndex = 20
-CategoryPopup.Parent = ActionPanel
-
-local PopupCorner = Instance.new("UICorner")
-PopupCorner.CornerRadius = UDim.new(0,8)
-PopupCorner.Parent = CategoryPopup
-
-local PopupList = Instance.new("UIListLayout")
-PopupList.Padding = UDim.new(0,2)
-PopupList.Parent = CategoryPopup
-
-local function rebuildCategoryPopup()
-    for _, child in ipairs(CategoryPopup:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-
-    for _, category in ipairs(Categories) do
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, -8, 0, 30)
-        button.BackgroundColor3 = Color3.fromRGB(42,42,50)
-        button.BorderSizePixel = 0
-        button.Text = category
-        button.TextColor3 = Color3.new(1,1,1)
-        button.Font = Enum.Font.Gotham
-        button.TextSize = 11
-        button.ZIndex = 21
-        button.Parent = CategoryPopup
-
-        local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0,5)
-        c.Parent = button
-
-        button.MouseButton1Click:Connect(function()
-            selectedCategory = category
-            CategoryButton.Text = category
-            CategoryPopup.Visible = false
-        end)
-    end
-end
-
-rebuildCategoryPopup()
-
-CategoryButton.MouseButton1Click:Connect(function()
-    CategoryPopup.Visible = not CategoryPopup.Visible
-end)
-
-AddCategory.MouseButton1Click:Connect(function()
-    local value = CustomCategory.Text:gsub("^%s+", ""):gsub("%s+$", "")
-
-    if value ~= "" then
-        if not table.find(Categories, value) then
-            table.insert(Categories, value)
-            selectedCategory = value
-            CategoryButton.Text = value
-            rebuildCategoryPopup()
-        end
-
-        CustomCategory.Text = ""
-    end
-end)
-
---------------------------------------------------
+-- ============================================================
 -- PATH PANEL
---------------------------------------------------
+-- ============================================================
 
 local PathPanel = Instance.new("Frame")
-PathPanel.Visible = false
-PathPanel.Position = UDim2.fromOffset(10, 58)
-PathPanel.Size = UDim2.new(1, -20, 1, -68)
+PathPanel.Size = UDim2.new(1, -24, 1, -145)
+PathPanel.Position = UDim2.fromOffset(12, 55)
 PathPanel.BackgroundTransparency = 1
-PathPanel.Parent = Right
+PathPanel.Visible = false
+PathPanel.Parent = RightPanel
 
-makeLabel(PathPanel, "PATH NAME", 5)
-local PathNameBox = makeBox(PathPanel, 29, "مثال: To_Sell")
+local PathNameLabel = Instance.new("TextLabel")
+PathNameLabel.Size = UDim2.new(1, 0, 0, 22)
+PathNameLabel.BackgroundTransparency = 1
+PathNameLabel.Text = "PATH NAME"
+PathNameLabel.TextColor3 = Color3.fromRGB(170, 175, 185)
+PathNameLabel.Font = Enum.Font.GothamBold
+PathNameLabel.TextSize = 10
+PathNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+PathNameLabel.Parent = PathPanel
+
+local PathNameBox = Instance.new("TextBox")
+PathNameBox.Size = UDim2.new(1, 0, 0, 38)
+PathNameBox.Position = UDim2.fromOffset(0, 25)
+PathNameBox.BackgroundColor3 = Color3.fromRGB(38, 41, 49)
+PathNameBox.BorderSizePixel = 0
+PathNameBox.PlaceholderText = "مثال: To_Farm"
+PathNameBox.Text = ""
+PathNameBox.TextColor3 = Color3.fromRGB(235, 235, 240)
+PathNameBox.PlaceholderColor3 = Color3.fromRGB(120, 125, 135)
+PathNameBox.Font = Enum.Font.Gotham
+PathNameBox.TextSize = 11
+PathNameBox.ClearTextOnFocus = false
+PathNameBox.Parent = PathPanel
+
+local PathNameCorner = Instance.new("UICorner")
+PathNameCorner.CornerRadius = UDim.new(0, 6)
+PathNameCorner.Parent = PathNameBox
 
 local PathStatus = Instance.new("TextLabel")
-PathStatus.Size = UDim2.new(1, -10, 0, 45)
-PathStatus.Position = UDim2.fromOffset(5, 80)
-PathStatus.BackgroundColor3 = Color3.fromRGB(30,30,36)
+PathStatus.Size = UDim2.new(1, 0, 0, 45)
+PathStatus.Position = UDim2.fromOffset(0, 78)
+PathStatus.BackgroundColor3 = Color3.fromRGB(33, 36, 43)
 PathStatus.BorderSizePixel = 0
-PathStatus.Text = "المسار غير مسجل"
-PathStatus.TextColor3 = Color3.fromRGB(180,180,190)
-PathStatus.Font = Enum.Font.Gotham
-PathStatus.TextSize = 12
+PathStatus.Text = "● PATH NOT RECORDING"
+PathStatus.TextColor3 = Color3.fromRGB(170, 175, 185)
+PathStatus.Font = Enum.Font.GothamBold
+PathStatus.TextSize = 11
 PathStatus.Parent = PathPanel
 
 local PathStatusCorner = Instance.new("UICorner")
-PathStatusCorner.CornerRadius = UDim.new(0,7)
+PathStatusCorner.CornerRadius = UDim.new(0, 6)
 PathStatusCorner.Parent = PathStatus
 
 local StartPath = Instance.new("TextButton")
-StartPath.Size = UDim2.new(1, -10, 0, 45)
-StartPath.Position = UDim2.fromOffset(5, 140)
-StartPath.BackgroundColor3 = Color3.fromRGB(55,95,180)
+StartPath.Size = UDim2.new(1, 0, 0, 40)
+StartPath.Position = UDim2.fromOffset(0, 140)
+StartPath.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
 StartPath.BorderSizePixel = 0
-StartPath.Text = "▶  بدء تسجيل المسار"
-StartPath.TextColor3 = Color3.new(1,1,1)
+StartPath.Text = "▶ START PATH RECORDING"
+StartPath.TextColor3 = Color3.new(1, 1, 1)
 StartPath.Font = Enum.Font.GothamBold
-StartPath.TextSize = 12
+StartPath.TextSize = 10
 StartPath.Parent = PathPanel
 
 local StartPathCorner = Instance.new("UICorner")
-StartPathCorner.CornerRadius = UDim.new(0,7)
+StartPathCorner.CornerRadius = UDim.new(0, 6)
 StartPathCorner.Parent = StartPath
 
 local AddPathPoint = Instance.new("TextButton")
-AddPathPoint.Size = UDim2.new(1, -10, 0, 45)
-AddPathPoint.Position = UDim2.fromOffset(5, 195)
-AddPathPoint.BackgroundColor3 = Color3.fromRGB(50,130,80)
+AddPathPoint.Size = UDim2.new(1, 0, 0, 45)
+AddPathPoint.Position = UDim2.fromOffset(0, 190)
+AddPathPoint.BackgroundColor3 = Color3.fromRGB(55, 140, 90)
 AddPathPoint.BorderSizePixel = 0
-AddPathPoint.Text = "📍  تسجيل نقطة مسار"
-AddPathPoint.TextColor3 = Color3.new(1,1,1)
+AddPathPoint.Text = "📍 RECORD PATH POINT"
+AddPathPoint.TextColor3 = Color3.new(1, 1, 1)
 AddPathPoint.Font = Enum.Font.GothamBold
-AddPathPoint.TextSize = 12
-AddPathPoint.Visible = false
+AddPathPoint.TextSize = 11
 AddPathPoint.Parent = PathPanel
 
 local AddPathCorner = Instance.new("UICorner")
-AddPathCorner.CornerRadius = UDim.new(0,7)
+AddPathCorner.CornerRadius = UDim.new(0, 6)
 AddPathCorner.Parent = AddPathPoint
 
 local FinishPath = Instance.new("TextButton")
-FinishPath.Size = UDim2.new(1, -10, 0, 45)
-FinishPath.Position = UDim2.fromOffset(5, 250)
-FinishPath.BackgroundColor3 = Color3.fromRGB(150,70,60)
+FinishPath.Size = UDim2.new(1, 0, 0, 40)
+FinishPath.Position = UDim2.fromOffset(0, 245)
+FinishPath.BackgroundColor3 = Color3.fromRGB(170, 75, 75)
 FinishPath.BorderSizePixel = 0
-FinishPath.Text = "■  إنهاء المسار"
-FinishPath.TextColor3 = Color3.new(1,1,1)
+FinishPath.Text = "■ FINISH PATH"
+FinishPath.TextColor3 = Color3.new(1, 1, 1)
 FinishPath.Font = Enum.Font.GothamBold
-FinishPath.TextSize = 12
-FinishPath.Visible = false
+FinishPath.TextSize = 10
 FinishPath.Parent = PathPanel
 
-local FinishCorner = Instance.new("UICorner")
-FinishCorner.CornerRadius = UDim.new(0,7)
-FinishCorner.Parent = FinishPath
+local FinishPathCorner = Instance.new("UICorner")
+FinishPathCorner.CornerRadius = UDim.new(0, 6)
+FinishPathCorner.Parent = FinishPath
 
---------------------------------------------------
--- STEP LIST REFRESH
---------------------------------------------------
+local MovementInfo = Instance.new("TextLabel")
+MovementInfo.Size = UDim2.new(1, 0, 0, 35)
+MovementInfo.Position = UDim2.fromOffset(0, 300)
+MovementInfo.BackgroundTransparency = 1
+MovementInfo.Text = "Current Mode: WALK"
+MovementInfo.TextColor3 = Color3.fromRGB(175, 180, 190)
+MovementInfo.Font = Enum.Font.GothamBold
+MovementInfo.TextSize = 10
+MovementInfo.Parent = PathPanel
 
-local function refreshSteps()
-    for _, child in ipairs(StepList:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-
-    for index, step in ipairs(Route.steps) do
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, -4, 0, 52)
-        button.BackgroundColor3 =
-            selectedStep == index
-            and Color3.fromRGB(50,80,130)
-            or Color3.fromRGB(34,34,41)
-
-        button.BorderSizePixel = 0
-        button.Text = string.format(
-            "%02d   %s\n       %s",
-            index,
-            step.category or step.type or "Path",
-            step.name or "Unnamed"
-        )
-
-        button.TextColor3 = Color3.new(1,1,1)
-        button.TextSize = 11
-        button.Font = Enum.Font.Gotham
-        button.TextXAlignment = Enum.TextXAlignment.Left
-        button.Parent = StepList
-
-        local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0,6)
-        c.Parent = button
-
-        button.MouseButton1Click:Connect(function()
-            selectedStep = index
-            refreshSteps()
-        end)
-    end
-
-    StepList.CanvasSize = UDim2.fromOffset(
-        0,
-        StepLayout.AbsoluteContentSize.Y + 10
-    )
-end
-
---------------------------------------------------
--- RECORD ACTION
---------------------------------------------------
-
-SaveAction.MouseButton1Click:Connect(function()
-    local cf = getCFrame()
-
-    if not cf then
-        Status.Text = "● NO CHARACTER"
-        return
-    end
-
-    local name = NameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
-
-    if name == "" then
-        name = selectedCategory .. "_" .. tostring(#Route.steps + 1)
-    end
-
-    saveUndo()
-
-    table.insert(Route.steps, {
-        type = "Action",
-        category = selectedCategory,
-        name = name,
-        position = cf.Position,
-        rotation = cf - cf.Position,
-        order = #Route.steps + 1,
-    })
-
-    NameBox.Text = ""
-
-    selectedStep = #Route.steps
-
-    Status.Text = "● SAVED"
-
-    refreshSteps()
-end)
-
---------------------------------------------------
--- PATH RECORDING
---------------------------------------------------
-
-local function updatePathUI()
-    if recordingPath then
-        PathStatus.Text = string.format(
-            "● تسجيل المسار الآن\nالنقاط المسجلة: %d",
-            #pathPoints
-        )
-
-        StartPath.Visible = false
-        AddPathPoint.Visible = true
-        FinishPath.Visible = true
-
-        Status.Text = "● PATH RECORDING"
-    else
-        PathStatus.Text = "المسار غير مسجل"
-
-        StartPath.Visible = true
-        AddPathPoint.Visible = false
-        FinishPath.Visible = false
-    end
-end
-
-StartPath.MouseButton1Click:Connect(function()
-    if recordingPath then
-        return
-    end
-
-    pathPoints = {}
-    recordingPath = true
-
-    updatePathUI()
-end)
-
-AddPathPoint.MouseButton1Click:Connect(function()
-    if not recordingPath then
-        return
-    end
-
-    local cf = getCFrame()
-
-    if not cf then
-        return
-    end
-
-    table.insert(pathPoints, {
-        position = cf.Position,
-        rotation = cf - cf.Position,
-    })
-
-    updatePathUI()
-end)
-
-FinishPath.MouseButton1Click:Connect(function()
-    if not recordingPath then
-        return
-    end
-
-    if #pathPoints == 0 then
-        recordingPath = false
-        updatePathUI()
-        return
-    end
-
-    local name = PathNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
-
-    if name == "" then
-        name = "Path_" .. tostring(#Route.steps + 1)
-    end
-
-    saveUndo()
-
-    table.insert(Route.steps, {
-        type = "Path",
-        category = "Path",
-        name = name,
-        points = table.clone(pathPoints),
-        order = #Route.steps + 1,
-    })
-
-    selectedStep = #Route.steps
-
-    pathPoints = {}
-    recordingPath = false
-
-    PathNameBox.Text = ""
-
-    Status.Text = "● PATH SAVED"
-
-    updatePathUI()
-    refreshSteps()
-end)
-
---------------------------------------------------
--- TABS
---------------------------------------------------
-
-ActionTab.MouseButton1Click:Connect(function()
-    ActionPanel.Visible = true
-    PathPanel.Visible = false
-
-    ActionTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
-    PathTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
-end)
-
-PathTab.MouseButton1Click:Connect(function()
-    ActionPanel.Visible = false
-    PathPanel.Visible = true
-
-    ActionTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
-    PathTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
-end)
-
---------------------------------------------------
--- DELETE SELECTED
---------------------------------------------------
+-- ============================================================
+-- BOTTOM BUTTONS
+-- ============================================================
 
 local DeleteButton = Instance.new("TextButton")
-DeleteButton.Size = UDim2.fromOffset(100, 35)
-DeleteButton.Position = UDim2.new(0, 225, 1, -43)
-DeleteButton.BackgroundColor3 = Color3.fromRGB(135,50,55)
+DeleteButton.Size = UDim2.fromOffset(105, 35)
+DeleteButton.Position = UDim2.fromOffset(12, -47)
+DeleteButton.AnchorPoint = Vector2.new(0, 1)
+DeleteButton.BackgroundColor3 = Color3.fromRGB(145, 65, 65)
 DeleteButton.BorderSizePixel = 0
-DeleteButton.Text = "حذف المحدد"
-DeleteButton.TextColor3 = Color3.new(1,1,1)
+DeleteButton.Text = "DELETE"
+DeleteButton.TextColor3 = Color3.new(1, 1, 1)
 DeleteButton.Font = Enum.Font.GothamBold
 DeleteButton.TextSize = 10
-DeleteButton.Parent = Content
+DeleteButton.Parent = RightPanel
 
 local DeleteCorner = Instance.new("UICorner")
-DeleteCorner.CornerRadius = UDim.new(0,6)
+DeleteCorner.CornerRadius = UDim.new(0, 6)
 DeleteCorner.Parent = DeleteButton
 
-DeleteButton.MouseButton1Click:Connect(function()
-    if not selectedStep then
-        return
-    end
-
-    if not Route.steps[selectedStep] then
-        selectedStep = nil
-        return
-    end
-
-    saveUndo()
-
-    table.remove(Route.steps, selectedStep)
-
-    selectedStep = nil
-
-    for i, step in ipairs(Route.steps) do
-        step.order = i
-    end
-
-    refreshSteps()
-end)
-
---------------------------------------------------
--- UNDO
---------------------------------------------------
-
 local UndoButton = Instance.new("TextButton")
-UndoButton.Size = UDim2.fromOffset(80, 35)
-UndoButton.Position = UDim2.new(0, 330, 1, -43)
-UndoButton.BackgroundColor3 = Color3.fromRGB(45,45,52)
+UndoButton.Size = UDim2.fromOffset(105, 35)
+UndoButton.Position = UDim2.fromOffset(125, -47)
+UndoButton.AnchorPoint = Vector2.new(0, 1)
+UndoButton.BackgroundColor3 = Color3.fromRGB(65, 68, 78)
 UndoButton.BorderSizePixel = 0
-UndoButton.Text = "↶ Undo"
-UndoButton.TextColor3 = Color3.new(1,1,1)
+UndoButton.Text = "UNDO"
+UndoButton.TextColor3 = Color3.new(1, 1, 1)
 UndoButton.Font = Enum.Font.GothamBold
 UndoButton.TextSize = 10
-UndoButton.Parent = Content
+UndoButton.Parent = RightPanel
 
 local UndoCorner = Instance.new("UICorner")
-UndoCorner.CornerRadius = UDim.new(0,6)
+UndoCorner.CornerRadius = UDim.new(0, 6)
 UndoCorner.Parent = UndoButton
 
-UndoButton.MouseButton1Click:Connect(function()
-    local previous = table.remove(undoStack)
+-- ============================================================
+-- EXPORT BUTTON
+-- ============================================================
 
-    if not previous then
-        return
-    end
+local ExportButton = Instance.new("TextButton")
+ExportButton.Size = UDim2.fromOffset(115, 35)
+ExportButton.Position = UDim2.new(1, -127, 1, -47)
+ExportButton.AnchorPoint = Vector2.new(0, 1)
+ExportButton.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
+ExportButton.BorderSizePixel = 0
+ExportButton.Text = "EXPORT LUA"
+ExportButton.TextColor3 = Color3.new(1, 1, 1)
+ExportButton.Font = Enum.Font.GothamBold
+ExportButton.TextSize = 10
+ExportButton.Parent = RightPanel
 
-    Route.steps = previous
-    selectedStep = nil
+local ExportCorner = Instance.new("UICorner")
+ExportCorner.CornerRadius = UDim.new(0, 6)
+ExportCorner.Parent = ExportButton
 
-    refreshSteps()
+-- ============================================================
+-- CATEGORY POPUP
+-- ============================================================
 
-    Status.Text = "● UNDO"
-end)
+local CategoryPopup = Instance.new("Frame")
+CategoryPopup.Size = UDim2.fromOffset(220, 260)
+CategoryPopup.Position = UDim2.fromOffset(12, 100)
+CategoryPopup.BackgroundColor3 = Color3.fromRGB(31, 34, 42)
+CategoryPopup.BorderSizePixel = 0
+CategoryPopup.Visible = false
+CategoryPopup.ZIndex = 20
+CategoryPopup.Parent = RightPanel
 
---------------------------------------------------
+local CategoryPopupCorner = Instance.new("UICorner")
+CategoryPopupCorner.CornerRadius = UDim.new(0, 7)
+CategoryPopupCorner.Parent = CategoryPopup
+
+local CategoryScroll = Instance.new("ScrollingFrame")
+CategoryScroll.Size = UDim2.new(1, -10, 1, -10)
+CategoryScroll.Position = UDim2.fromOffset(5, 5)
+CategoryScroll.BackgroundTransparency = 1
+CategoryScroll.BorderSizePixel = 0
+CategoryScroll.ScrollBarThickness = 3
+CategoryScroll.Parent = CategoryPopup
+
+local CategoryLayout = Instance.new("UIListLayout")
+CategoryLayout.Padding = UDim.new(0, 4)
+CategoryLayout.Parent = CategoryScroll
+
+local function refreshCategories()
+	for _, child in ipairs(CategoryScroll:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for _, category in ipairs(Categories) do
+		local Button = Instance.new("TextButton")
+		Button.Size = UDim2.new(1, -5, 0, 32)
+		Button.BackgroundColor3 =
+			category == selectedCategory
+			and Color3.fromRGB(55, 95, 180)
+			or Color3.fromRGB(42, 45, 54)
+
+		Button.BorderSizePixel = 0
+		Button.Text = category
+		Button.TextColor3 = Color3.new(1, 1, 1)
+		Button.Font = Enum.Font.Gotham
+		Button.TextSize = 10
+		Button.Parent = CategoryScroll
+
+		local Corner = Instance.new("UICorner")
+		Corner.CornerRadius = UDim.new(0, 5)
+		Corner.Parent = Button
+
+		Button.MouseButton1Click:Connect(function()
+			selectedCategory = category
+			CategoryButton.Text = selectedCategory .. " ▼"
+			CategoryPopup.Visible = false
+			refreshCategories()
+		end)
+	end
+
+	task.defer(function()
+		CategoryScroll.CanvasSize = UDim2.fromOffset(
+			0,
+			CategoryLayout.AbsoluteContentSize.Y + 5
+		)
+	end)
+end
+
+-- ============================================================
 -- EXPORT WINDOW
---------------------------------------------------
+-- ============================================================
 
 local ExportWindow = Instance.new("Frame")
 ExportWindow.Name = "ExportWindow"
-ExportWindow.Visible = false
-ExportWindow.Size = UDim2.fromOffset(680, 480)
-ExportWindow.Position = UDim2.new(0.5, -340, 0.5, -240)
-ExportWindow.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+ExportWindow.Size = UDim2.fromOffset(720, 500)
+ExportWindow.Position = UDim2.new(0.5, -360, 0.5, -250)
+ExportWindow.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
 ExportWindow.BorderSizePixel = 0
-ExportWindow.ZIndex = 50
-ExportWindow.Parent = Gui
+ExportWindow.Visible = false
+ExportWindow.ZIndex = 100
+ExportWindow.Parent = ScreenGui
 
-local ExportCorner = Instance.new("UICorner")
-ExportCorner.CornerRadius = UDim.new(0, 10)
-ExportCorner.Parent = ExportWindow
+local ExportCornerWindow = Instance.new("UICorner")
+ExportCornerWindow.CornerRadius = UDim.new(0, 10)
+ExportCornerWindow.Parent = ExportWindow
 
---------------------------------------------------
--- EXPORT HEADER
---------------------------------------------------
-
+-- Export Header
 local ExportHeader = Instance.new("Frame")
-ExportHeader.Size = UDim2.new(1, 0, 0, 45)
-ExportHeader.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+ExportHeader.Size = UDim2.new(1, 0, 0, 48)
+ExportHeader.BackgroundColor3 = Color3.fromRGB(30, 33, 41)
 ExportHeader.BorderSizePixel = 0
-ExportHeader.ZIndex = 51
+ExportHeader.ZIndex = 101
 ExportHeader.Parent = ExportWindow
 
 local ExportHeaderCorner = Instance.new("UICorner")
@@ -901,390 +999,510 @@ ExportHeaderCorner.CornerRadius = UDim.new(0, 10)
 ExportHeaderCorner.Parent = ExportHeader
 
 local ExportTitle = Instance.new("TextLabel")
-ExportTitle.Size = UDim2.new(1, -60, 1, 0)
+ExportTitle.Size = UDim2.new(1, -130, 1, 0)
 ExportTitle.Position = UDim2.fromOffset(15, 0)
 ExportTitle.BackgroundTransparency = 1
-ExportTitle.Text = "EXPORT LUA"
-ExportTitle.TextColor3 = Color3.fromRGB(240, 240, 245)
+ExportTitle.Text = "EXPORT LUA CODE"
+ExportTitle.TextColor3 = Color3.fromRGB(235, 235, 240)
 ExportTitle.Font = Enum.Font.GothamBold
-ExportTitle.TextSize = 14
+ExportTitle.TextSize = 13
 ExportTitle.TextXAlignment = Enum.TextXAlignment.Left
-ExportTitle.ZIndex = 52
+ExportTitle.ZIndex = 102
 ExportTitle.Parent = ExportHeader
 
+-- COPY BUTTON
+local CopyButton = Instance.new("TextButton")
+CopyButton.Size = UDim2.fromOffset(90, 30)
+CopyButton.Position = UDim2.new(1, -130, 0, 9)
+CopyButton.BackgroundColor3 = Color3.fromRGB(55, 140, 90)
+CopyButton.BorderSizePixel = 0
+CopyButton.Text = "COPY"
+CopyButton.TextColor3 = Color3.new(1, 1, 1)
+CopyButton.Font = Enum.Font.GothamBold
+CopyButton.TextSize = 10
+CopyButton.ZIndex = 102
+CopyButton.Parent = ExportHeader
+
+local CopyCorner = Instance.new("UICorner")
+CopyCorner.CornerRadius = UDim.new(0, 6)
+CopyCorner.Parent = CopyButton
+
 local ExportClose = Instance.new("TextButton")
-ExportClose.Size = UDim2.fromOffset(35, 35)
-ExportClose.Position = UDim2.new(1, -43, 0, 5)
-ExportClose.BackgroundColor3 = Color3.fromRGB(150, 45, 55)
-ExportClose.BorderSizePixel = 0
+ExportClose.Size = UDim2.fromOffset(30, 30)
+ExportClose.Position = UDim2.new(1, -35, 0, 9)
+ExportClose.BackgroundTransparency = 1
 ExportClose.Text = "×"
-ExportClose.TextColor3 = Color3.new(1, 1, 1)
+ExportClose.TextColor3 = Color3.fromRGB(240, 100, 100)
 ExportClose.Font = Enum.Font.GothamBold
 ExportClose.TextSize = 20
-ExportClose.ZIndex = 52
+ExportClose.ZIndex = 102
 ExportClose.Parent = ExportHeader
 
-local ExportCloseCorner = Instance.new("UICorner")
-ExportCloseCorner.CornerRadius = UDim.new(0, 7)
-ExportCloseCorner.Parent = ExportClose
-
---------------------------------------------------
--- CODE BOX
---------------------------------------------------
-
+-- Export Code Box
 local ExportCode = Instance.new("TextBox")
-ExportCode.Size = UDim2.new(1, -30, 1, -105)
-ExportCode.Position = UDim2.fromOffset(15, 55)
-ExportCode.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+ExportCode.Size = UDim2.new(1, -24, 1, -115)
+ExportCode.Position = UDim2.fromOffset(12, 60)
+ExportCode.BackgroundColor3 = Color3.fromRGB(14, 16, 21)
 ExportCode.BorderSizePixel = 0
 ExportCode.Text = ""
-ExportCode.TextColor3 = Color3.fromRGB(220, 220, 225)
-ExportCode.PlaceholderText = "Lua export will appear here..."
-ExportCode.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
+ExportCode.TextColor3 = Color3.fromRGB(215, 220, 230)
+ExportCode.PlaceholderText = "Your generated Lua will appear here..."
+ExportCode.PlaceholderColor3 = Color3.fromRGB(100, 105, 115)
 ExportCode.Font = Enum.Font.Code
-ExportCode.TextSize = 12
+ExportCode.TextSize = 11
 ExportCode.TextXAlignment = Enum.TextXAlignment.Left
 ExportCode.TextYAlignment = Enum.TextYAlignment.Top
 ExportCode.MultiLine = true
 ExportCode.ClearTextOnFocus = false
-ExportCode.TextEditable = true
-ExportCode.ZIndex = 51
+ExportCode.TextWrapped = false
+ExportCode.ZIndex = 101
 ExportCode.Parent = ExportWindow
 
 local ExportCodeCorner = Instance.new("UICorner")
 ExportCodeCorner.CornerRadius = UDim.new(0, 7)
 ExportCodeCorner.Parent = ExportCode
 
---------------------------------------------------
--- CLOSE BUTTON
---------------------------------------------------
+local ExportHint = Instance.new("TextLabel")
+ExportHint.Size = UDim2.new(1, -24, 0, 40)
+ExportHint.Position = UDim2.new(0, 12, 1, -48)
+ExportHint.BackgroundTransparency = 1
+ExportHint.Text = "يمكنك الضغط على COPY أو تحديد النص يدويًا ثم Ctrl + C"
+ExportHint.TextColor3 = Color3.fromRGB(145, 150, 160)
+ExportHint.Font = Enum.Font.Gotham
+ExportHint.TextSize = 10
+ExportHint.TextXAlignment = Enum.TextXAlignment.Left
+ExportHint.ZIndex = 101
+ExportHint.Parent = ExportWindow
 
-local ExportCloseBottom = Instance.new("TextButton")
-ExportCloseBottom.Size = UDim2.fromOffset(100, 35)
-ExportCloseBottom.Position = UDim2.new(1, -115, 1, -45)
-ExportCloseBottom.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
-ExportCloseBottom.BorderSizePixel = 0
-ExportCloseBottom.Text = "Close"
-ExportCloseBottom.TextColor3 = Color3.new(1, 1, 1)
-ExportCloseBottom.Font = Enum.Font.GothamBold
-ExportCloseBottom.TextSize = 11
-ExportCloseBottom.ZIndex = 51
-ExportCloseBottom.Parent = ExportWindow
+-- ============================================================
+-- TAB SWITCHING
+-- ============================================================
 
-local ExportBottomCorner = Instance.new("UICorner")
-ExportBottomCorner.CornerRadius = UDim.new(0, 7)
-ExportBottomCorner.Parent = ExportCloseBottom
+ActionTab.MouseButton1Click:Connect(function()
+	ActionPanel.Visible = true
+	PathPanel.Visible = false
 
---------------------------------------------------
--- EXPORT FUNCTION
---------------------------------------------------
+	ActionTab.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
+	PathTab.BackgroundColor3 = Color3.fromRGB(40, 42, 50)
+end)
 
-local function buildExport()
-    local export = {}
+PathTab.MouseButton1Click:Connect(function()
+	ActionPanel.Visible = false
+	PathPanel.Visible = true
 
-    table.insert(export, "-- AUTO FARM ROUTE")
-    table.insert(export, "-- Generated by Auto Farm Route Builder")
-    table.insert(export, "")
-    table.insert(export, "local Route = {")
+	ActionTab.BackgroundColor3 = Color3.fromRGB(40, 42, 50)
+	PathTab.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
+end)
 
-    for index, step in ipairs(Route.steps) do
-        table.insert(export, "    [" .. index .. "] = {")
+-- ============================================================
+-- CATEGORY
+-- ============================================================
 
-        table.insert(
-            export,
-            "        type = " .. serialize(step.type) .. ","
-        )
+CategoryButton.MouseButton1Click:Connect(function()
+	CategoryPopup.Visible = not CategoryPopup.Visible
+	refreshCategories()
+end)
 
-        table.insert(
-            export,
-            "        category = " .. serialize(step.category) .. ","
-        )
+AddCategory.MouseButton1Click:Connect(function()
+	local newCategory = CustomBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
 
-        table.insert(
-            export,
-            "        name = " .. serialize(step.name) .. ","
-        )
+	if newCategory == "" then
+		return
+	end
 
-        if step.position then
-            table.insert(
-                export,
-                "        position = " ..
-                serialize(step.position) ..
-                ","
-            )
-        end
+	if not table.find(Categories, newCategory) then
+		table.insert(Categories, newCategory)
+	end
 
-        if step.rotation then
-            table.insert(
-                export,
-                "        rotation = " ..
-                serialize(step.rotation) ..
-                ","
-            )
-        end
+	selectedCategory = newCategory
+	CategoryButton.Text = selectedCategory .. " ▼"
+	CustomBox.Text = ""
 
-        if step.points then
-            table.insert(
-                export,
-                "        points = " ..
-                serialize(step.points, 2) ..
-                ","
-            )
-        end
+	refreshCategories()
 
-        table.insert(export, "    },")
-    end
+	Status.Text = "● CATEGORY ADDED"
+end)
 
-    table.insert(export, "}")
-    table.insert(export, "")
-    table.insert(export, "return Route")
+-- ============================================================
+-- ACTION RECORDING
+-- ============================================================
 
-    return table.concat(export, "\n")
-end
+SaveAction.MouseButton1Click:Connect(function()
+	local cf = getCFrame()
 
---------------------------------------------------
--- EXPORT BUTTON
---------------------------------------------------
+	if not cf then
+		Status.Text = "● CHARACTER NOT FOUND"
+		return
+	end
+
+	local name = NameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+
+	if name == "" then
+		Status.Text = "● ENTER POINT NAME"
+		return
+	end
+
+	saveUndo()
+
+	table.insert(Route.steps, {
+		type = "Action",
+		category = selectedCategory,
+		name = name,
+		position = cf.Position,
+		rotation = cf - cf.Position,
+		order = #Route.steps + 1,
+	})
+
+	selectedStep = #Route.steps
+
+	refreshStepList()
+
+	Status.Text = "● ACTION RECORDED"
+
+	NameBox.Text = ""
+end)
+
+-- ============================================================
+-- PATH RECORDING
+-- ============================================================
+
+StartPath.MouseButton1Click:Connect(function()
+	if recordingPath then
+		Status.Text = "● PATH ALREADY RECORDING"
+		return
+	end
+
+	pathPoints = {}
+	recordingPath = true
+
+	PathStatus.Text = "● RECORDING PATH • 0 POINTS"
+	PathStatus.TextColor3 = Color3.fromRGB(100, 210, 130)
+
+	StartPath.Text = "● PATH RECORDING..."
+	StartPath.BackgroundColor3 = Color3.fromRGB(90, 110, 160)
+
+	Status.Text = "● PATH RECORDING"
+end)
+
+AddPathPoint.MouseButton1Click:Connect(function()
+	if not recordingPath then
+		Status.Text = "● START PATH FIRST"
+		return
+	end
+
+	local cf, movementMode = getMovementTarget()
+
+	if not cf then
+		Status.Text = "● CHARACTER NOT FOUND"
+		return
+	end
+
+	table.insert(pathPoints, {
+		position = cf.Position,
+		rotation = cf - cf.Position,
+		movementMode = movementMode,
+	})
+
+	PathStatus.Text =
+		"● RECORDING PATH • "
+		.. tostring(#pathPoints)
+		.. " POINTS"
+
+	MovementInfo.Text =
+		"Current Mode: "
+		.. string.upper(movementMode)
+
+	Status.Text =
+		"● PATH POINT "
+		.. tostring(#pathPoints)
+		.. " • "
+		.. movementMode
+end)
+
+FinishPath.MouseButton1Click:Connect(function()
+	if not recordingPath then
+		Status.Text = "● NO PATH RECORDING"
+		return
+	end
+
+	if #pathPoints == 0 then
+		Status.Text = "● NO PATH POINTS"
+		return
+	end
+
+	local pathName = PathNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+
+	if pathName == "" then
+		pathName = "Path_" .. tostring(#Route.steps + 1)
+	end
+
+	saveUndo()
+
+	table.insert(Route.steps, {
+		type = "Path",
+		category = "Path",
+		name = pathName,
+		points = table.clone(pathPoints),
+		order = #Route.steps + 1,
+	})
+
+	selectedStep = #Route.steps
+
+	recordingPath = false
+
+	PathStatus.Text =
+		"● PATH FINISHED • "
+		.. tostring(#pathPoints)
+		.. " POINTS"
+
+	PathStatus.TextColor3 = Color3.fromRGB(170, 175, 185)
+
+	StartPath.Text = "▶ START PATH RECORDING"
+	StartPath.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
+
+	refreshStepList()
+
+	Status.Text = "● PATH SAVED"
+
+	pathPoints = {}
+end)
+
+-- ============================================================
+-- DELETE
+-- ============================================================
+
+DeleteButton.MouseButton1Click:Connect(function()
+	if not selectedStep then
+		Status.Text = "● SELECT A STEP"
+		return
+	end
+
+	if not Route.steps[selectedStep] then
+		selectedStep = nil
+		refreshStepList()
+		return
+	end
+
+	saveUndo()
+
+	table.remove(Route.steps, selectedStep)
+
+	for index, step in ipairs(Route.steps) do
+		step.order = index
+	end
+
+	selectedStep = nil
+
+	refreshStepList()
+
+	Status.Text = "● STEP DELETED"
+end)
+
+-- ============================================================
+-- UNDO
+-- ============================================================
+
+UndoButton.MouseButton1Click:Connect(function()
+	local previous = table.remove(undoStack)
+
+	if not previous then
+		Status.Text = "● NOTHING TO UNDO"
+		return
+	end
+
+	Route.steps = previous
+	selectedStep = nil
+
+	refreshStepList()
+
+	Status.Text = "● UNDO COMPLETE"
+end)
+
+-- ============================================================
+-- EXPORT
+-- ============================================================
 
 ExportButton.MouseButton1Click:Connect(function()
-    local code = buildExport()
+	local code = buildExport()
 
-    ExportCode.Text = code
-    ExportWindow.Visible = true
+	ExportCode.Text = code
+	ExportWindow.Visible = true
 
-    Status.Text = "● EXPORT READY"
+	Status.Text = "● EXPORT READY"
 end)
-
---------------------------------------------------
--- CLOSE EXPORT WINDOW
---------------------------------------------------
 
 ExportClose.MouseButton1Click:Connect(function()
-    ExportWindow.Visible = false
+	ExportWindow.Visible = false
 end)
 
-ExportCloseBottom.MouseButton1Click:Connect(function()
-    ExportWindow.Visible = false
+-- ============================================================
+-- COPY
+-- ============================================================
+
+CopyButton.MouseButton1Click:Connect(function()
+	-- Roblox LocalScripts do not have a universal clipboard API.
+	-- The TextBox remains selectable so the user can manually Ctrl+C.
+	
+	ExportCode:CaptureFocus()
+	ExportCode.SelectionStart = 1
+	ExportCode.CursorPosition = #ExportCode.Text + 1
+
+	CopyButton.Text = "SELECTED"
+
+	task.delay(1.2, function()
+		if CopyButton and CopyButton.Parent then
+			CopyButton.Text = "COPY"
+		end
+	end)
 end)
 
---------------------------------------------------
--- DRAG EXPORT WINDOW
---------------------------------------------------
-
-local exportDragging = false
-local exportDragStart
-local exportStartPosition
-
-ExportHeader.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        exportDragging = true
-        exportDragStart = input.Position
-        exportStartPosition = ExportWindow.Position
-    end
-end)
-
-ExportHeader.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        exportDragging = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if not exportDragging then
-        return
-    end
-
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and input.UserInputType ~= Enum.UserInputType.Touch then
-        return
-    end
-
-    local delta = input.Position - exportDragStart
-
-    ExportWindow.Position = UDim2.new(
-        exportStartPosition.X.Scale,
-        exportStartPosition.X.Offset + delta.X,
-        exportStartPosition.Y.Scale,
-        exportStartPosition.Y.Offset + delta.Y
-    )
-end)
-
---------------------------------------------------
+-- ============================================================
 -- LIVE POSITION
---------------------------------------------------
+-- ============================================================
 
 task.spawn(function()
-    while Gui.Parent do
-        local pos = getPosition()
+	while ScreenGui.Parent do
+		task.wait(0.1)
 
-        if pos then
-            PositionValue.Text = formatVector(pos)
-        else
-            PositionValue.Text = "—"
-        end
+		local cf, movementMode = getMovementTarget()
 
-        task.wait(0.1)
-    end
+		if cf then
+			PositionValue.Text = string.format(
+				"X: %.2f | Y: %.2f | Z: %.2f",
+				cf.Position.X,
+				cf.Position.Y,
+				cf.Position.Z
+			)
+
+			MovementInfo.Text =
+				"Current Mode: "
+				.. string.upper(movementMode)
+		end
+	end
 end)
 
---------------------------------------------------
--- DRAG WINDOW
---------------------------------------------------
+-- ============================================================
+-- MINIMIZE / MAXIMIZE
+-- ============================================================
 
-local dragging = false
-local dragStart
-local startPosition
+local normalSize = UDim2.fromOffset(780, 560)
+local normalPosition = UDim2.new(0.5, -390, 0.5, -280)
 
-Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = true
-        dragStart = input.Position
-        startPosition = Main.Position
-    end
-end)
-
-Header.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if not dragging then
-        return
-    end
-
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and input.UserInputType ~= Enum.UserInputType.Touch then
-        return
-    end
-
-    local delta = input.Position - dragStart
-
-    Main.Position = UDim2.new(
-        startPosition.X.Scale,
-        startPosition.X.Offset + delta.X,
-        startPosition.Y.Scale,
-        startPosition.Y.Offset + delta.Y
-    )
-end)
-
---------------------------------------------------
--- MINIMIZE
---------------------------------------------------
-
+local maximized = false
 local minimized = false
 
 Minimize.MouseButton1Click:Connect(function()
-    minimized = not minimized
+	if minimized then
+		Main.Size = normalSize
+		Main.Position = normalPosition
 
-    Content.Visible = not minimized
+		Content.Visible = true
 
-    if minimized then
-        Main.Size = UDim2.fromOffset(
-            Main.Size.X.Offset,
-            48
-        )
-    else
-        Main.Size = UDim2.fromOffset(
-            760,
-            540
-        )
-    end
+		minimized = false
+	else
+		Main.Size = UDim2.fromOffset(780, 48)
+
+		Content.Visible = false
+
+		minimized = true
+	end
 end)
-
---------------------------------------------------
--- MAXIMIZE / RESTORE
---------------------------------------------------
-
-local maximized = false
 
 Maximize.MouseButton1Click:Connect(function()
-    maximized = not maximized
+	if minimized then
+		return
+	end
 
-    if maximized then
-        Main.Size = UDim2.new(0.9, 0, 0.85, 0)
-        Main.Position = UDim2.new(0.05, 0, 0.075, 0)
-    else
-        Main.Size = UDim2.fromOffset(760, 540)
-        Main.Position = UDim2.new(0.5, -380, 0.5, -270)
-    end
+	maximized = not maximized
+
+	if maximized then
+		Main.Size = UDim2.new(1, -40, 1, -40)
+		Main.Position = UDim2.fromOffset(20, 20)
+	else
+		Main.Size = normalSize
+		Main.Position = normalPosition
+	end
 end)
-
---------------------------------------------------
--- CLOSE
---------------------------------------------------
 
 Close.MouseButton1Click:Connect(function()
-    Gui:Destroy()
+	ScreenGui.Enabled = false
 end)
 
---------------------------------------------------
--- RESIZE HANDLE
---------------------------------------------------
+-- ============================================================
+-- DRAG MAIN WINDOW
+-- ============================================================
 
-local ResizeHandle = Instance.new("TextButton")
-ResizeHandle.Size = UDim2.fromOffset(18, 18)
-ResizeHandle.Position = UDim2.new(1, -18, 1, -18)
-ResizeHandle.BackgroundTransparency = 1
-ResizeHandle.Text = "◢"
-ResizeHandle.TextColor3 = Color3.fromRGB(130,130,140)
-ResizeHandle.TextSize = 12
-ResizeHandle.Parent = Main
+local draggingMain = false
+local dragStartMain: Vector2
+local startPosMain: UDim2
 
-local resizing = false
-local resizeStart
-local resizeSize
-
-ResizeHandle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        resizing = true
-        resizeStart = input.Position
-        resizeSize = Main.AbsoluteSize
-    end
+Header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingMain = true
+		dragStartMain = input.Position
+		startPosMain = Main.Position
+	end
 end)
 
-ResizeHandle.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        resizing = false
-    end
+Header.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingMain = false
+	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if not resizing then
-        return
-    end
+	if draggingMain and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStartMain
 
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and input.UserInputType ~= Enum.UserInputType.Touch then
-        return
-    end
-
-    local delta = input.Position - resizeStart
-
-    local width = math.max(600, resizeSize.X + delta.X)
-    local height = math.max(420, resizeSize.Y + delta.Y)
-
-    Main.Size = UDim2.fromOffset(width, height)
+		Main.Position = UDim2.new(
+			startPosMain.X.Scale,
+			startPosMain.X.Offset + delta.X,
+			startPosMain.Y.Scale,
+			startPosMain.Y.Offset + delta.Y
+		)
+	end
 end)
 
---------------------------------------------------
+-- ============================================================
+-- DRAG EXPORT WINDOW
+-- ============================================================
+
+local draggingExport = false
+local dragStartExport: Vector2
+local startPosExport: UDim2
+
+ExportHeader.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingExport = true
+		dragStartExport = input.Position
+		startPosExport = ExportWindow.Position
+	end
+end)
+
+ExportHeader.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingExport = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingExport and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStartExport
+
+		ExportWindow.Position = UDim2.new(
+			startPosExport.X.Scale,
+			startPosExport.X.Offset + delta.X,
+			startPosExport.Y.Scale,
+			startPosExport.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ============================================================
 -- INITIALIZE
---------------------------------------------------
+-- ============================================================
 
-refreshSteps()
-updatePathUI()
+refreshCategories()
+refreshStepList()
 
-print("Auto Farm Route Builder loaded.")
+Status.Text = "● READY"
