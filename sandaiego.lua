@@ -16,26 +16,25 @@ local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 
 local Route = {
-    BuyPos = Vector3.new(6821.040, 20.140, 18.682),
+    BuyPos = Vector3.new(6820.766, 17.421, 19.468),
     Points = {
-        Vector3.new(6841.693, 17.223, 25.801),
-        Vector3.new(6850.875, 17.223, 142.320),
-        Vector3.new(6342.700, 17.223, 167.407),
-        Vector3.new(5933.097, 50.792, 333.061),
-        Vector3.new(5738.518, 51.052, 347.195),
-        Vector3.new(5300.708, 17.223, 175.663),
-        Vector3.new(4911.411, 17.223, 147.482),
-        Vector3.new(3649.939, 17.223, 145.471),
-        Vector3.new(2919.517, 17.223, 147.252),
-        Vector3.new(2780.356, 17.223, 148.367),
-        Vector3.new(2181.311, 17.223, 136.295),
-        Vector3.new(802.107, 17.223, 142.386),
-        Vector3.new(735.048, 17.223, 104.537),
-        Vector3.new(259.627, 17.223, 88.264),
-        Vector3.new(256.799, 17.244, -40.370),
-        Vector3.new(209.160, 17.244, -43.283),
+        Vector3.new(6842.128, 17.223, 19.321),
+        Vector3.new(6841.736, 17.223, 142.829),
+        Vector3.new(5904.539, 17.223, 146.274),
+        Vector3.new(4561.280, 17.223, 147.949),
+        Vector3.new(3010.252, 17.223, 150.880),
+        Vector3.new(2779.545, 17.223, 148.855),
+        Vector3.new(2550.742, 17.223, 142.769),
+        Vector3.new(1900.172, 17.223, 140.795),
+        Vector3.new(720.947, 17.223, 137.434),
+        Vector3.new(196.229, 17.223, 134.763),
+        Vector3.new(193.469, 17.223, -34.899),
+        Vector3.new(192.914, 17.223, -54.420),
+        Vector3.new(206.688, 17.082, -53.580),
+        Vector3.new(207.952, 17.244, -44.035),
     }
 }
+
 
 local autoFarm = false
 local maxRings, flyHeight, flySpeed = 5, 0, 120
