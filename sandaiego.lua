@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl
+-- By المبجّل • Discord: almbjl2
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -38,7 +38,7 @@ local Route = {
 
 local autoFarm = false
 local maxRings = 10
-local speed = 150 -- زدت السرعة شوي
+local speed = 150
 
 --========================
 -- نظام الحركة الجديد (بدون طيران)
@@ -65,6 +65,13 @@ local function floatMode()
     end
 end
 
+local function stopMovement()
+    local root = Root()
+    if root:FindFirstChild("BV") then
+        root.BV.Velocity = Vector3.new(0,0,0)
+    end
+end
+
 local function moveTo(pos)
     floatMode()
     local root = Root()
@@ -74,7 +81,7 @@ local function moveTo(pos)
         task.wait()
     end
 
-    root.BV.Velocity = Vector3.new(0,0,0)
+    stopMovement()
 end
 
 --========================
@@ -94,10 +101,11 @@ end
 --========================
 local function sellSpam()
     local root = Root()
-    -- اللاعب الآن على الأرض، ما يرفع فوقها
+    stopMovement() -- يوقف الحركة قبل البيع عشان ما يهنق
+
     local before = player.leaderstats.Money.Value
 
-    for i = 1, 100 do -- سبام 100 طلب بيع
+    for i = 1, 100 do
         SellRemote:FireServer(NPC["Seller4"])
         AntiCheatRemote:InvokeServer()
         task.wait(0.05)
@@ -108,7 +116,7 @@ local function sellSpam()
         end
     end
 
-    task.wait(3) -- انتظار 3 ثواني بعد البيع
+    task.wait(3)
 end
 
 --========================
