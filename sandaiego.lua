@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring
--- By المبجّل • Discord: almbjl
+-- By المبجّل • Discord: almbjl 1
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -15,26 +15,31 @@ local player = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 
+--========================
+-- المسار الجديد + حل مشكلة لمس الأرض
+--========================
 local Route = {
     BuyPos = Vector3.new(6820.766, 17.421, 19.468),
     Points = {
-        Vector3.new(6842.128, 17.223, 19.321),
-        Vector3.new(6841.736, 17.223, 142.829),
-        Vector3.new(5904.539, 17.223, 146.274),
-        Vector3.new(4561.280, 17.223, 147.949),
-        Vector3.new(3010.252, 17.223, 150.880),
-        Vector3.new(2779.545, 17.223, 148.855),
-        Vector3.new(2550.742, 17.223, 142.769),
-        Vector3.new(1900.172, 17.223, 140.795),
-        Vector3.new(720.947, 17.223, 137.434),
-        Vector3.new(196.229, 17.223, 134.763),
-        Vector3.new(193.469, 17.223, -34.899),
-        Vector3.new(192.914, 17.223, -54.420),
-        Vector3.new(206.688, 17.082, -53.580),
         Vector3.new(207.952, 17.244, -44.035),
+        Vector3.new(206.688, 17.082, -53.580),
+        Vector3.new(192.914, 17.223, -54.420),
+        Vector3.new(193.469, 17.223, -34.899),
+        Vector3.new(196.229, 17.223, 134.763),
+        Vector3.new(720.947, 17.223, 137.434),
+        Vector3.new(1900.172, 17.223, 140.795),
+        Vector3.new(2550.742, 17.223, 142.769),
+        Vector3.new(2779.545, 17.223, 148.855),
+        Vector3.new(3010.252, 17.223, 150.880),
+        Vector3.new(4561.280, 17.223, 147.949),
+        Vector3.new(5904.539, 17.223, 146.274),
+        Vector3.new(6841.736, 17.223, 142.829),
+        Vector3.new(6842.128, 17.223, 19.321),
+
+        -- ⭐ أهم نقطة: رفع آخر نقطة فوق الأرض حتى لا يلمس الأرض نهائيًا
+        Vector3.new(6820.766, 17.421 + 1.5, 19.468),
     }
 }
-
 
 local autoFarm = false
 local maxRings, flyHeight, flySpeed = 5, 0, 120
