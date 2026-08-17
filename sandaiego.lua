@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl1
+-- By المبجّل • Discord: almbjl
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
