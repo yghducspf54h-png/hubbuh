@@ -1,6 +1,6 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring
--- By المبجّل • Discord: almbjl 1
+-- By المبجّل • Discord: almbjl
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
@@ -38,7 +38,7 @@ local Route = {
 }
 
 local autoFarm = false
-local maxRings, flyHeight, flySpeed = 5, 0, 120 -- ارتفاع 0 محاذاة للأرض
+local maxRings, flyHeight, flySpeed = 5, 0, 120
 local activeTween = nil
 
 local function Root()
@@ -51,8 +51,7 @@ local function stopAllMovement()
         activeTween:Cancel()
         activeTween = nil
     end
-    local root = Root()
-    root.Anchored = false
+    Root().Anchored = false
 end
 
 local function antiCheat()
@@ -65,13 +64,31 @@ local function buyRing()
     BuyRemote:FireServer(Items["Fake Diamond Ring"])
 end
 
+-- نظام بيع متحقق
 local function sellGoods()
-    SellRemote:FireServer(NPC["Seller4"])
+    local root = Root()
+    root.CFrame = root.CFrame + Vector3.new(0, 0.8, 0)
+
+    local success = false
+    for attempt = 1, 5 do
+        SellRemote:FireServer(NPC["Seller4"])
+        antiCheat()
+        task.wait(0.3)
+
+        if player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Money") then
+            success = true
+            break
+        end
+    end
+
+    if not success then
+        print("⚠️ السيرفر ما قبل البيع، إعادة المحاولة لاحقًا")
+    end
 end
 
 local function moveTo(pos)
     local root = Root()
-    local target = Vector3.new(pos.X, pos.Y + flyHeight, pos.Z)
+    local target = Vector3.new(pos.X, pos.Y + flyHeight + 0.5, pos.Z)
     local dist = (root.Position - target).Magnitude
     local t = dist / flySpeed
 
@@ -100,6 +117,7 @@ local function moveTo(pos)
         else
             stuckTimer = 0
         end
+
         lastPos = root.Position
     end
 
@@ -122,7 +140,6 @@ local function moveBackward()
 end
 
 local function safeBuyLoop()
-    -- يحاول يوصل للعدد المطلوب، مع محاولات إضافية بسيطة
     for i = 1, maxRings do
         if not autoFarm then break end
         buyRing()
@@ -136,27 +153,17 @@ task.spawn(function()
         task.wait(0.2)
         if not autoFarm then continue end
 
-        -- الذهاب لنقطة الشراء
         moveTo(Route.BuyPos)
-
-        -- شراء حسب العدد
         safeBuyLoop()
-
-        -- الذهاب للبائع
         moveForward()
-
-        -- انتظار 3 ثواني
         task.wait(3)
 
-        -- إرسال 5 أوامر بيع
         for i = 1, 5 do
             if not autoFarm then break end
             sellGoods()
-            antiCheat()
             task.wait(0.2)
         end
 
-        -- الرجوع بنفس الطريق
         moveBackward()
     end
 end)
@@ -171,9 +178,7 @@ local main = Instance.new("Frame", gui)
 main.Size = UDim2.fromOffset(260, 190)
 main.Position = UDim2.new(0.5, -130, 0.4, -95)
 main.BackgroundColor3 = Color3.fromRGB(25,25,30)
-
-local corner = Instance.new("UICorner", main)
-corner.CornerRadius = UDim.new(0,10)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
 
 local header = Instance.new("TextLabel", main)
 header.Size = UDim2.new(1,0,0,30)
@@ -182,9 +187,7 @@ header.Text = "Auto Farm • المبجّل"
 header.TextColor3 = Color3.new(1,1,1)
 header.Font = Enum.Font.GothamBold
 header.TextSize = 13
-
-local hcorner = Instance.new("UICorner", header)
-hcorner.CornerRadius = UDim.new(0,10)
+Instance.new("UICorner", header).CornerRadius = UDim.new(0,10)
 
 local dragging, dragStart, startPos = false, nil, nil
 
@@ -232,8 +235,7 @@ local function Box(y, default)
     b.Font = Enum.Font.Gotham
     b.TextSize = 12
     b.ClearTextOnFocus = false
-    local c = Instance.new("UICorner", b)
-    c.CornerRadius = UDim.new(0,6)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
     return b
 end
 
@@ -246,8 +248,7 @@ local function Button(txt, y)
     b.TextColor3 = Color3.new(1,1,1)
     b.Font = Enum.Font.GothamBold
     b.TextSize = 12
-    local c = Instance.new("UICorner", b)
-    c.CornerRadius = UDim.new(0,6)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
     return b
 end
 
