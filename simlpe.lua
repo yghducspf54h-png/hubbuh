@@ -1,34 +1,84 @@
 --!strict
--- Remote Security Tester
--- LocalScript
--- ضع السكربت في StarterPlayer > StarterPlayerScripts
--- للاختبار داخل Roblox Studio
+--============================================================
+-- REMOTE SECURITY TESTER
+-- LocalScript / LocalPlayer
+--============================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
-local LocalPlayer = Players.LocalPlayer
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
-local function getCharacter()
-	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local RemotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
+
+if not RemotesFolder then
+	warn("[SecurityTester] ReplicatedStorage.Remotes not found")
+	return
 end
 
-local function getHumanoid()
-	local character = getCharacter()
+--============================================================
+-- CONFIG
+--============================================================
+
+local CONFIG = {
+	WaitAfterRemote = 0.75,
+
+	-- Values used for UpdateSpeed testing
+	SpeedTests = {
+		0,
+		-50,
+		50,
+		100,
+		500,
+		999999,
+	},
+
+	-- Deliberately invalid identifiers
+	InvalidTrail = "__SECURITY_TEST_INVALID_TRAIL__",
+	InvalidCurrency = "__SECURITY_TEST_INVALID_CURRENCY__",
+	InvalidAward = "__SECURITY_TEST_INVALID_AWARD__",
+	InvalidShopCommand = "__SECURITY_TEST_INVALID_SHOP_COMMAND__",
+}
+
+--============================================================
+-- STATE
+--============================================================
+
+local TestRunning = false
+local TestCounter = 0
+
+--============================================================
+-- UTILITY
+--============================================================
+
+local function getHumanoid(): Humanoid?
+	local character = Player.Character
+
+	if not character then
+		return nil
+	end
+
 	return character:FindFirstChildOfClass("Humanoid")
 end
 
 local function getValue(name: string)
-	local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-	if not leaderstats then
-		return nil
+	local leaderstats = Player:FindFirstChild("leaderstats")
+
+	if leaderstats then
+		local object = leaderstats:FindFirstChild(name)
+
+		if object and object:IsA("ValueBase") then
+			return object.Value
+		end
 	end
 
-	local obj = leaderstats:FindFirstChild(name)
+	-- Also check player directly.
+	local direct = Player:FindFirstChild(name)
 
-	if obj and obj:IsA("ValueBase") then
-		return obj.Value
+	if direct and direct:IsA("ValueBase") then
+		return direct.Value
 	end
 
 	return nil
@@ -39,257 +89,663 @@ local function snapshot()
 
 	return {
 		WalkSpeed = humanoid and humanoid.WalkSpeed or nil,
+
 		Wins = getValue("Wins"),
 		Level = getValue("Level"),
 		XP = getValue("XP"),
 		Rebirths = getValue("Rebirths"),
+
+		-- Optional values if your game has them
+		Multiplier = getValue("Multiplier"),
+		CurrentSpeedTier = getValue("CurrentSpeedTier"),
 	}
 end
 
-local function compare(before, after)
+local function compareSnapshots(before, after)
 	local changes = {}
 
 	for key, oldValue in pairs(before) do
 		local newValue = after[key]
 
-		if oldValue ~= nil
-			and newValue ~= nil
-			and oldValue ~= newValue then
-
-			table.insert(
-				changes,
-				string.format(
-					"%s: %s -> %s",
-					key,
-					tostring(oldValue),
-					tostring(newValue)
+		if oldValue ~= nil and newValue ~= nil then
+			if oldValue ~= newValue then
+				table.insert(
+					changes,
+					string.format(
+						"%s: %s -> %s",
+						key,
+						tostring(oldValue),
+						tostring(newValue)
+					)
 				)
-			)
+			end
 		end
 	end
 
 	return changes
 end
 
--- =========================================================
+local function getRemote(name: string)
+	local remote = RemotesFolder:FindFirstChild(name)
+
+	if not remote then
+		return nil, "Remote not found"
+	end
+
+	return remote, nil
+end
+
+--============================================================
 -- GUI
--- =========================================================
+--============================================================
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "RemoteSecurityTester"
-gui.ResetOnSpawn = false
-gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "RemoteSecurityTester"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.Parent = PlayerGui
 
-local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(520, 520)
-main.Position = UDim2.new(0.5, -260, 0.5, -260)
-main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-main.BorderSizePixel = 0
-main.Parent = gui
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(650, 650)
+Main.Position = UDim2.new(0.5, -325, 0.5, -325)
+Main.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = main
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = Main
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 50)
-title.BackgroundTransparency = 1
-title.Text = "REMOTE SECURITY TESTER"
-title.TextSize = 20
-title.Font = Enum.Font.GothamBold
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Parent = main
+--============================================================
+-- TITLE
+--============================================================
 
-local subtitle = Instance.new("TextLabel")
-subtitle.Position = UDim2.fromOffset(15, 45)
-subtitle.Size = UDim2.new(1, -30, 0, 30)
-subtitle.BackgroundTransparency = 1
-subtitle.Text = "LocalPlayer • Studio Security Audit"
-subtitle.TextSize = 13
-subtitle.Font = Enum.Font.Gotham
-subtitle.TextColor3 = Color3.fromRGB(170, 170, 170)
-subtitle.Parent = main
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundTransparency = 1
+Title.Text = "REMOTE SECURITY TESTER"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 21
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Parent = Main
 
-local valueBox = Instance.new("TextBox")
-valueBox.Position = UDim2.fromOffset(25, 90)
-valueBox.Size = UDim2.fromOffset(470, 45)
-valueBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
-valueBox.TextColor3 = Color3.new(1, 1, 1)
-valueBox.PlaceholderText = "Enter speed value..."
-valueBox.Text = "16"
-valueBox.TextSize = 16
-valueBox.Font = Enum.Font.Gotham
-valueBox.ClearTextOnFocus = false
-valueBox.Parent = main
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Position = UDim2.fromOffset(20, 42)
+Subtitle.Size = UDim2.new(1, -40, 0, 30)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "LocalPlayer • Defensive Remote Validation"
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.TextSize = 13
+Subtitle.TextColor3 = Color3.fromRGB(160, 160, 170)
+Subtitle.Parent = Main
 
-local valueCorner = Instance.new("UICorner")
-valueCorner.CornerRadius = UDim.new(0, 8)
-valueCorner.Parent = valueBox
+--============================================================
+-- STATUS
+--============================================================
 
-local testButton = Instance.new("TextButton")
-testButton.Position = UDim2.fromOffset(25, 150)
-testButton.Size = UDim2.fromOffset(225, 45)
-testButton.BackgroundColor3 = Color3.fromRGB(55, 100, 180)
-testButton.Text = "TEST UPDATE SPEED"
-testButton.TextColor3 = Color3.new(1, 1, 1)
-testButton.TextSize = 14
-testButton.Font = Enum.Font.GothamBold
-testButton.Parent = main
+local Status = Instance.new("TextLabel")
+Status.Position = UDim2.fromOffset(20, 76)
+Status.Size = UDim2.new(1, -40, 0, 30)
+Status.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+Status.Text = "READY"
+Status.Font = Enum.Font.GothamBold
+Status.TextSize = 13
+Status.TextColor3 = Color3.fromRGB(100, 220, 120)
+Status.Parent = Main
 
-local testCorner = Instance.new("UICorner")
-testCorner.CornerRadius = UDim.new(0, 8)
-testCorner.Parent = testButton
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 7)
+StatusCorner.Parent = Status
 
-local snapshotButton = Instance.new("TextButton")
-snapshotButton.Position = UDim2.fromOffset(270, 150)
-snapshotButton.Size = UDim2.fromOffset(225, 45)
-snapshotButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
-snapshotButton.Text = "CURRENT STATE"
-snapshotButton.TextColor3 = Color3.new(1, 1, 1)
-snapshotButton.TextSize = 14
-snapshotButton.Font = Enum.Font.GothamBold
-snapshotButton.Parent = main
+--============================================================
+-- SPEED INPUT
+--============================================================
 
-local log = Instance.new("TextLabel")
-log.Position = UDim2.fromOffset(25, 215)
-log.Size = UDim2.fromOffset(470, 270)
-log.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
-log.TextColor3 = Color3.fromRGB(220, 220, 220)
-log.TextSize = 13
-log.Font = Enum.Font.Code
-log.TextXAlignment = Enum.TextXAlignment.Left
-log.TextYAlignment = Enum.TextYAlignment.Top
-log.TextWrapped = true
-log.Text = "Waiting for test...\n"
-log.Parent = main
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Position = UDim2.fromOffset(20, 120)
+SpeedBox.Size = UDim2.fromOffset(300, 42)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.PlaceholderText = "Speed value"
+SpeedBox.Text = "10000"
+SpeedBox.Font = Enum.Font.Code
+SpeedBox.TextSize = 15
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.Parent = Main
 
-local logCorner = Instance.new("UICorner")
-logCorner.CornerRadius = UDim.new(0, 8)
-logCorner.Parent = log
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 7)
+SpeedCorner.Parent = SpeedBox
 
-local function write(text: string)
-	log.Text ..= "\n" .. text
+--============================================================
+-- LOG
+--============================================================
+
+local LogFrame = Instance.new("ScrollingFrame")
+LogFrame.Position = UDim2.fromOffset(20, 350)
+LogFrame.Size = UDim2.fromOffset(610, 280)
+LogFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 13)
+LogFrame.BorderSizePixel = 0
+LogFrame.ScrollBarThickness = 6
+LogFrame.CanvasSize = UDim2.fromOffset(0, 0)
+LogFrame.Parent = Main
+
+local LogCorner = Instance.new("UICorner")
+LogCorner.CornerRadius = UDim.new(0, 8)
+LogCorner.Parent = LogFrame
+
+local LogText = Instance.new("TextLabel")
+LogText.Position = UDim2.fromOffset(12, 10)
+LogText.Size = UDim2.new(1, -24, 0, 0)
+LogText.AutomaticSize = Enum.AutomaticSize.Y
+LogText.BackgroundTransparency = 1
+LogText.Text = ""
+LogText.TextColor3 = Color3.fromRGB(220, 220, 220)
+LogText.Font = Enum.Font.Code
+LogText.TextSize = 13
+LogText.TextWrapped = true
+LogText.TextXAlignment = Enum.TextXAlignment.Left
+LogText.TextYAlignment = Enum.TextYAlignment.Top
+LogText.Parent = LogFrame
+
+local function log(message: string)
+	print("[SecurityTester] " .. message)
+
+	if LogText.Text == "" then
+		LogText.Text = message
+	else
+		LogText.Text ..= "\n" .. message
+	end
+
+	task.defer(function()
+		LogFrame.CanvasPosition = Vector2.new(
+			0,
+			math.max(
+				0,
+				LogText.AbsoluteSize.Y - LogFrame.AbsoluteSize.Y
+			)
+		)
+	end)
 end
 
 local function clearLog()
-	log.Text = ""
+	LogText.Text = ""
 end
 
--- =========================================================
--- Current State
--- =========================================================
+--============================================================
+-- BUTTON CREATOR
+--============================================================
 
-snapshotButton.MouseButton1Click:Connect(function()
-	clearLog()
+local function createButton(
+	text: string,
+	position: UDim2,
+	callback
+)
+	local button = Instance.new("TextButton")
 
-	local state = snapshot()
+	button.Size = UDim2.fromOffset(295, 42)
+	button.Position = position
+	button.BackgroundColor3 = Color3.fromRGB(42, 42, 50)
+	button.BorderSizePixel = 0
+	button.Text = text
+	button.TextColor3 = Color3.fromRGB(235, 235, 235)
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 13
+	button.Parent = Main
 
-	write("===== CURRENT STATE =====")
-	write("WalkSpeed: " .. tostring(state.WalkSpeed))
-	write("Wins: " .. tostring(state.Wins))
-	write("Level: " .. tostring(state.Level))
-	write("XP: " .. tostring(state.XP))
-	write("Rebirths: " .. tostring(state.Rebirths))
-end)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 7)
+	corner.Parent = button
 
--- =========================================================
--- UpdateSpeed Security Test
--- =========================================================
+	button.MouseButton1Click:Connect(callback)
 
-testButton.MouseButton1Click:Connect(function()
-	local remote = Remotes:FindFirstChild("UpdateSpeed")
+	return button
+end
+
+--============================================================
+-- TEST ENGINE
+--============================================================
+
+local function beginTest(name: string)
+	if TestRunning then
+		log("[BUSY] Another test is already running.")
+		return false
+	end
+
+	TestRunning = true
+	TestCounter += 1
+
+	Status.Text = "RUNNING: " .. name
+	Status.TextColor3 = Color3.fromRGB(255, 210, 80)
+
+	log("")
+	log("================================================")
+	log("TEST #" .. TestCounter .. " : " .. name)
+	log("================================================")
+
+	return true
+end
+
+local function finishTest()
+	TestRunning = false
+	Status.Text = "READY"
+	Status.TextColor3 = Color3.fromRGB(100, 220, 120)
+end
+
+local function reportChanges(before, after)
+	local changes = compareSnapshots(before, after)
+
+	if #changes == 0 then
+		log("[PASS] No monitored state changed.")
+	else
+		log("[WARNING] State changed:")
+
+		for _, change in ipairs(changes) do
+			log("  " .. change)
+		end
+	end
+end
+
+--============================================================
+-- UPDATE SPEED
+--============================================================
+
+local function testUpdateSpeed(value: number)
+	local remote, errorMessage = getRemote("UpdateSpeed")
 
 	if not remote then
-		clearLog()
-		write("[ERROR] UpdateSpeed not found.")
+		log("[ERROR] UpdateSpeed: " .. tostring(errorMessage))
 		return
 	end
 
 	if not remote:IsA("RemoteEvent") then
-		clearLog()
-		write("[ERROR] UpdateSpeed is not a RemoteEvent.")
+		log("[ERROR] UpdateSpeed is not RemoteEvent.")
 		return
 	end
-
-	local value = tonumber(valueBox.Text)
-
-	if value == nil then
-		clearLog()
-		write("[ERROR] Enter a numeric value.")
-		return
-	end
-
-	clearLog()
-
-	write("===== UPDATE SPEED TEST =====")
-	write("Requested value: " .. tostring(value))
 
 	local before = snapshot()
 
-	local ok, err = pcall(function()
+	log("")
+	log("[UpdateSpeed]")
+	log("Requested = " .. tostring(value))
+	log("Before WalkSpeed = " .. tostring(before.WalkSpeed))
+
+	local success, err = pcall(function()
 		remote:FireServer(value)
 	end)
 
-	if not ok then
-		write("[ERROR] Remote rejected locally:")
-		write(tostring(err))
+	if not success then
+		log("[REMOTE ERROR] " .. tostring(err))
 		return
 	end
 
-	task.wait(0.75)
+	task.wait(CONFIG.WaitAfterRemote)
 
 	local after = snapshot()
 
-	write("Server response observed.")
-	write("WalkSpeed before: " .. tostring(before.WalkSpeed))
-	write("WalkSpeed after:  " .. tostring(after.WalkSpeed))
+	log("After WalkSpeed = " .. tostring(after.WalkSpeed))
 
-	local changes = compare(before, after)
-
-	if #changes == 0 then
-		write("")
-		write("[PASS]")
-		write("No unauthorized state change detected.")
+	if before.WalkSpeed == after.WalkSpeed then
+		log("[PASS] WalkSpeed unchanged.")
 	else
-		write("")
-		write("[WARNING]")
-		write("State changed after the request:")
+		log("[WARNING] WalkSpeed changed.")
+	end
 
-		for _, change in ipairs(changes) do
-			write("• " .. change)
+	reportChanges(before, after)
+end
+
+--============================================================
+-- INVALID BUY TRAIL
+--============================================================
+
+local function testBuyTrail()
+	local remote, errorMessage = getRemote("BuyTrail")
+
+	if not remote then
+		log("[ERROR] BuyTrail: " .. tostring(errorMessage))
+		return
+	end
+
+	if not remote:IsA("RemoteFunction") then
+		log("[ERROR] BuyTrail is not RemoteFunction.")
+		return
+	end
+
+	local before = snapshot()
+
+	log("")
+	log("[BuyTrail]")
+	log("Trail = " .. CONFIG.InvalidTrail)
+	log("Currency = " .. CONFIG.InvalidCurrency)
+
+	local success, result = pcall(function()
+		return remote:InvokeServer(
+			CONFIG.InvalidTrail,
+			CONFIG.InvalidCurrency
+		)
+	end)
+
+	log("Invoke success = " .. tostring(success))
+	log("Server return = " .. tostring(result))
+
+	task.wait(CONFIG.WaitAfterRemote)
+
+	local after = snapshot()
+
+	reportChanges(before, after)
+end
+
+--============================================================
+-- INVALID EQUIP AWARD
+--============================================================
+
+local function testEquipAward()
+	local remote, errorMessage = getRemote("EquipStepAward")
+
+	if not remote then
+		log("[ERROR] EquipStepAward: " .. tostring(errorMessage))
+		return
+	end
+
+	if not remote:IsA("RemoteEvent") then
+		log("[ERROR] EquipStepAward is not RemoteEvent.")
+		return
+	end
+
+	local before = snapshot()
+
+	log("")
+	log("[EquipStepAward]")
+	log("Award = " .. CONFIG.InvalidAward)
+
+	local success, err = pcall(function()
+		remote:FireServer(CONFIG.InvalidAward)
+	end)
+
+	if not success then
+		log("[REMOTE ERROR] " .. tostring(err))
+	end
+
+	task.wait(CONFIG.WaitAfterRemote)
+
+	local after = snapshot()
+
+	reportChanges(before, after)
+end
+
+--============================================================
+-- INVALID TREADMILL SIGNAL
+--============================================================
+
+local function testTreadmillSignal()
+	local remote, errorMessage = getRemote("TreadmillSignal")
+
+	if not remote then
+		log("[ERROR] TreadmillSignal: " .. tostring(errorMessage))
+		return
+	end
+
+	if not remote:IsA("RemoteEvent") then
+		log("[ERROR] TreadmillSignal is not RemoteEvent.")
+		return
+	end
+
+	local before = snapshot()
+
+	log("")
+	log("[TreadmillSignal]")
+	log("Testing invalid argument.")
+
+	local success, err = pcall(function()
+		remote:FireServer(
+			"__INVALID_SECURITY_TEST__"
+		)
+	end)
+
+	if not success then
+		log("[REMOTE ERROR] " .. tostring(err))
+	end
+
+	task.wait(CONFIG.WaitAfterRemote)
+
+	local after = snapshot()
+
+	reportChanges(before, after)
+end
+
+--============================================================
+-- INVALID FUNNEL SHOP
+--============================================================
+
+local function testFunnelShop()
+	local remote, errorMessage = getRemote("FunnelShop")
+
+	if not remote then
+		log("[ERROR] FunnelShop: " .. tostring(errorMessage))
+		return
+	end
+
+	if not remote:IsA("RemoteEvent") then
+		log("[ERROR] FunnelShop is not RemoteEvent.")
+		return
+	end
+
+	local before = snapshot()
+
+	log("")
+	log("[FunnelShop]")
+	log("Testing invalid command.")
+
+	local success, err = pcall(function()
+		remote:FireServer(
+			CONFIG.InvalidShopCommand
+		)
+	end)
+
+	if not success then
+		log("[REMOTE ERROR] " .. tostring(err))
+	end
+
+	task.wait(CONFIG.WaitAfterRemote)
+
+	local after = snapshot()
+
+	reportChanges(before, after)
+end
+
+--============================================================
+-- BUTTONS
+--============================================================
+
+createButton(
+	"TEST CUSTOM SPEED",
+	UDim2.fromOffset(20, 175),
+	function()
+		if not beginTest("CUSTOM SPEED") then
+			return
 		end
 
-		write("")
-		write("Review server-side validation.")
+		local value = tonumber(SpeedBox.Text)
+
+		if not value then
+			log("[ERROR] Invalid numeric value.")
+			finishTest()
+			return
+		end
+
+		testUpdateSpeed(value)
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST EXTREME SPEED",
+	UDim2.fromOffset(335, 175),
+	function()
+		if not beginTest("EXTREME SPEED") then
+			return
+		end
+
+		testUpdateSpeed(999999)
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST NEGATIVE SPEED",
+	UDim2.fromOffset(20, 225),
+	function()
+		if not beginTest("NEGATIVE SPEED") then
+			return
+		end
+
+		testUpdateSpeed(-999999)
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST INVALID TRAIL",
+	UDim2.fromOffset(335, 225),
+	function()
+		if not beginTest("INVALID TRAIL") then
+			return
+		end
+
+		testBuyTrail()
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST INVALID AWARD",
+	UDim2.fromOffset(20, 275),
+	function()
+		if not beginTest("INVALID AWARD") then
+			return
+		end
+
+		testEquipAward()
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST INVALID TREADMILL",
+	UDim2.fromOffset(335, 275),
+	function()
+		if not beginTest("INVALID TREADMILL") then
+			return
+		end
+
+		testTreadmillSignal()
+
+		finishTest()
+	end
+)
+
+createButton(
+	"TEST INVALID SHOP COMMAND",
+	UDim2.fromOffset(20, 320),
+	function()
+		if not beginTest("INVALID SHOP COMMAND") then
+			return
+		end
+
+		testFunnelShop()
+
+		finishTest()
+	end
+)
+
+createButton(
+	"CLEAR LOG",
+	UDim2.fromOffset(335, 320),
+	function()
+		clearLog()
+		Status.Text = "READY"
+	end
+)
+
+--============================================================
+-- CURRENT STATE ON START
+--============================================================
+
+task.defer(function()
+	log("Remote Security Tester initialized.")
+	log("Player = " .. Player.Name)
+	log("Remotes folder = " .. RemotesFolder:GetFullName())
+
+	local expectedRemotes = {
+		"FunnelShop",
+		"BuyTrail",
+		"EquipStepAward",
+		"Rebirth",
+		"TreadmillSignal",
+		"PromptOwnerTreadmill",
+		"UpdateSpeed",
+	}
+
+	log("")
+	log("Detected remotes:")
+
+	for _, name in ipairs(expectedRemotes) do
+		local remote = RemotesFolder:FindFirstChild(name)
+
+		if remote then
+			log(
+				"  [FOUND] "
+					.. name
+					.. " ("
+					.. remote.ClassName
+					.. ")"
+			)
+		else
+			log("  [MISSING] " .. name)
+		end
+	end
+
+	local state = snapshot()
+
+	log("")
+	log("===== INITIAL STATE =====")
+	log("WalkSpeed = " .. tostring(state.WalkSpeed))
+	log("Wins = " .. tostring(state.Wins))
+	log("Level = " .. tostring(state.Level))
+	log("XP = " .. tostring(state.XP))
+	log("Rebirths = " .. tostring(state.Rebirths))
+end)
+
+--============================================================
+-- DRAG WINDOW
+--============================================================
+
+local Dragging = false
+local DragStart: Vector2
+local StartPosition: UDim2
+
+Title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		Dragging = true
+		DragStart = input.Position
+		StartPosition = Main.Position
 	end
 end)
 
--- =========================================================
--- Drag Window
--- =========================================================
-
-local UserInputService = game:GetService("UserInputService")
-
-local dragging = false
-local dragStart: Vector2
-local startPosition: UDim2
-
-title.InputBegan:Connect(function(input)
+Title.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		dragStart = input.Position
-		startPosition = main.Position
-	end
-end)
-
-title.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = false
+		Dragging = false
 	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if not dragging then
+	if not Dragging then
 		return
 	end
 
@@ -297,12 +753,12 @@ UserInputService.InputChanged:Connect(function(input)
 		return
 	end
 
-	local delta = input.Position - dragStart
+	local Delta = input.Position - DragStart
 
-	main.Position = UDim2.new(
-		startPosition.X.Scale,
-		startPosition.X.Offset + delta.X,
-		startPosition.Y.Scale,
-		startPosition.Y.Offset + delta.Y
+	Main.Position = UDim2.new(
+		StartPosition.X.Scale,
+		StartPosition.X.Offset + Delta.X,
+		StartPosition.Y.Scale,
+		StartPosition.Y.Offset + Delta.Y
 	)
 end)
