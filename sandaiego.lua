@@ -1,34 +1,77 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring
--- By المبجّل • Discord: almbjl
+-- By المبجّل • 1Discord: almbjl
 --====================================================
 
 ---------------------------
 -- ROUTE DATA
 ---------------------------
 local Route = {
+    name = "AutoFarm_Main",
     steps = {
         {
+            type = "Action",
+            category = "Buy",
+            name = "Buy Fake Diamond Ring",
             position = Vector3.new(6820.941, 17.421, 20.054),
         },
 
         {
+            type = "Path",
+            category = "Path",
+            name = "To sll",
             points = {
-                {position = Vector3.new(6854.121, 17.223, 20.914)},
-                {position = Vector3.new(6844.108, 17.223, 142.581)},
-                {position = Vector3.new(6795.110, 17.223, 142.215)},
-                {position = Vector3.new(4754.197, 16.411, 143.214)},
-                {position = Vector3.new(3793.107, 16.413, 144.526)},
-                {position = Vector3.new(2780.473, 17.248, 149.317)},
-                {position = Vector3.new(1549.154, 16.410, 135.654)},
-                {position = Vector3.new(1400.638, 16.388, 135.813)},
-                {position = Vector3.new(1378.808, 16.373, 105.375)},
-                {position = Vector3.new(262.297, 17.223, 94.578)},
-                {position = Vector3.new(259.445, 17.244, -40.166)},
-                {position = Vector3.new(215.130, 17.244, -39.732)},
-            }
-        }
-    }
+                {
+                    position = Vector3.new(6854.121, 17.223, 20.914),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(6844.108, 17.223, 142.581),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(6795.110, 17.223, 142.215),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(4754.197, 16.411, 143.214),
+                    movementMode = "Vehicle",
+                },
+                {
+                    position = Vector3.new(3793.107, 16.413, 144.526),
+                    movementMode = "Vehicle",
+                },
+                {
+                    position = Vector3.new(2780.473, 17.248, 149.317),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(1549.154, 16.410, 135.654),
+                    movementMode = "Vehicle",
+                },
+                {
+                    position = Vector3.new(1400.638, 16.388, 135.813),
+                    movementMode = "Vehicle",
+                },
+                {
+                    position = Vector3.new(1378.808, 16.373, 105.375),
+                    movementMode = "Vehicle",
+                },
+                {
+                    position = Vector3.new(262.297, 17.223, 94.578),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(259.445, 17.244, -40.166),
+                    movementMode = "Walk",
+                },
+                {
+                    position = Vector3.new(215.130, 17.244, -39.732),
+                    movementMode = "Walk",
+                },
+            },
+        },
+    },
 }
 
 ---------------------------
@@ -37,21 +80,23 @@ local Route = {
 local RS = game:GetService("ReplicatedStorage")
 local Remotes = RS:WaitForChild("__remotes")
 
-local BuyRemote = Remotes.WorldBuyableItemService.PurchaseWorldBuyableItem
-local VehicleRemote = Remotes.VehicleService.GetVehicleState
-local SellRemote = Remotes.SmuggleService.SellSmuggledGoods
-local AntiCheatRemote = Remotes.CustomServerService.CanManageServer
+local PurchaseWorldBuyableItem = Remotes:WaitForChild("WorldBuyableItemService"):WaitForChild("PurchaseWorldBuyableItem")
+local GetVehicleState = Remotes:WaitForChild("VehicleService"):WaitForChild("GetVehicleState")
+local SellSmuggledGoods = Remotes:WaitForChild("SmuggleService"):WaitForChild("SellSmuggledGoods")
+local CanManageServer = Remotes:WaitForChild("CustomServerService"):WaitForChild("CanManageServer")
 
-local Items = workspace.WorldBuyableItems.CivilianArea
-local Vehicles = workspace.Vehicles
-local NPC = workspace.NPC
+local WorldBuyableItems = workspace:WaitForChild("WorldBuyableItems"):WaitForChild("CivilianArea")
+local Vehicles = workspace:WaitForChild("Vehicles")
+local NPC = workspace:WaitForChild("NPC")
 
 ---------------------------
--- PLAYER
+-- PLAYER / SERVICES
 ---------------------------
-local player = game.Players.LocalPlayer
-local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
 
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
@@ -62,178 +107,231 @@ end
 -- GUI
 ---------------------------
 local gui = Instance.new("ScreenGui")
-gui.Parent = player.PlayerGui
+gui.Name = "AutoFarmGUI_almbjl"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
 main.Size = UDim2.fromOffset(420, 260)
 main.Position = UDim2.new(0.5, -210, 0.5, -130)
-main.BackgroundColor3 = Color3.fromRGB(20,20,24)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+main.BorderSizePixel = 0
 main.Parent = gui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0,10)
-corner.Parent = main
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = main
 
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1,0,0,40)
-header.BackgroundColor3 = Color3.fromRGB(28,28,34)
+header.Size = UDim2.new(1, 0, 0, 40)
+header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+header.BorderSizePixel = 0
 header.Parent = main
 
-local hcorner = Instance.new("UICorner")
-hcorner.CornerRadius = UDim.new(0,10)
-hcorner.Parent = header
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 10)
+headerCorner.Parent = header
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1,-120,1,0)
-title.Position = UDim2.fromOffset(10,0)
+title.Size = UDim2.new(1, -120, 1, 0)
+title.Position = UDim2.fromOffset(10, 0)
 title.BackgroundTransparency = 1
 title.Text = "Auto Farm • المبجّل"
-title.TextColor3 = Color3.fromRGB(240,240,245)
-title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(240, 240, 245)
 title.TextSize = 14
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = header
 
 local discord = Instance.new("TextLabel")
-discord.Size = UDim2.new(0,120,1,0)
-discord.Position = UDim2.new(1,-120,0,0)
+discord.Size = UDim2.new(0, 120, 1, 0)
+discord.Position = UDim2.new(1, -120, 0, 0)
 discord.BackgroundTransparency = 1
 discord.Text = "Discord: almbjl"
-discord.TextColor3 = Color3.fromRGB(180,180,190)
-discord.Font = Enum.Font.Gotham
+discord.TextColor3 = Color3.fromRGB(180, 180, 190)
 discord.TextSize = 11
+discord.Font = Enum.Font.Gotham
+discord.TextXAlignment = Enum.TextXAlignment.Right
 discord.Parent = header
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1,-20,1,-50)
-content.Position = UDim2.fromOffset(10,45)
-content.BackgroundColor3 = Color3.fromRGB(25,25,30)
+content.Size = UDim2.new(1, -20, 1, -50)
+content.Position = UDim2.fromOffset(10, 45)
+content.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+content.BorderSizePixel = 0
 content.Parent = main
 
-local ccorner = Instance.new("UICorner")
-ccorner.CornerRadius = UDim.new(0,8)
-ccorner.Parent = content
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0, 8)
+contentCorner.Parent = content
 
 ---------------------------
 -- UI ELEMENTS
 ---------------------------
-local autoFarm = false
+local autoFarmEnabled = false
 local maxRings = 5
 local flyHeight = 5
 local flySpeed = 60
 
-local function label(txt,y)
+local function makeLabel(text, y)
     local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1,-20,0,18)
-    l.Position = UDim2.fromOffset(10,y)
+    l.Size = UDim2.new(1, -20, 0, 18)
+    l.Position = UDim2.fromOffset(10, y)
     l.BackgroundTransparency = 1
-    l.Text = txt
-    l.TextColor3 = Color3.fromRGB(200,200,210)
-    l.Font = Enum.Font.GothamBold
+    l.Text = text
+    l.TextColor3 = Color3.fromRGB(200, 200, 210)
     l.TextSize = 11
+    l.Font = Enum.Font.GothamBold
+    l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = content
+    return l
 end
 
-local function box(y,default)
+local function makeBox(y, default)
     local b = Instance.new("TextBox")
-    b.Size = UDim2.fromOffset(120,26)
-    b.Position = UDim2.fromOffset(10,y)
-    b.BackgroundColor3 = Color3.fromRGB(35,35,42)
+    b.Size = UDim2.fromOffset(120, 26)
+    b.Position = UDim2.fromOffset(10, y)
+    b.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+    b.BorderSizePixel = 0
     b.Text = tostring(default)
-    b.TextColor3 = Color3.new(1,1,1)
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.TextSize = 12
     b.Font = Enum.Font.Gotham
-    b.TextSize = 12
+    b.ClearTextOnFocus = false
     b.Parent = content
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,6)
+    c.CornerRadius = UDim.new(0, 6)
     c.Parent = b
     return b
 end
 
-local function button(txt,y)
+local function makeButton(text, y)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(160,28)
-    b.Position = UDim2.fromOffset(200,y)
-    b.BackgroundColor3 = Color3.fromRGB(55,95,180)
-    b.Text = txt
-    b.TextColor3 = Color3.new(1,1,1)
-    b.Font = Enum.Font.GothamBold
+    b.Size = UDim2.fromOffset(160, 28)
+    b.Position = UDim2.fromOffset(200, y)
+    b.BackgroundColor3 = Color3.fromRGB(55, 95, 180)
+    b.BorderSizePixel = 0
+    b.Text = text
+    b.TextColor3 = Color3.new(1, 1, 1)
     b.TextSize = 12
+    b.Font = Enum.Font.GothamBold
     b.Parent = content
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,6)
+    c.CornerRadius = UDim.new(0, 6)
     c.Parent = b
     return b
 end
 
-label("تشغيل الأوتو فارم",8)
-local autoBtn = button("Auto Farm: OFF",26)
+makeLabel("تشغيل الأوتو فارم", 8)
+local autoBtn = makeButton("Auto Farm: OFF", 26)
 
-label("عدد Fake Diamond Ring",60)
-local ringsBox = box(78,5)
+makeLabel("عدد Fake Diamond Ring (1 - 8)", 60)
+local ringsBox = makeBox(78, 5)
 
-label("ارتفاع فوق الأرض",112)
-local heightBox = box(130,5)
+makeLabel("ارتفاع فوق الأرض", 112)
+local heightBox = makeBox(130, 5)
 
-label("سرعة الطيران",164)
-local speedBox = box(182,60)
+makeLabel("سرعة الطيران", 164)
+local speedBox = makeBox(182, 60)
 
-local showRouteBtn = button("إظهار المسار",216)
+local showRouteBtn = makeButton("إظهار المسار في الـ Output", 216)
 
 autoBtn.MouseButton1Click:Connect(function()
-    autoFarm = not autoFarm
-    autoBtn.Text = autoFarm and "Auto Farm: ON" or "Auto Farm: OFF"
-    autoBtn.BackgroundColor3 = autoFarm and Color3.fromRGB(55,150,90) or Color3.fromRGB(55,95,180)
+    autoFarmEnabled = not autoFarmEnabled
+    autoBtn.Text = autoFarmEnabled and "Auto Farm: ON" or "Auto Farm: OFF"
+    autoBtn.BackgroundColor3 = autoFarmEnabled and Color3.fromRGB(55, 150, 90) or Color3.fromRGB(55, 95, 180)
 end)
 
 ringsBox.FocusLost:Connect(function()
     local n = tonumber(ringsBox.Text) or 5
-    maxRings = math.clamp(n,1,8)
+    maxRings = math.clamp(n, 1, 8)
     ringsBox.Text = tostring(maxRings)
 end)
 
 heightBox.FocusLost:Connect(function()
     local n = tonumber(heightBox.Text) or 5
-    flyHeight = math.clamp(n,1,30)
+    flyHeight = math.clamp(n, 1, 30)
     heightBox.Text = tostring(flyHeight)
 end)
 
 speedBox.FocusLost:Connect(function()
     local n = tonumber(speedBox.Text) or 60
-    flySpeed = math.clamp(n,10,200)
+    flySpeed = math.clamp(n, 10, 200)
     speedBox.Text = tostring(flySpeed)
 end)
 
 showRouteBtn.MouseButton1Click:Connect(function()
     print("========== ROUTE ==========")
-    for i,p in ipairs(Route.steps[2].points) do
-        print(i,p.position)
+    for i, point in ipairs(Route.steps[2].points) do
+        print(i, point.position)
+    end
+    print("==================================")
+end)
+
+---------------------------
+-- DRAG WINDOW
+---------------------------
+local dragging = false
+local dragStart
+local startPos
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
+end)
+
+header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
     end
 end)
 
 ---------------------------
--- MOVEMENT + ANTI-STUCK
+-- ANTI-STUCK + MOVEMENT
 ---------------------------
-local function antiStuck(root,lastPos)
+local function antiStuckCheck(root, lastPos)
     return (root.Position - lastPos).Magnitude >= 2
 end
 
 local function moveTo(pos)
     local root = getRoot()
-    local target = Vector3.new(pos.X,pos.Y+flyHeight,pos.Z)
+    local target = Vector3.new(pos.X, pos.Y + flyHeight, pos.Z)
     local dist = (root.Position - target).Magnitude
     local t = dist / flySpeed
 
-    local tween = TweenService:Create(root,TweenInfo.new(t,Enum.EasingStyle.Linear),{CFrame=CFrame.new(target)})
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(t, Enum.EasingStyle.Linear),
+        {CFrame = CFrame.new(target)}
+    )
+
     tween:Play()
 
     local lastPos = root.Position
-    for i=1,math.floor(t*2) do
+    for i = 1, math.floor(t * 2) do
         task.wait(0.5)
-        if not autoFarm then return end
-        if not antiStuck(root,lastPos) then
+        if not autoFarmEnabled then return end
+
+        if not antiStuckCheck(root, lastPos) then
             tween:Cancel()
             tween:Play()
         end
+
         lastPos = root.Position
     end
 
@@ -241,37 +339,46 @@ local function moveTo(pos)
 end
 
 local function movePathForward()
-    for _,point in ipairs(Route.steps[2].points) do
-        if not autoFarm then break end
+    for _, point in ipairs(Route.steps[2].points) do
+        if not autoFarmEnabled then break end
         moveTo(point.position)
     end
 end
 
 local function movePathBackward()
-    for i=#Route.steps[2].points,1,-1 do
-        if not autoFarm then break end
+    for i = #Route.steps[2].points, 1, -1 do
+        if not autoFarmEnabled then break end
         moveTo(Route.steps[2].points[i].position)
     end
 end
 
 ---------------------------
--- ACTIONS
+-- ACTIONS (BUY / SELL / ANTI-CHEAT)
 ---------------------------
 local function buyRing()
-    BuyRemote:FireServer(Items["Fake Diamond Ring"])
+    local args = {
+        WorldBuyableItems:WaitForChild("Fake Diamond Ring")
+    }
+    PurchaseWorldBuyableItem:FireServer(unpack(args))
 end
 
 local function pingVehicle()
-    VehicleRemote:InvokeServer(Vehicles["Dodge Durango RT"])
+    local args = {
+        Vehicles:WaitForChild("Dodge Durango RT")
+    }
+    GetVehicleState:InvokeServer(unpack(args))
 end
 
 local function sellGoods()
-    SellRemote:FireServer(NPC["Seller4"])
+    local args = {
+        NPC:WaitForChild("Seller4")
+    }
+    SellSmuggledGoods:FireServer(unpack(args))
 end
 
-local function antiCheat()
+local function antiCheatPing()
     pcall(function()
-        AntiCheatRemote:InvokeServer()
+        CanManageServer:InvokeServer()
     end)
 end
 
@@ -281,31 +388,36 @@ end
 task.spawn(function()
     while true do
         task.wait(0.2)
-        if not autoFarm then continue end
+        if not autoFarmEnabled then continue end
 
         -- 1) الذهاب لنقطة الشراء
-        moveTo(Route.steps[1].position)
+        local buyPos = Route.steps[1].position
+        moveTo(buyPos)
 
         -- 2) شراء الخواتم
-        for i=1,maxRings do
-            if not autoFarm then break end
+        for i = 1, maxRings do
+            if not autoFarmEnabled then break end
             buyRing()
             pingVehicle()
-            antiCheat()
+            antiCheatPing()
             task.wait(0.2)
         end
 
-        -- 3) الذهاب لنقطة البيع
+        -- 3) الذهاب لنقطة البيع عبر المسار
         movePathForward()
 
         -- 4) انتظار 3 ثواني قبل البيع
         task.wait(3)
 
-        -- 5) بيع
-        sellGoods()
-        antiCheat()
+        -- 5) إرسال أوامر البيع بسرعة (بدون سبام قوي)
+        for i = 1, 3 do
+            if not autoFarmEnabled then break end
+            sellGoods()
+            antiCheatPing()
+            task.wait(0.2)
+        end
 
-        -- 6) الرجوع من الطريق بالعكس
+        -- 6) الرجوع من نفس الطريق بالعكس
         movePathBackward()
     end
 end)
