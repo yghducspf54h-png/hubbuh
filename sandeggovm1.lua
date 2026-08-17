@@ -1,1827 +1,1208 @@
-if type(loadstring) ~= "function" then
-    error("[ALMBJL] loadstring is unavailable in this environment.")
-end
+--[[
+    AUTO FARM ROUTE BUILDER
+    Recorder + Path Editor
+    For your own Roblox game
 
-local WindUILoader = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))
-if type(WindUILoader) ~= "function" then
-    error("[ALMBJL] WindUI loader failed to compile.")
-end
+    Features:
+    - Action recording
+    - Separate path recording
+    - Custom categories
+    - Custom names
+    - Position + rotation capture
+    - Drag window
+    - Resize window
+    - Minimize
+    - Undo
+    - Delete / reorder
+    - Lua export
+]]
 
-local WindUI = WindUILoader()
-
--- ================================================================
--- ALMBJL ENGINE v2.1
--- Rights: almbjl
--- Based on the provided route/interaction engineering, rebuilt with
--- explicit state handling, verification, and recovery.
--- ================================================================
-
--- 🇸🇦 Custom Theme: Saudi Green & Gold Edition (خلفية ونمط مستوحى من السعودية)
-WindUI:AddTheme({
-    Name = "SaudiTheme",
-    
-    Accent = Color3.fromHex("#006C35"), -- الأخضر السعودي
-    Background = Color3.fromHex("#0A0F0D"),
-    BackgroundTransparency = 0,
-    Outline = Color3.fromHex("#C5A059"), -- الذهبي الملكي
-    Text = Color3.fromHex("#FFFFFF"),
-    Placeholder = Color3.fromHex("#7a7a7a"),
-    Button = Color3.fromHex("#132219"),
-    Icon = Color3.fromHex("#C5A059"),
-    
-    Hover = Color3.fromHex("#1B3B2B"),
-    
-    WindowBackground = Color3.fromHex("#0A0F0D"),
-    WindowShadow = Color3.fromHex("#006C35"),
-    
-    DialogBackground = Color3.fromHex("#0A0F0D"),
-    DialogBackgroundTransparency = 0,
-    DialogTitle = Color3.fromHex("#C5A059"),
-    DialogContent = Color3.fromHex("#FFFFFF"),
-    DialogIcon = Color3.fromHex("#006C35"),
-    
-    WindowTopbarButtonIcon = Color3.fromHex("#C5A059"),
-    WindowTopbarTitle = Color3.fromHex("#FFFFFF"),
-    WindowTopbarAuthor = Color3.fromHex("#C5A059"),
-    WindowTopbarIcon = Color3.fromHex("#006C35"),
-    
-    TabBackground = Color3.fromHex("#0A0F0D"),
-    TabTitle = Color3.fromHex("#FFFFFF"),
-    TabIcon = Color3.fromHex("#C5A059"),
-    
-    ElementBackground = Color3.fromHex("#111A14"),
-    ElementTitle = Color3.fromHex("#FFFFFF"),
-    ElementDesc = Color3.fromHex("#A1A1AA"),
-    ElementIcon = Color3.fromHex("#C5A059"),
-    
-    PopupBackground = Color3.fromHex("#0A0F0D"),
-    PopupBackgroundTransparency = 0,
-    PopupTitle = Color3.fromHex("#C5A059"),
-    PopupContent = Color3.fromHex("#FFFFFF"),
-    PopupIcon = Color3.fromHex("#006C35"),
-    
-    Toggle = Color3.fromHex("#006C35"),
-    ToggleBar = Color3.fromHex("#C5A059"),
-    
-    Checkbox = Color3.fromHex("#1B3B2B"),
-    CheckboxIcon = Color3.fromHex("#C5A059"),
-    
-    Slider = Color3.fromHex("#006C35"),
-    SliderThumb = Color3.fromHex("#C5A059"),
-})
-
--- 🪟 نافذة السكريبت مع حقوق "المبجل" والمملكة
-local Window = WindUI:CreateWindow({
-    Title = "🇸🇦 🌴 San Diego Auto Farm | almbjl",
-    Icon = "monitor",
-    Author = "By: almbjl",
-    Folder = "SanDiegoFarmSaudi",
-    Size = UDim2.fromOffset(580, 460),
-    Transparent = false,
-    Theme = "SaudiTheme",
-    SideBarWidth = 170,
-    HasOutline = true,
-    User = {
-        Enabled = true,
-        Anonymous = false,
-        Callback = function() print("[ALMBJL] San Diego Auto Farm") end,
-    },
-})
-
-Window:EditOpenButton({
-    Title = "🌴 San Diego Auto Farm",
-    Icon = "monitor",
-    CornerRadius = UDim.new(0,16),
-    StrokeThickness = 2,
-    Color = ColorSequence.new(
-        Color3.fromHex("006C35"), 
-        Color3.fromHex("C5A059")
-    ),
-    OnlyMobile = false,
-    Enabled = true,
-    Draggable = true,
-})
-
-Window:Tag({
-    Title = "v2.1 | حقوق almbjl",
-    Icon = "shield-check",
-    Color = Color3.fromHex("#C5A059"),
-    Radius = 10,
-})
-
--- 📑 Tabs (الأقسام بالعربي والانجليزي)
-local ReadTab = Window:Tab({
-    Title = "التنبيهات / Read",
-    Icon = "triangle-alert",
-})
-
-local MainTab = Window:Tab({
-    Title = "اوتو فارم / Auto Farm",
-    Icon = "bot",
-})
-
-local MiscTab = Window:Tab({
-    Title = "إضافات / Misc",
-    Icon = "sliders-horizontal",
-})
-
---------------------------------------------------------------------
--- ⚙️ VARIABLES & CONFIGS
---------------------------------------------------------------------
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 
-local player = Players.LocalPlayer
+local Player = Players.LocalPlayer
 
-local isRunning = false
-local autoSell = true
-local autoLaunder = true
-local fpsBoostActive = false
-local antiPauseActive = false
-local noRenderActive = false
-local showPathLine = true
-local pathColor1 = Color3.fromHex("#006C35")
-local pathColor2 = Color3.fromHex("#C5A059")
+--------------------------------------------------
+-- DATA
+--------------------------------------------------
 
-local pathGlowSize = 1.2
-local pathLength = 6.5
-local pathSpeed = 0
-
-local lastVehicle = nil
-local lastVehicleCFrame = nil
-
--- v2 fixes: purchase loop reaches CONFIG.Amount; seller approach has fall recovery.
-local CONFIG = {
-	Speed = 250,
-	Height = 2.5,
-	Amount = 5,
-	TweenDelay = 0.1, 
-	ItemName = "Fake Diamond Ring",
-	SellName = "Smuggle Goods Seller",
-	LaunderName = "Launder Cash"
+local Route = {
+    name = "AutoFarm_Main",
+    steps = {},
 }
 
-local PROTECTED_ITEMS = {
-	["fists"] = true,
-	["passport"] = true
+local Categories = {
+    "Start",
+    "Buy",
+    "Sell",
+    "Interact",
+    "Pickup",
+    "Dropoff",
+    "Wait",
+    "Bank",
+    "Custom",
 }
 
-local function isProtectedItem(itemName)
-	return PROTECTED_ITEMS[string.lower(itemName)] == true
+local selectedCategory = "Buy"
+local selectedStep = nil
+
+local recordingPath = false
+local pathPoints = {}
+
+local undoStack = {}
+
+--------------------------------------------------
+-- HELPERS
+--------------------------------------------------
+
+local function getCharacter()
+    return Player.Character
 end
 
-local function applyAntiPause(state)
-	antiPauseActive = state
-	if state then
-		pcall(function()
-			local pauseScript = game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui").RobloxGui:FindFirstChild("CoreScripts/NetworkPause")
-			if pauseScript then
-				pauseScript:Destroy()
-			end
-		end)
-	end
-end
-
-local function applyNoRender(state)
-	noRenderActive = state
-	if state then
-		RunService:Set3dRenderingEnabled(false)
-	else
-		RunService:Set3dRenderingEnabled(true)
-	end
-end
-
-local postBuyWaypoints = {
-	Vector3.new(6837.8, 17.2, 30.7),
-	Vector3.new(6843.8, 17.2, 101.4),
-	Vector3.new(2785.6, 17.2, 94.8),
-	Vector3.new(2669.2, 17.2, 111.6),
-	Vector3.new(97.4, 17.2, 112.9),
-	Vector3.new(54.6, 17.2, 341.1),
-	Vector3.new(-124.1, 17.2, 394.1),
-	Vector3.new(-101.3, 17.2, 505.4),
-	Vector3.new(13.0, 17.2, 494.9),
-	Vector3.new(44.5, 17.2, 431.0),
-	Vector3.new(47.6, 33.3, 563.5),
-	Vector3.new(29.3, 33.3, 424.0),
-	Vector3.new(42.9, 49.3, 561.7),
-	Vector3.new(-80.5, 49.3, 428.5)
-}
-
-local postSellWaypoints = {
-    Vector3.new(-33.5, 49.3, 429.2),
-	Vector3.new(-24.6, 53.5, 405.4),
-	Vector3.new(23.4, 17.2, 348.7),
-	Vector3.new(169.1, 17.2, 148.7),
-	Vector3.new(2848.5, 17.2, 159.6),
-	Vector3.new(6867.7, 17.2, 133.0),
-	Vector3.new(6832.1, 17.4, -41.5),
-	Vector3.new(6805.6, 17.4, -34.4)
-}
-
---------------------------------------------------------------------
--- 🛣️ WAYPOINT SYSTEM
---------------------------------------------------------------------
-local pathFolder = workspace:FindFirstChild("AutoFarm_PathFolder") or Instance.new("Folder")
-pathFolder.Name = "AutoFarm_PathFolder"
-pathFolder.Parent = workspace
-
-local activePathObjects = {}
-local activeBeamsList = {}
-local pathAnimConnection = nil
-
-local function clearWaylines()
-	if pathAnimConnection then
-		pathAnimConnection:Disconnect()
-		pathAnimConnection = nil
-	end
-	for _, obj in ipairs(activePathObjects) do
-		if obj and obj.Parent then
-			obj:Destroy()
-		end
-	end
-	activePathObjects = {}
-	activeBeamsList = {}
-	pathFolder:ClearAllChildren()
-end
-
-local function updateActiveBeams()
-	for _, item in ipairs(activeBeamsList) do
-		if item.Beam and item.Beam.Parent then
-			item.Beam.Width0 = pathGlowSize
-			item.Beam.Width1 = pathGlowSize
-			item.Beam.TextureLength = pathLength
-			item.Beam.TextureSpeed = pathSpeed
-		end
-	end
-end
-
-local function drawForwardPath(waypoints, currentIndex)
-	clearWaylines()
-	if not showPathLine or not waypoints or currentIndex > #waypoints then return end
-
-	local char = player.Character
-	if not char then return end
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-
-	local pointsToDraw = {}
-	table.insert(pointsToDraw, hrp.Position)
-
-	for i = currentIndex, #waypoints do
-		table.insert(pointsToDraw, waypoints[i])
-	end
-
-	activeBeamsList = {}
-
-	for i = 1, #pointsToDraw - 1 do
-		local pA = pointsToDraw[i]
-		local pB = pointsToDraw[i+1]
-
-		local partA = Instance.new("Part")
-		partA.Size = Vector3.new(0.1, 0.1, 0.1)
-		partA.Position = pA
-		partA.Anchored = true
-		partA.CanCollide = false
-		partA.Transparency = 1
-		partA.Parent = pathFolder
-
-		local partB = Instance.new("Part")
-		partB.Size = Vector3.new(0.1, 0.1, 0.1)
-		partB.Position = pB
-		partB.Anchored = true
-		partB.CanCollide = false
-		partB.Transparency = 1
-		partB.Parent = pathFolder
-
-		local attA = Instance.new("Attachment", partA)
-		local attB = Instance.new("Attachment", partB)
-
-		local beam = Instance.new("Beam")
-		beam.Attachment0 = attA
-		beam.Attachment1 = attB
-		
-		beam.Texture = "rbxassetid://446111271"
-		beam.TextureMode = Enum.TextureMode.Wrap
-		beam.TextureLength = pathLength
-		beam.TextureSpeed = pathSpeed
-		
-		beam.Width0 = pathGlowSize
-		beam.Width1 = pathGlowSize
-		beam.Transparency = NumberSequence.new(0)
-		beam.FaceCamera = true
-		beam.LightEmission = 1
-		beam.LightInfluence = 0
-		beam.Parent = pathFolder
-
-		table.insert(activePathObjects, partA)
-		table.insert(activePathObjects, partB)
-		table.insert(activePathObjects, beam)
-		table.insert(activeBeamsList, {Beam = beam, Index = i})
-	end
-
-	pathAnimConnection = RunService.RenderStepped:Connect(function()
-		local speed = 0.5
-		local offset = (tick() * speed) % 1
-
-		for _, item in ipairs(activeBeamsList) do
-			if item.Beam and item.Beam.Parent then
-				local factorA = math.sin((offset + (item.Index * 0.1)) * math.pi * 2) * 0.5 + 0.5
-				local factorB = math.sin((offset + ((item.Index + 1) * 0.1)) * math.pi * 2) * 0.5 + 0.5
-
-				local cA = pathColor1:Lerp(pathColor2, factorA)
-				local cB = pathColor1:Lerp(pathColor2, factorB)
-
-				item.Beam.Color = ColorSequence.new({
-					ColorSequenceKeypoint.new(0, cA),
-					ColorSequenceKeypoint.new(1, cB)
-				})
-			end
-		end
-	end)
-end
-
---------------------------------------------------------------------
--- ⚡ FPS BOOST
---------------------------------------------------------------------
-local originalLightingSettings = {}
-local fpsConnections = {}
-
-local function stripCharacter(char)
-	if not char then return end
-	local children = char:GetChildren()
-	for i = #children, 1, -1 do
-		local item = children[i]
-		if item:IsA("Accessory") or item:IsA("Clothing") or item:IsA("ShirtGraphic") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("CharacterMesh") then
-			pcall(function() item:Destroy() end)
-		end
-	end
-end
-
-local function optimizeInst(v)
-	if not v then return end
-	pcall(function()
-		if v:IsA("BasePart") then
-			v.Material = Enum.Material.SmoothPlastic
-			v.CastShadow = false
-			v.Reflectance = 0
-		elseif v:IsA("Decal") or v:IsA("Texture") then
-			v:Destroy()
-		elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-			v.Enabled = false
-		elseif v:IsA("Light") then
-			v.Enabled = false
-		end
-	end)
-end
-
-local function applyFPSBoost(state)
-	fpsBoostActive = state
-	if state then
-		originalLightingSettings.GlobalShadows = Lighting.GlobalShadows
-		originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
-		originalLightingSettings.Ambient = Lighting.Ambient
-		originalLightingSettings.FogEnd = Lighting.FogEnd
-		originalLightingSettings.Technology = Lighting.Technology
-
-		Lighting.GlobalShadows = false
-		Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
-		Lighting.Ambient = Color3.fromRGB(15, 15, 15)
-		Lighting.FogEnd = 9e9
-		
-		pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
-
-		local lightingChildren = Lighting:GetChildren()
-		for i = #lightingChildren, 1, -1 do
-			local child = lightingChildren[i]
-			if child:IsA("Sky") or child:IsA("Atmosphere") or child:IsA("PostEffect") or child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect") then
-				pcall(function() child:Destroy() end)
-			end
-		end
-		
-		local darkSky = Instance.new("Sky")
-		darkSky.Name = "FPSBoostSky"
-		darkSky.SkyboxBk = "rbxassetid://0"
-		darkSky.SkyboxDn = "rbxassetid://0"
-		darkSky.SkyboxFt = "rbxassetid://0"
-		darkSky.SkyboxLf = "rbxassetid://0"
-		darkSky.SkyboxRt = "rbxassetid://0"
-		darkSky.SkyboxUp = "rbxassetid://0"
-		darkSky.SkyboxColor = Color3.fromRGB(10, 10, 10)
-		darkSky.Parent = Lighting
-
-		local descendants = workspace:GetDescendants()
-		for i = 1, #descendants do optimizeInst(descendants[i]) end
-
-		local connAdded = workspace.DescendantAdded:Connect(function(v)
-			if fpsBoostActive then task.wait() optimizeInst(v) end
-		end)
-		table.insert(fpsConnections, connAdded)
-
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p.Character then stripCharacter(p.Character) end
-			local connChar = p.CharacterAdded:Connect(function(char)
-				if fpsBoostActive then
-					char:WaitForChild("Humanoid", 5)
-					task.wait(0.2)
-					stripCharacter(char)
-				end
-			end)
-			table.insert(fpsConnections, connChar)
-		end
-	else
-		for _, conn in ipairs(fpsConnections) do if conn then conn:Disconnect() end end
-		fpsConnections = {}
-		Lighting.GlobalShadows = originalLightingSettings.GlobalShadows or true
-		Lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient or Color3.fromRGB(128, 128, 128)
-		Lighting.Ambient = originalLightingSettings.Ambient or Color3.fromRGB(128, 128, 128)
-		local currentSky = Lighting:FindFirstChild("FPSBoostSky")
-		if currentSky then currentSky:Destroy() end
-	end
-end
-
---------------------------------------------------------------------
--- 🧠 TARGET & ROUTING HELPERS
---------------------------------------------------------------------
-local function findTarget(keyword)
-	local key = string.lower(keyword)
-	for _, prompt in ipairs(workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			local objText = string.lower(prompt.ObjectText or "")
-			local actText = string.lower(prompt.ActionText or "")
-			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
-			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
-				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-				if targetPart:IsA("BasePart") then return targetPart, prompt
-				elseif targetPart:IsA("Model") then
-					local part = targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-					if part then return part, prompt end
-				end
-			end
-		end
-	end
-	return nil, nil
-end
-
-local function findNearestTargetToPos(keyword, pos)
-	local key = string.lower(keyword)
-	local nearestPart, nearestPrompt = nil, nil
-	local minDistance = math.huge
-	for _, prompt in ipairs(workspace:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			local objText = string.lower(prompt.ObjectText or "")
-			local actText = string.lower(prompt.ActionText or "")
-			local parentName = string.lower(prompt.Parent and prompt.Parent.Name or "")
-			if string.find(objText, key) or string.find(actText, key) or string.find(parentName, key) then
-				local targetPart = prompt:FindFirstAncestorWhichIsA("BasePart") or prompt.Parent
-				if targetPart then
-					local part = targetPart:IsA("BasePart") and targetPart or targetPart.PrimaryPart or targetPart:FindFirstChildWhichIsA("BasePart", true)
-					if part then
-						local dist = (pos - part.Position).Magnitude
-						if dist < minDistance then minDistance = dist nearestPart = part nearestPrompt = prompt end
-					end
-				end
-			end
-		end
-	end
-	return nearestPart, nearestPrompt
-end
-
-local function getVehicleModel(seat)
-	if not seat then return nil end
-	local current = seat
-	local vehicleModel = nil
-	while current and current ~= workspace do
-		if current:IsA("Model") then vehicleModel = current end
-		current = current.Parent
-	end
-	return vehicleModel
-end
-
-local function dismountVehicle()
-	local char = player.Character
-	if not char then return end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	
-	if humanoid and humanoid.SeatPart then
-		lastVehicle = getVehicleModel(humanoid.SeatPart)
-		if lastVehicle then
-			for _, part in ipairs(lastVehicle:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.AssemblyLinearVelocity = Vector3.zero
-					part.AssemblyAngularVelocity = Vector3.zero
-				end
-			end
-			
-			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-			if primary then
-				primary.Anchored = true
-			end
-		end
-		
-		if hrp then
-			hrp.AssemblyLinearVelocity = Vector3.zero
-			hrp.AssemblyAngularVelocity = Vector3.zero
-		end
-
-		humanoid.Sit = false
-		task.wait(0.1)
-		
-		if hrp and lastVehicle then
-			local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-			if primary then
-				hrp.CFrame = primary.CFrame * CFrame.new(0, 5, 0)
-			end
-		end
-	end
-end
-
-local function getInVehicle()
-	if not lastVehicle or not lastVehicle.Parent then return end
-	local char = player.Character
-	if not char then return end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return end
-	
-	local primary = lastVehicle.PrimaryPart or lastVehicle:FindFirstChildWhichIsA("BasePart", true)
-	if primary then
-		primary.Anchored = false
-	end
-
-	if humanoid.SeatPart then return end
-	
-	local seat = lastVehicle:FindFirstChildWhichIsA("VehicleSeat", true) or lastVehicle:FindFirstChildWhichIsA("Seat", true)
-	if seat then
-		hrp.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
-		task.wait(0.1)
-		seat:Sit(humanoid)
-		task.wait(0.2)
-	end
-end
-
-local function getNearestWaypointIndex(waypoints, currentPos)
-	local closestIdx = 1
-	local minDist = math.huge
-	for i, wp in ipairs(waypoints) do
-		local dist = (Vector3.new(currentPos.X, wp.Y, currentPos.Z) - wp).Magnitude
-		if dist < minDist then
-			minDist = dist
-			closestIdx = i
-		end
-	end
-	return closestIdx
-end
-
-local FALL_Y_THRESHOLD = 2
-local SELL_RECOVERY_OFFSET = Vector3.new(0, 4, 0)
-local DEATH_RECOVERY_WAIT = 0.5
-
--- Forward declarations used by the movement/route layer.
-local isCharacterFallingOrDead
-local restoreCharacterToPosition
-
-local function moveToPositionVelocity(targetPos)
-    local char = player.Character
-    if not char then return false, false, true end
-
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp or not humanoid then return false, false, true end
-
-    local seat = humanoid.SeatPart
-    local vehicleModel = getVehicleModel(seat)
-    local movePart = (seat and vehicleModel) and (vehicleModel.PrimaryPart or seat) or hrp
-    if not movePart then return false, false, true end
-
-    local floatPart = Instance.new("Part")
-    floatPart.Name = "ALMBJL_AntiFallPlatform"
-    floatPart.Size = Vector3.new(30, 1, 30)
-    floatPart.Anchored = true
-    floatPart.CanCollide = true
-    floatPart.Transparency = 1
-    floatPart.Parent = workspace
-
-    local bodyVel = Instance.new("BodyVelocity")
-    bodyVel.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-    bodyVel.Velocity = Vector3.zero
-    bodyVel.Parent = movePart
-
-    local bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-    bodyGyro.P = 10000
-    bodyGyro.CFrame = movePart.CFrame
-    bodyGyro.Parent = movePart
-
-    local arrived = false
-    local rubberbandDetected = false
-    local fallDetected = false
-    local previousPos = movePart.Position
-
-    local noclipConnection = RunService.Stepped:Connect(function()
-        if not isRunning then return end
-
-        if movePart and movePart.Parent then
-            floatPart.CFrame = movePart.CFrame * CFrame.new(0, -3.5, 0)
-        end
-
-        if player.Character then
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part ~= floatPart then
-                    part.CanCollide = false
-                end
-            end
-        end
-
-        if vehicleModel then
-            for _, part in ipairs(vehicleModel:GetDescendants()) do
-                if part:IsA("BasePart") and part ~= floatPart then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-
-    local targetPosWithHeight = Vector3.new(targetPos.X, targetPos.Y + CONFIG.Height, targetPos.Z)
-    local stopThreshold = math.clamp(CONFIG.Speed * 0.04, 6, 15)
-
-    local renderConnection = RunService.Heartbeat:Connect(function()
-        if not isRunning or not movePart or not movePart.Parent then
-            fallDetected = true
-            return
-        end
-
-        local liveChar = player.Character
-        local liveHumanoid = liveChar and liveChar:FindFirstChildOfClass("Humanoid")
-        local liveHrp = liveChar and liveChar:FindFirstChild("HumanoidRootPart")
-
-        if not liveHumanoid or not liveHrp or liveHumanoid.Health <= 0 or liveHrp.Position.Y < FALL_Y_THRESHOLD then
-            fallDetected = true
-            bodyVel.Velocity = Vector3.zero
-            return
-        end
-
-        local currentPos = movePart.Position
-        local moveDelta = (currentPos - previousPos).Magnitude
-        local distToTarget = (targetPosWithHeight - currentPos).Magnitude
-
-        if moveDelta > 45 and distToTarget > 20 then
-            rubberbandDetected = true
-            bodyVel.Velocity = Vector3.zero
-            return
-        end
-
-        previousPos = currentPos
-
-        if distToTarget <= stopThreshold then
-            arrived = true
-            bodyVel.Velocity = Vector3.zero
-            return
-        end
-
-        local speedFactor = math.clamp(distToTarget / 40, 0.25, 1)
-        local currentSpeed = CONFIG.Speed * speedFactor
-        local direction = (targetPosWithHeight - currentPos)
-
-        if direction.Magnitude > 0.01 then
-            bodyVel.Velocity = direction.Unit * currentSpeed
-            bodyGyro.CFrame = CFrame.lookAt(
-                currentPos,
-                Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z)
-            )
-        end
-    end)
-
-    while isRunning and not arrived and not rubberbandDetected and not fallDetected do
-        task.wait(0.01)
+local function getRoot()
+    local character = getCharacter()
+    if not character then
+        return nil
     end
 
-    if noclipConnection then noclipConnection:Disconnect() end
-    if renderConnection then renderConnection:Disconnect() end
-
-    pcall(function() bodyVel:Destroy() end)
-    pcall(function() bodyGyro:Destroy() end)
-    pcall(function() floatPart:Destroy() end)
-
-    if movePart and movePart.Parent then
-        movePart.AssemblyLinearVelocity = Vector3.zero
-        movePart.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    if player.Character then
-        for _, part in ipairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
-        end
-    end
-
-    return arrived, rubberbandDetected, fallDetected
+    return character:FindFirstChild("HumanoidRootPart")
 end
 
-local function moveToTargetVelocity(targetPart)
-    if not targetPart then return false, false end
-    local arrived, rubberband, fallDetected = moveToPositionVelocity(targetPart.Position)
-    return arrived, fallDetected
+local function getPosition()
+    local root = getRoot()
+
+    if not root then
+        return nil
+    end
+
+    return root.Position
 end
 
-local function tweenToInteract(targetPart)
-    if not targetPart then return false end
-    local char = player.Character
-	if not char then return false end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not humanoid then return false end
+local function getCFrame()
+    local root = getRoot()
 
-	local seat = humanoid.SeatPart
-	local vehicleModel = getVehicleModel(seat)
-	local groundTargetCFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+    if not root then
+        return nil
+    end
 
-	if seat and vehicleModel then
-		local duration = math.clamp((vehicleModel.PrimaryPart.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local cframeValue = Instance.new("CFrameValue")
-		cframeValue.Value = vehicleModel:GetPivot()
+    return root.CFrame
+end
 
-		local tween = TweenService:Create(cframeValue, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Value = groundTargetCFrame})
-		local conn = cframeValue.Changed:Connect(function(newCFrame)
-			if vehicleModel and vehicleModel.Parent then vehicleModel:PivotTo(newCFrame) end
-		end)
+local function cloneSteps()
+    local copy = {}
 
-		tween:Play()
-        local elapsed = 0
-        while elapsed < duration do
-            if isCharacterFallingOrDead() then
-                pcall(function() tween:Cancel() end)
-                conn:Disconnect()
-                cframeValue:Destroy()
-                return false
-            end
-            task.wait(0.03)
-            elapsed = elapsed + 0.03
-        end
-        conn:Disconnect()
-        cframeValue:Destroy()
+    for i, step in ipairs(Route.steps) do
+        copy[i] = table.clone(step)
+    end
 
-        if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-        dismountVehicle()
-        return not isCharacterFallingOrDead()
-	else
-		local duration = math.clamp((hrp.Position - targetPart.Position).Magnitude / 80, 0.15, 0.8)
-		local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = groundTargetCFrame})
-		tween:Play()
-        local elapsed = 0
-        while elapsed < duration do
-            if isCharacterFallingOrDead() then
-                pcall(function() tween:Cancel() end)
-                return false
-            end
-            task.wait(0.03)
-            elapsed = elapsed + 0.03
-        end
+    return copy
+end
 
-        if CONFIG.TweenDelay > 0 then task.wait(CONFIG.TweenDelay) end
-        return not isCharacterFallingOrDead()
+local function saveUndo()
+    table.insert(undoStack, cloneSteps())
+
+    if #undoStack > 50 then
+        table.remove(undoStack, 1)
     end
 end
 
-local function goToTarget(targetPart)
-    local reached, fell = moveToTargetVelocity(targetPart)
-    if fell or not reached or not isRunning then
-        return false
-    end
-
-    -- A second validation catches the short tween-to-interact phase too.
-    if isCharacterFallingOrDead() then
-        return false
-    end
-
-    return tweenToInteract(targetPart)
+local function formatVector(v)
+    return string.format(
+        "%.2f, %.2f, %.2f",
+        v.X,
+        v.Y,
+        v.Z
+    )
 end
 
-local function processWaypoints(waypoints, labelPrefix)
-    local currentIndex = 1
-    local lastSafePosition = waypoints[1]
+--------------------------------------------------
+-- GUI
+--------------------------------------------------
 
-    while isRunning and currentIndex <= #waypoints do
-        if currentIndex == 1 then
-            getInVehicle()
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "AutoFarmRouteBuilder"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = Player:WaitForChild("PlayerGui")
+
+--------------------------------------------------
+-- MAIN WINDOW
+--------------------------------------------------
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(760, 540)
+Main.Position = UDim2.new(0.5, -380, 0.5, -270)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = Main
+
+--------------------------------------------------
+-- HEADER
+--------------------------------------------------
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+Header.BorderSizePixel = 0
+Header.Parent = Main
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 10)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -150, 1, 0)
+Title.Position = UDim2.fromOffset(15, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "AUTO FARM  •  ROUTE BUILDER"
+Title.TextColor3 = Color3.fromRGB(240, 240, 245)
+Title.TextSize = 16
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.fromOffset(120, 48)
+Status.Position = UDim2.new(1, -215, 0, 0)
+Status.BackgroundTransparency = 1
+Status.Text = "● READY"
+Status.TextColor3 = Color3.fromRGB(100, 220, 130)
+Status.TextSize = 12
+Status.Font = Enum.Font.GothamBold
+Status.Parent = Header
+
+--------------------------------------------------
+-- HEADER BUTTONS
+--------------------------------------------------
+
+local Minimize = Instance.new("TextButton")
+Minimize.Size = UDim2.fromOffset(35, 35)
+Minimize.Position = UDim2.new(1, -115, 0, 7)
+Minimize.Text = "—"
+Minimize.TextSize = 20
+Minimize.Font = Enum.Font.GothamBold
+Minimize.TextColor3 = Color3.new(1,1,1)
+Minimize.BackgroundColor3 = Color3.fromRGB(45,45,52)
+Minimize.BorderSizePixel = 0
+Minimize.Parent = Header
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0,7)
+MinCorner.Parent = Minimize
+
+local Maximize = Instance.new("TextButton")
+Maximize.Size = UDim2.fromOffset(35, 35)
+Maximize.Position = UDim2.new(1, -75, 0, 7)
+Maximize.Text = "□"
+Maximize.TextSize = 17
+Maximize.Font = Enum.Font.GothamBold
+Maximize.TextColor3 = Color3.new(1,1,1)
+Maximize.BackgroundColor3 = Color3.fromRGB(45,45,52)
+Maximize.BorderSizePixel = 0
+Maximize.Parent = Header
+
+local MaxCorner = Instance.new("UICorner")
+MaxCorner.CornerRadius = UDim.new(0,7)
+MaxCorner.Parent = Maximize
+
+local Close = Instance.new("TextButton")
+Close.Size = UDim2.fromOffset(35, 35)
+Close.Position = UDim2.new(1, -35, 0, 7)
+Close.Text = "×"
+Close.TextSize = 20
+Close.Font = Enum.Font.GothamBold
+Close.TextColor3 = Color3.new(1,1,1)
+Close.BackgroundColor3 = Color3.fromRGB(150, 45, 55)
+Close.BorderSizePixel = 0
+Close.Parent = Header
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0,7)
+CloseCorner.Parent = Close
+
+--------------------------------------------------
+-- CONTENT
+--------------------------------------------------
+
+local Content = Instance.new("Frame")
+Content.Position = UDim2.fromOffset(10, 58)
+Content.Size = UDim2.new(1, -20, 1, -68)
+Content.BackgroundTransparency = 1
+Content.Parent = Main
+
+--------------------------------------------------
+-- LEFT PANEL
+--------------------------------------------------
+
+local Left = Instance.new("Frame")
+Left.Size = UDim2.fromOffset(210, 1)
+Left.SizeConstraint = Enum.SizeConstraint.RelativeYY
+Left.BackgroundColor3 = Color3.fromRGB(25,25,30)
+Left.BorderSizePixel = 0
+Left.Parent = Content
+
+-- We'll manually size left panel based on window width.
+Left.Size = UDim2.new(0, 210, 1, 0)
+
+local LeftCorner = Instance.new("UICorner")
+LeftCorner.CornerRadius = UDim.new(0,8)
+LeftCorner.Parent = Left
+
+local LeftTitle = Instance.new("TextLabel")
+LeftTitle.Size = UDim2.new(1, -20, 0, 35)
+LeftTitle.Position = UDim2.fromOffset(10, 5)
+LeftTitle.BackgroundTransparency = 1
+LeftTitle.Text = "ROUTE STEPS"
+LeftTitle.TextColor3 = Color3.fromRGB(180,180,190)
+LeftTitle.Font = Enum.Font.GothamBold
+LeftTitle.TextSize = 12
+LeftTitle.TextXAlignment = Enum.TextXAlignment.Left
+LeftTitle.Parent = Left
+
+local StepList = Instance.new("ScrollingFrame")
+StepList.Position = UDim2.fromOffset(8, 42)
+StepList.Size = UDim2.new(1, -16, 1, -50)
+StepList.BackgroundTransparency = 1
+StepList.BorderSizePixel = 0
+StepList.ScrollBarThickness = 4
+StepList.CanvasSize = UDim2.new()
+StepList.Parent = Left
+
+local StepLayout = Instance.new("UIListLayout")
+StepLayout.Padding = UDim.new(0, 5)
+StepLayout.Parent = StepList
+
+--------------------------------------------------
+-- RIGHT PANEL
+--------------------------------------------------
+
+local Right = Instance.new("Frame")
+Right.Position = UDim2.fromOffset(220, 0)
+Right.Size = UDim2.new(1, -220, 1, 0)
+Right.BackgroundColor3 = Color3.fromRGB(25,25,30)
+Right.BorderSizePixel = 0
+Right.Parent = Content
+
+local RightCorner = Instance.new("UICorner")
+RightCorner.CornerRadius = UDim.new(0,8)
+RightCorner.Parent = Right
+
+--------------------------------------------------
+-- TAB BUTTONS
+--------------------------------------------------
+
+local ActionTab = Instance.new("TextButton")
+ActionTab.Size = UDim2.new(0.5, -7, 0, 38)
+ActionTab.Position = UDim2.fromOffset(8, 8)
+ActionTab.Text = "ACTION"
+ActionTab.Font = Enum.Font.GothamBold
+ActionTab.TextSize = 12
+ActionTab.TextColor3 = Color3.new(1,1,1)
+ActionTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
+ActionTab.BorderSizePixel = 0
+ActionTab.Parent = Right
+
+local ActionCorner = Instance.new("UICorner")
+ActionCorner.CornerRadius = UDim.new(0,7)
+ActionCorner.Parent = ActionTab
+
+local PathTab = Instance.new("TextButton")
+PathTab.Size = UDim2.new(0.5, -7, 0, 38)
+PathTab.Position = UDim2.new(0.5, 0, 0, 8)
+PathTab.Text = "PATH"
+PathTab.Font = Enum.Font.GothamBold
+PathTab.TextSize = 12
+PathTab.TextColor3 = Color3.new(1,1,1)
+PathTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
+PathTab.BorderSizePixel = 0
+PathTab.Parent = Right
+
+local PathCorner = Instance.new("UICorner")
+PathCorner.CornerRadius = UDim.new(0,7)
+PathCorner.Parent = PathTab
+
+--------------------------------------------------
+-- ACTION PANEL
+--------------------------------------------------
+
+local ActionPanel = Instance.new("Frame")
+ActionPanel.Position = UDim2.fromOffset(10, 58)
+ActionPanel.Size = UDim2.new(1, -20, 1, -68)
+ActionPanel.BackgroundTransparency = 1
+ActionPanel.Parent = Right
+
+local function makeLabel(parent, text, y)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 24)
+    label.Position = UDim2.fromOffset(5, y)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(175,175,185)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 11
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    return label
+end
+
+local function makeBox(parent, y, placeholder)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, -10, 0, 38)
+    box.Position = UDim2.fromOffset(5, y)
+    box.BackgroundColor3 = Color3.fromRGB(35,35,42)
+    box.BorderSizePixel = 0
+    box.PlaceholderText = placeholder or ""
+    box.PlaceholderColor3 = Color3.fromRGB(100,100,110)
+    box.TextColor3 = Color3.new(1,1,1)
+    box.TextSize = 12
+    box.Font = Enum.Font.Gotham
+    box.ClearTextOnFocus = false
+    box.Parent = parent
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0,7)
+    c.Parent = box
+
+    return box
+end
+
+makeLabel(ActionPanel, "CATEGORY", 5)
+
+local CategoryButton = Instance.new("TextButton")
+CategoryButton.Size = UDim2.new(1, -10, 0, 38)
+CategoryButton.Position = UDim2.fromOffset(5, 29)
+CategoryButton.BackgroundColor3 = Color3.fromRGB(35,35,42)
+CategoryButton.BorderSizePixel = 0
+CategoryButton.Text = "Buy"
+CategoryButton.TextColor3 = Color3.new(1,1,1)
+CategoryButton.Font = Enum.Font.Gotham
+CategoryButton.TextSize = 12
+CategoryButton.Parent = ActionPanel
+
+local CategoryCorner = Instance.new("UICorner")
+CategoryCorner.CornerRadius = UDim.new(0,7)
+CategoryCorner.Parent = CategoryButton
+
+makeLabel(ActionPanel, "NAME", 77)
+local NameBox = makeBox(ActionPanel, 101, "مثال: Buy_Burger")
+
+local PositionInfo = makeLabel(ActionPanel, "CURRENT POSITION", 153)
+
+local PositionValue = Instance.new("TextLabel")
+PositionValue.Size = UDim2.new(1, -10, 0, 38)
+PositionValue.Position = UDim2.fromOffset(5, 177)
+PositionValue.BackgroundColor3 = Color3.fromRGB(30,30,36)
+PositionValue.BorderSizePixel = 0
+PositionValue.Text = "—"
+PositionValue.TextColor3 = Color3.fromRGB(200,200,210)
+PositionValue.Font = Enum.Font.Code
+PositionValue.TextSize = 11
+PositionValue.Parent = ActionPanel
+
+local PosCorner = Instance.new("UICorner")
+PosCorner.CornerRadius = UDim.new(0,7)
+PosCorner.Parent = PositionValue
+
+local SaveAction = Instance.new("TextButton")
+SaveAction.Size = UDim2.new(1, -10, 0, 48)
+SaveAction.Position = UDim2.fromOffset(5, 230)
+SaveAction.BackgroundColor3 = Color3.fromRGB(55,150,90)
+SaveAction.BorderSizePixel = 0
+SaveAction.Text = "📍  تسجيل النقطة"
+SaveAction.TextColor3 = Color3.new(1,1,1)
+SaveAction.Font = Enum.Font.GothamBold
+SaveAction.TextSize = 13
+SaveAction.Parent = ActionPanel
+
+local SaveCorner = Instance.new("UICorner")
+SaveCorner.CornerRadius = UDim.new(0,8)
+SaveCorner.Parent = SaveAction
+
+local CustomCategory = makeBox(ActionPanel, 300, "اسم تصنيف جديد")
+
+local AddCategory = Instance.new("TextButton")
+AddCategory.Size = UDim2.new(1, -10, 0, 38)
+AddCategory.Position = UDim2.fromOffset(5, 344)
+AddCategory.BackgroundColor3 = Color3.fromRGB(50,50,58)
+AddCategory.BorderSizePixel = 0
+AddCategory.Text = "+ إضافة تصنيف"
+AddCategory.TextColor3 = Color3.new(1,1,1)
+AddCategory.Font = Enum.Font.GothamBold
+AddCategory.TextSize = 11
+AddCategory.Parent = ActionPanel
+
+local AddCatCorner = Instance.new("UICorner")
+AddCatCorner.CornerRadius = UDim.new(0,7)
+AddCatCorner.Parent = AddCategory
+
+--------------------------------------------------
+-- CATEGORY POPUP
+--------------------------------------------------
+
+local CategoryPopup = Instance.new("Frame")
+CategoryPopup.Visible = false
+CategoryPopup.Position = UDim2.fromOffset(5, 67)
+CategoryPopup.Size = UDim2.new(1, -10, 0, 180)
+CategoryPopup.BackgroundColor3 = Color3.fromRGB(32,32,38)
+CategoryPopup.BorderSizePixel = 0
+CategoryPopup.ZIndex = 20
+CategoryPopup.Parent = ActionPanel
+
+local PopupCorner = Instance.new("UICorner")
+PopupCorner.CornerRadius = UDim.new(0,8)
+PopupCorner.Parent = CategoryPopup
+
+local PopupList = Instance.new("UIListLayout")
+PopupList.Padding = UDim.new(0,2)
+PopupList.Parent = CategoryPopup
+
+local function rebuildCategoryPopup()
+    for _, child in ipairs(CategoryPopup:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
         end
-
-        drawForwardPath(waypoints, currentIndex)
-
-        local targetPos = waypoints[currentIndex]
-        local arrived, rubberbandDetected, fallDetected = moveToPositionVelocity(targetPos)
-
-        if fallDetected then
-            clearWaylines()
-
-            -- Return to the last confirmed safe checkpoint, then retry the
-            -- same waypoint instead of skipping ahead or continuing while dead.
-            if restoreCharacterToPosition(lastSafePosition) then
-                task.wait(DEATH_RECOVERY_WAIT)
-                continue
-            end
-
-            -- If the character actually died, wait for Roblox to respawn and
-            -- restart the route from the last known safe checkpoint.
-            local newChar = player.Character or player.CharacterAdded:Wait()
-            if newChar then
-                newChar:WaitForChild("HumanoidRootPart", 5)
-                newChar:WaitForChild("Humanoid", 5)
-                task.wait(DEATH_RECOVERY_WAIT)
-            end
-
-            if not isRunning then
-                break
-            end
-
-            currentIndex = math.max(1, getNearestWaypointIndex(waypoints, lastSafePosition))
-        elseif rubberbandDetected then
-            task.wait(0.3)
-
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
-            if hrp then
-                local nearestIdx = getNearestWaypointIndex(waypoints, hrp.Position)
-                currentIndex = nearestIdx
-
-                local safeTargetPos = waypoints[nearestIdx] + Vector3.new(0, CONFIG.Height, 0)
-                local movePart = hrp
-
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if humanoid and humanoid.SeatPart then
-                    local vModel = getVehicleModel(humanoid.SeatPart)
-                    if vModel then
-                        movePart = vModel.PrimaryPart or humanoid.SeatPart
-                    end
-                end
-
-                local recoverTween = TweenService:Create(
-                    movePart,
-                    TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-                    {CFrame = CFrame.new(safeTargetPos)}
-                )
-                recoverTween:Play()
-                recoverTween.Completed:Wait()
-                task.wait(0.1)
-            end
-        elseif arrived then
-            lastSafePosition = targetPos
-            currentIndex = currentIndex + 1
-        else
-            task.wait(0.05)
-        end
     end
 
-    clearWaylines()
-end
+    for _, category in ipairs(Categories) do
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -8, 0, 30)
+        button.BackgroundColor3 = Color3.fromRGB(42,42,50)
+        button.BorderSizePixel = 0
+        button.Text = category
+        button.TextColor3 = Color3.new(1,1,1)
+        button.Font = Enum.Font.Gotham
+        button.TextSize = 11
+        button.ZIndex = 21
+        button.Parent = CategoryPopup
 
---------------------------------------------------------------------
--- ⚙️ INTERACT LOGIC
---------------------------------------------------------------------
-local function interactWith(targetPart, prompt)
-	local activePrompt = prompt 
-		or (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt")) 
-		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt")) 
-		or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0,5)
+        c.Parent = button
 
-	if activePrompt then
-		activePrompt.HoldDuration = 0
-		
-		if fireproximityprompt then
-			fireproximityprompt(activePrompt)
-		else
-			pcall(function()
-				activePrompt:InputHoldBegin()
-				task.wait(0.01)
-				activePrompt:InputHoldEnd()
-			end)
-		end
-		return true
-	end
-
-	local clickDetector = (targetPart and targetPart:FindFirstChildOfClass("ClickDetector")) 
-		or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ClickDetector")) 
-		or (targetPart and targetPart:FindFirstChildWhichIsA("ClickDetector", true))
-
-	if clickDetector and fireclickdetector then
-		fireclickdetector(clickDetector)
-		return true
-	end
-
-	return false
-end
-
-local function getProcessableItemCount()
-	local count = 0
-	if player:FindFirstChild("Backpack") then
-		for _, item in ipairs(player.Backpack:GetChildren()) do
-			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
-		end
-	end
-	local char = player.Character
-	if char then
-		for _, item in ipairs(char:GetChildren()) do
-			if item:IsA("Tool") and not isProtectedItem(item.Name) then count = count + 1 end
-		end
-	end
-	return count
-end
-
-local function getItemCount(itemName)
-	local count = 0
-	local key = string.lower(itemName)
-	if player:FindFirstChild("Backpack") then
-		for _, item in ipairs(player.Backpack:GetChildren()) do
-			if string.find(string.lower(item.Name), key) then count = count + 1 end
-		end
-	end
-	local char = player.Character
-	if char then
-		for _, item in ipairs(char:GetChildren()) do
-			if string.find(string.lower(item.Name), key) then count = count + 1 end
-		end
-	end
-	return count
-end
-
-
---------------------------------------------------------------------
--- 🛡️ STABILITY / RECOVERY ENGINE (internal upgrade)
---------------------------------------------------------------------
-local FarmState = {
-    IDLE = "IDLE",
-    FIND_BUY = "FIND_BUY",
-    BUY = "BUY",
-    VERIFY_BUY = "VERIFY_BUY",
-    ROUTE_SELL = "ROUTE_SELL",
-    SELL = "SELL",
-    VERIFY_SELL = "VERIFY_SELL",
-    ROUTE_LAUNDER = "ROUTE_LAUNDER",
-    LAUNDER = "LAUNDER",
-    RECOVER = "RECOVER",
-}
-
-local farmState = FarmState.IDLE
-local farmRunId = 0
-local mainLoopRunning = false
-local lastStateChange = 0
-local consecutiveFailures = 0
-local MAX_CONSECUTIVE_FAILURES = 5
-local STATE_TIMEOUT = 45
-
-local function setFarmState(state)
-    farmState = state
-    lastStateChange = tick()
-end
-
-local function isFarmActive(runId)
-    return isRunning and runId == farmRunId
-end
-
-local function safeWait(seconds, runId)
-    local deadline = tick() + math.max(0, seconds or 0)
-    while tick() < deadline do
-        if not isFarmActive(runId) then return false end
-        task.wait(math.min(0.05, deadline - tick()))
-    end
-    return true
-end
-
-local function isCharacterReady()
-    local char = player.Character
-    if not char then return false end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    return humanoid ~= nil and hrp ~= nil and humanoid.Health > 0
-end
-
-local function recoverFarm(runId, reason)
-    if not isFarmActive(runId) then return false end
-
-    setFarmState(FarmState.RECOVER)
-    consecutiveFailures = consecutiveFailures + 1
-
-    warn("[ALMBJL] Recovery:", reason or "unknown")
-
-    pcall(clearWaylines)
-
-    if consecutiveFailures >= MAX_CONSECUTIVE_FAILURES then
-        warn("[ALMBJL] Too many consecutive failures; pausing farm.")
-        isRunning = false
-        farmState = FarmState.IDLE
-        return false
-    end
-
-    if not isCharacterReady() then
-        local char = player.Character or player.CharacterAdded:Wait()
-        if char then
-            char:WaitForChild("HumanoidRootPart", 5)
-            char:WaitForChild("Humanoid", 5)
-        end
-    end
-
-    safeWait(math.min(1 + consecutiveFailures * 0.5, 3), runId)
-    return isFarmActive(runId)
-end
-
-local function verifyItemCount(expectedAtLeast)
-    return getItemCount(CONFIG.ItemName) >= expectedAtLeast
-end
-
-local function performInteractionLoop(targetPart, targetPrompt, conditionFn, maxAttempts, delayTime, runId)
-    if not targetPart or not isFarmActive(runId) then return false end
-
-    local attempts = 0
-    while isFarmActive(runId) and attempts < maxAttempts do
-        if conditionFn() then return true end
-
-        local ok = pcall(function()
-            interactWith(targetPart, targetPrompt)
+        button.MouseButton1Click:Connect(function()
+            selectedCategory = category
+            CategoryButton.Text = category
+            CategoryPopup.Visible = false
         end)
+    end
+end
 
-        if not ok then
-            warn("[ALMBJL] Interaction error")
+rebuildCategoryPopup()
+
+CategoryButton.MouseButton1Click:Connect(function()
+    CategoryPopup.Visible = not CategoryPopup.Visible
+end)
+
+AddCategory.MouseButton1Click:Connect(function()
+    local value = CustomCategory.Text:gsub("^%s+", ""):gsub("%s+$", "")
+
+    if value ~= "" then
+        if not table.find(Categories, value) then
+            table.insert(Categories, value)
+            selectedCategory = value
+            CategoryButton.Text = value
+            rebuildCategoryPopup()
         end
 
-        attempts = attempts + 1
+        CustomCategory.Text = ""
+    end
+end)
 
-        if conditionFn() then
-            return true
-        end
+--------------------------------------------------
+-- PATH PANEL
+--------------------------------------------------
 
-        if not safeWait(delayTime, runId) then
-            return false
+local PathPanel = Instance.new("Frame")
+PathPanel.Visible = false
+PathPanel.Position = UDim2.fromOffset(10, 58)
+PathPanel.Size = UDim2.new(1, -20, 1, -68)
+PathPanel.BackgroundTransparency = 1
+PathPanel.Parent = Right
+
+makeLabel(PathPanel, "PATH NAME", 5)
+local PathNameBox = makeBox(PathPanel, 29, "مثال: To_Sell")
+
+local PathStatus = Instance.new("TextLabel")
+PathStatus.Size = UDim2.new(1, -10, 0, 45)
+PathStatus.Position = UDim2.fromOffset(5, 80)
+PathStatus.BackgroundColor3 = Color3.fromRGB(30,30,36)
+PathStatus.BorderSizePixel = 0
+PathStatus.Text = "المسار غير مسجل"
+PathStatus.TextColor3 = Color3.fromRGB(180,180,190)
+PathStatus.Font = Enum.Font.Gotham
+PathStatus.TextSize = 12
+PathStatus.Parent = PathPanel
+
+local PathStatusCorner = Instance.new("UICorner")
+PathStatusCorner.CornerRadius = UDim.new(0,7)
+PathStatusCorner.Parent = PathStatus
+
+local StartPath = Instance.new("TextButton")
+StartPath.Size = UDim2.new(1, -10, 0, 45)
+StartPath.Position = UDim2.fromOffset(5, 140)
+StartPath.BackgroundColor3 = Color3.fromRGB(55,95,180)
+StartPath.BorderSizePixel = 0
+StartPath.Text = "▶  بدء تسجيل المسار"
+StartPath.TextColor3 = Color3.new(1,1,1)
+StartPath.Font = Enum.Font.GothamBold
+StartPath.TextSize = 12
+StartPath.Parent = PathPanel
+
+local StartPathCorner = Instance.new("UICorner")
+StartPathCorner.CornerRadius = UDim.new(0,7)
+StartPathCorner.Parent = StartPath
+
+local AddPathPoint = Instance.new("TextButton")
+AddPathPoint.Size = UDim2.new(1, -10, 0, 45)
+AddPathPoint.Position = UDim2.fromOffset(5, 195)
+AddPathPoint.BackgroundColor3 = Color3.fromRGB(50,130,80)
+AddPathPoint.BorderSizePixel = 0
+AddPathPoint.Text = "📍  تسجيل نقطة مسار"
+AddPathPoint.TextColor3 = Color3.new(1,1,1)
+AddPathPoint.Font = Enum.Font.GothamBold
+AddPathPoint.TextSize = 12
+AddPathPoint.Visible = false
+AddPathPoint.Parent = PathPanel
+
+local AddPathCorner = Instance.new("UICorner")
+AddPathCorner.CornerRadius = UDim.new(0,7)
+AddPathCorner.Parent = AddPathPoint
+
+local FinishPath = Instance.new("TextButton")
+FinishPath.Size = UDim2.new(1, -10, 0, 45)
+FinishPath.Position = UDim2.fromOffset(5, 250)
+FinishPath.BackgroundColor3 = Color3.fromRGB(150,70,60)
+FinishPath.BorderSizePixel = 0
+FinishPath.Text = "■  إنهاء المسار"
+FinishPath.TextColor3 = Color3.new(1,1,1)
+FinishPath.Font = Enum.Font.GothamBold
+FinishPath.TextSize = 12
+FinishPath.Visible = false
+FinishPath.Parent = PathPanel
+
+local FinishCorner = Instance.new("UICorner")
+FinishCorner.CornerRadius = UDim.new(0,7)
+FinishCorner.Parent = FinishPath
+
+--------------------------------------------------
+-- STEP LIST REFRESH
+--------------------------------------------------
+
+local function refreshSteps()
+    for _, child in ipairs(StepList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
         end
     end
 
-    return conditionFn()
-end
+    for index, step in ipairs(Route.steps) do
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -4, 0, 52)
+        button.BackgroundColor3 =
+            selectedStep == index
+            and Color3.fromRGB(50,80,130)
+            or Color3.fromRGB(34,34,41)
 
-local function getCharacterRoot()
-    local char = player.Character
-    if not char then return nil, nil end
-    return char, char:FindFirstChild("HumanoidRootPart")
-end
+        button.BorderSizePixel = 0
+        button.Text = string.format(
+            "%02d   %s\n       %s",
+            index,
+            step.category or step.type or "Path",
+            step.name or "Unnamed"
+        )
 
-isCharacterFallingOrDead = function()
-    local char, hrp = getCharacterRoot()
-    if not char or not hrp then return true end
+        button.TextColor3 = Color3.new(1,1,1)
+        button.TextSize = 11
+        button.Font = Enum.Font.Gotham
+        button.TextXAlignment = Enum.TextXAlignment.Left
+        button.Parent = StepList
 
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return true end
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0,6)
+        c.Parent = button
 
-    -- In this map the normal route is well above the void/under-map area.
-    -- Treat a very low Y as a failed approach rather than continuing to interact.
-    if hrp.Position.Y < FALL_Y_THRESHOLD then
-        return true
-    end
-
-    return false
-end
-
-restoreCharacterToPosition = function(position)
-    local char, hrp = getCharacterRoot()
-    if not char or not hrp then return false end
-
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid and humanoid.Health <= 0 then
-        return false
-    end
-
-    pcall(function()
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.CFrame = CFrame.new(position + SELL_RECOVERY_OFFSET)
-    end)
-
-    task.wait(0.15)
-    return not isCharacterFallingOrDead()
-end
-
-local function goToTargetWithFallRecovery(targetPart, fallbackPosition, runId)
-    if not targetPart or not isFarmActive(runId) then return false end
-
-    for attempt = 1, 3 do
-        if not isFarmActive(runId) then return false end
-
-        if isCharacterFallingOrDead() then
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-        end
-
-        local reached = false
-        local ok = pcall(function()
-            reached = goToTarget(targetPart)
-        end)
-
-        if ok and reached and not isCharacterFallingOrDead() then
-            return true
-        end
-
-        -- The approach failed or the character dropped under the map.
-        -- Put the player back at the last known safe route point and retry.
-        pcall(clearWaylines)
-
-        if not restoreCharacterToPosition(fallbackPosition) then
-            return false
-        end
-
-        safeWait(0.2 * attempt, runId)
-    end
-
-    return false
-end
-
-local function getSellerSafeApproachPositions(targetPart, targetPrompt, fallbackPosition)
-    if not targetPart or not fallbackPosition then return {} end
-
-    local sellerPos = targetPart.Position
-
-    -- The previous version used fixed 6/9/12 stud distances. That can
-    -- accidentally put the player OUTSIDE the prompt's activation range.
-    -- Use the prompt's real activation distance instead.
-    local maxPromptDistance = 8
-    if targetPrompt then
-        pcall(function()
-            if targetPrompt.MaxActivationDistance and targetPrompt.MaxActivationDistance > 0 then
-                maxPromptDistance = targetPrompt.MaxActivationDistance
-            end
+        button.MouseButton1Click:Connect(function()
+            selectedStep = index
+            refreshSteps()
         end)
     end
 
-    local nearDistance = math.max(0.75, math.min(maxPromptDistance - 0.50, 4.5))
-    local farDistance = math.max(0.90, math.min(maxPromptDistance - 0.20, 6))
-
-    -- Try several sides of the seller. This handles prompts whose
-    -- RequiresLineOfSight/attachment is directional.
-    local directions = {
-        Vector3.new(1, 0, 0),
-        Vector3.new(-1, 0, 0),
-        Vector3.new(0, 0, 1),
-        Vector3.new(0, 0, -1),
-        Vector3.new(0.707, 0, 0.707),
-        Vector3.new(-0.707, 0, 0.707),
-        Vector3.new(0.707, 0, -0.707),
-        Vector3.new(-0.707, 0, -0.707),
-    }
-
-    -- Prefer the side facing the last safe route position.
-    local towardSafe = Vector3.new(
-        fallbackPosition.X - sellerPos.X,
+    StepList.CanvasSize = UDim2.fromOffset(
         0,
-        fallbackPosition.Z - sellerPos.Z
+        StepLayout.AbsoluteContentSize.Y + 10
     )
+end
 
-    if towardSafe.Magnitude > 0.01 then
-        towardSafe = towardSafe.Unit
-        table.sort(directions, function(a, b)
-            return a:Dot(towardSafe) > b:Dot(towardSafe)
-        end)
+--------------------------------------------------
+-- RECORD ACTION
+--------------------------------------------------
+
+SaveAction.MouseButton1Click:Connect(function()
+    local cf = getCFrame()
+
+    if not cf then
+        Status.Text = "● NO CHARACTER"
+        return
     end
 
-    local safeY = fallbackPosition.Y + CONFIG.Height
-    local positions = {}
+    local name = NameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
 
-    -- First try a point comfortably inside the activation radius, then
-    -- a slightly closer point if the first one is blocked by geometry.
-    local distances = {nearDistance, farDistance}
+    if name == "" then
+        name = selectedCategory .. "_" .. tostring(#Route.steps + 1)
+    end
 
-    for _, distance in ipairs(distances) do
-        for _, dir in ipairs(directions) do
-            positions[#positions + 1] = Vector3.new(
-                sellerPos.X + dir.X * distance,
-                safeY,
-                sellerPos.Z + dir.Z * distance
+    saveUndo()
+
+    table.insert(Route.steps, {
+        type = "Action",
+        category = selectedCategory,
+        name = name,
+        position = cf.Position,
+        rotation = cf - cf.Position,
+        order = #Route.steps + 1,
+    })
+
+    NameBox.Text = ""
+
+    selectedStep = #Route.steps
+
+    Status.Text = "● SAVED"
+
+    refreshSteps()
+end)
+
+--------------------------------------------------
+-- PATH RECORDING
+--------------------------------------------------
+
+local function updatePathUI()
+    if recordingPath then
+        PathStatus.Text = string.format(
+            "● تسجيل المسار الآن\nالنقاط المسجلة: %d",
+            #pathPoints
+        )
+
+        StartPath.Visible = false
+        AddPathPoint.Visible = true
+        FinishPath.Visible = true
+
+        Status.Text = "● PATH RECORDING"
+    else
+        PathStatus.Text = "المسار غير مسجل"
+
+        StartPath.Visible = true
+        AddPathPoint.Visible = false
+        FinishPath.Visible = false
+    end
+end
+
+StartPath.MouseButton1Click:Connect(function()
+    if recordingPath then
+        return
+    end
+
+    pathPoints = {}
+    recordingPath = true
+
+    updatePathUI()
+end)
+
+AddPathPoint.MouseButton1Click:Connect(function()
+    if not recordingPath then
+        return
+    end
+
+    local cf = getCFrame()
+
+    if not cf then
+        return
+    end
+
+    table.insert(pathPoints, {
+        position = cf.Position,
+        rotation = cf - cf.Position,
+    })
+
+    updatePathUI()
+end)
+
+FinishPath.MouseButton1Click:Connect(function()
+    if not recordingPath then
+        return
+    end
+
+    if #pathPoints == 0 then
+        recordingPath = false
+        updatePathUI()
+        return
+    end
+
+    local name = PathNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+
+    if name == "" then
+        name = "Path_" .. tostring(#Route.steps + 1)
+    end
+
+    saveUndo()
+
+    table.insert(Route.steps, {
+        type = "Path",
+        category = "Path",
+        name = name,
+        points = table.clone(pathPoints),
+        order = #Route.steps + 1,
+    })
+
+    selectedStep = #Route.steps
+
+    pathPoints = {}
+    recordingPath = false
+
+    PathNameBox.Text = ""
+
+    Status.Text = "● PATH SAVED"
+
+    updatePathUI()
+    refreshSteps()
+end)
+
+--------------------------------------------------
+-- TABS
+--------------------------------------------------
+
+ActionTab.MouseButton1Click:Connect(function()
+    ActionPanel.Visible = true
+    PathPanel.Visible = false
+
+    ActionTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
+    PathTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
+end)
+
+PathTab.MouseButton1Click:Connect(function()
+    ActionPanel.Visible = false
+    PathPanel.Visible = true
+
+    ActionTab.BackgroundColor3 = Color3.fromRGB(45,45,52)
+    PathTab.BackgroundColor3 = Color3.fromRGB(55,95,180)
+end)
+
+--------------------------------------------------
+-- DELETE SELECTED
+--------------------------------------------------
+
+local DeleteButton = Instance.new("TextButton")
+DeleteButton.Size = UDim2.fromOffset(100, 35)
+DeleteButton.Position = UDim2.new(0, 225, 1, -43)
+DeleteButton.BackgroundColor3 = Color3.fromRGB(135,50,55)
+DeleteButton.BorderSizePixel = 0
+DeleteButton.Text = "حذف المحدد"
+DeleteButton.TextColor3 = Color3.new(1,1,1)
+DeleteButton.Font = Enum.Font.GothamBold
+DeleteButton.TextSize = 10
+DeleteButton.Parent = Content
+
+local DeleteCorner = Instance.new("UICorner")
+DeleteCorner.CornerRadius = UDim.new(0,6)
+DeleteCorner.Parent = DeleteButton
+
+DeleteButton.MouseButton1Click:Connect(function()
+    if not selectedStep then
+        return
+    end
+
+    if not Route.steps[selectedStep] then
+        selectedStep = nil
+        return
+    end
+
+    saveUndo()
+
+    table.remove(Route.steps, selectedStep)
+
+    selectedStep = nil
+
+    for i, step in ipairs(Route.steps) do
+        step.order = i
+    end
+
+    refreshSteps()
+end)
+
+--------------------------------------------------
+-- UNDO
+--------------------------------------------------
+
+local UndoButton = Instance.new("TextButton")
+UndoButton.Size = UDim2.fromOffset(80, 35)
+UndoButton.Position = UDim2.new(0, 330, 1, -43)
+UndoButton.BackgroundColor3 = Color3.fromRGB(45,45,52)
+UndoButton.BorderSizePixel = 0
+UndoButton.Text = "↶ Undo"
+UndoButton.TextColor3 = Color3.new(1,1,1)
+UndoButton.Font = Enum.Font.GothamBold
+UndoButton.TextSize = 10
+UndoButton.Parent = Content
+
+local UndoCorner = Instance.new("UICorner")
+UndoCorner.CornerRadius = UDim.new(0,6)
+UndoCorner.Parent = UndoButton
+
+UndoButton.MouseButton1Click:Connect(function()
+    local previous = table.remove(undoStack)
+
+    if not previous then
+        return
+    end
+
+    Route.steps = previous
+    selectedStep = nil
+
+    refreshSteps()
+
+    Status.Text = "● UNDO"
+end)
+
+--------------------------------------------------
+-- EXPORT
+--------------------------------------------------
+
+local function serialize(value, indent)
+    indent = indent or 0
+
+    local prefix = string.rep("    ", indent)
+
+    if typeof(value) == "string" then
+        return string.format("%q", value)
+
+    elseif typeof(value) == "number" then
+        return string.format("%.6f", value)
+
+    elseif typeof(value) == "boolean" then
+        return tostring(value)
+
+    elseif typeof(value) == "Vector3" then
+        return string.format(
+            "Vector3.new(%.6f, %.6f, %.6f)",
+            value.X,
+            value.Y,
+            value.Z
+        )
+
+    elseif typeof(value) == "CFrame" then
+        local components = {value:GetComponents()}
+
+        local result = "CFrame.new("
+
+        for i, number in ipairs(components) do
+            result ..= string.format("%.6f", number)
+
+            if i < #components then
+                result ..= ", "
+            end
+        end
+
+        result ..= ")"
+
+        return result
+
+    elseif typeof(value) == "table" then
+        local lines = {"{"}
+
+        for key, item in pairs(value) do
+            local keyText
+
+            if type(key) == "string" then
+                keyText = "[" .. string.format("%q", key) .. "]"
+            else
+                keyText = "[" .. tostring(key) .. "]"
+            end
+
+            table.insert(
+                lines,
+                prefix .. "    " ..
+                keyText ..
+                " = " ..
+                serialize(item, indent + 1) ..
+                ","
             )
         end
+
+        table.insert(lines, prefix .. "}")
+
+        return table.concat(lines, "\n")
+
+    else
+        return "nil"
     end
-
-    return positions
 end
 
-local function sellAtSafeSellerPosition(targetPart, targetPrompt, fallbackPosition, runId)
-    if not targetPart or not isFarmActive(runId) then return false end
+local function buildExport()
+    local export = {}
 
-    local approaches = getSellerSafeApproachPositions(
-        targetPart,
-        targetPrompt,
-        fallbackPosition
-    )
+    table.insert(export, "-- AUTO FARM ROUTE")
+    table.insert(export, "-- Generated by Auto Farm Route Builder")
+    table.insert(export, "")
+    table.insert(export, "local Route = {")
 
-    -- Keep this bounded so a bad prompt/geometry does not stall the farm.
-    local maxApproaches = math.min(#approaches, 8)
+    for index, step in ipairs(Route.steps) do
+        table.insert(export, "    [" .. index .. "] = {")
 
-    for attempt = 1, maxApproaches do
-        if not isFarmActive(runId) then return false end
+        table.insert(
+            export,
+            "        type = " .. serialize(step.type) .. ","
+        )
 
-        if isCharacterFallingOrDead() then
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-        end
+        table.insert(
+            export,
+            "        category = " .. serialize(step.category) .. ","
+        )
 
-        clearWaylines()
-        getInVehicle()
+        table.insert(
+            export,
+            "        name = " .. serialize(step.name) .. ","
+        )
 
-        local approachPos = approaches[attempt]
-        local arrived, _, fell = moveToPositionVelocity(approachPos)
-
-        if fell or not arrived or isCharacterFallingOrDead() then
-            pcall(clearWaylines)
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-            safeWait(0.15, runId)
-            continue
-        end
-
-        -- We are now close enough for the prompt, but NOT on top of the
-        -- seller geometry. Exit the vehicle and let the character interact.
-        dismountVehicle()
-        task.wait(0.2)
-
-        if isCharacterFallingOrDead() then
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-            continue
-        end
-
-        -- Re-resolve the prompt in case the stored instance became stale.
-        local livePrompt = targetPrompt
-        if not livePrompt or not livePrompt.Parent then
-            livePrompt =
-                (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt"))
-                or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
-                or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
-        end
-
-        -- IMPORTANT: the seller in this map can take several frames/cycles
-        -- to consume the goods. The reference implementation keeps firing
-        -- the prompt until the inventory actually reaches zero.
-        -- Do the same here instead of stopping after a short 2-second window.
-        local sold = false
-        local attempts = 0
-
-        while isFarmActive(runId) and attempts < 200 do
-            if getItemCount(CONFIG.ItemName) <= 0 then
-                sold = true
-                break
-            end
-
-            -- Re-resolve the live prompt every cycle. Some NPCs recreate or
-            -- re-parent their prompt after a successful/failed interaction.
-            if not livePrompt or not livePrompt.Parent then
-                livePrompt =
-                    (targetPart and targetPart:FindFirstChildOfClass("ProximityPrompt"))
-                    or (targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("ProximityPrompt"))
-                    or (targetPart and targetPart:FindFirstChildWhichIsA("ProximityPrompt", true))
-            end
-
-            pcall(function()
-                if livePrompt then
-                    livePrompt.HoldDuration = 0
-                end
-                interactWith(targetPart, livePrompt)
-            end)
-
-            attempts = attempts + 1
-
-            if getItemCount(CONFIG.ItemName) <= 0 then
-                sold = true
-                break
-            end
-
-            task.wait()
-        end
-
-        if sold or getItemCount(CONFIG.ItemName) <= 0 then
-            return true
-        end
-
-        if isCharacterFallingOrDead() then
-            if not restoreCharacterToPosition(fallbackPosition) then
-                return false
-            end
-        else
-            -- Move a little closer for the next attempt rather than
-            -- returning all the way to the route checkpoint.
-            local char, hrp = getCharacterRoot()
-            if hrp and livePrompt then
-                local d = (hrp.Position - targetPart.Position).Magnitude
-                if d > 1.5 then
-                    pcall(function()
-                        local dir = Vector3.new(
-                            livePrompt.Parent.Position.X - hrp.Position.X,
-                            0,
-                            livePrompt.Parent.Position.Z - hrp.Position.Z
-                        )
-                        if dir.Magnitude > 0.01 then
-                            dir = dir.Unit
-                            hrp.CFrame = CFrame.new(
-                                livePrompt.Parent.Position.X - dir.X * 1.75,
-                                hrp.Position.Y,
-                                livePrompt.Parent.Position.Z - dir.Z * 1.75
-                            )
-                        end
-                    end)
-                    task.wait(0.12)
-                end
-            end
-        end
-    end
-
-    return getItemCount(CONFIG.ItemName) <= 0
-end
-
-local function routeWithRecovery(waypoints, label, runId)
-    if not waypoints or #waypoints == 0 then return true end
-    if not isFarmActive(runId) then return false end
-
-    setFarmState(label == "Post-Buy Route" and FarmState.ROUTE_SELL or FarmState.ROUTE_LAUNDER)
-
-    local routeAttempts = 0
-    while isFarmActive(runId) and routeAttempts < 3 do
-        routeAttempts = routeAttempts + 1
-        processWaypoints(waypoints, label)
-
-        if not isFarmActive(runId) then return false end
-
-        -- Confirm the character is still alive and above the map after the route.
-        if isCharacterFallingOrDead() then
-            local safePoint = waypoints[math.max(1, math.min(#waypoints, 1))]
-            if not restoreCharacterToPosition(safePoint) then
-                return false
-            end
-        else
-            if safeWait(0.08, runId) then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
-local function stopFarmCleanly()
-    farmRunId = farmRunId + 1
-    mainLoopRunning = false
-    setFarmState(FarmState.IDLE)
-    pcall(clearWaylines)
-end
-
---------------------------------------------------------------------
--- 🔄 MAIN LOOP
---------------------------------------------------------------------
-local function mainLoop()
-    if mainLoopRunning then return end
-
-    mainLoopRunning = true
-    farmRunId = farmRunId + 1
-    local runId = farmRunId
-
-    local savedBuyPart, savedBuyPrompt = nil, nil
-    local savedSellPart, savedSellPrompt = nil, nil
-    local savedLaunderPart, savedLaunderPrompt = nil, nil
-
-    setFarmState(FarmState.FIND_BUY)
-    consecutiveFailures = 0
-
-    while isFarmActive(runId) do
-        -- Global safety/timeout check.
-        if tick() - lastStateChange > STATE_TIMEOUT and farmState ~= FarmState.IDLE then
-            if not recoverFarm(runId, "state timeout") then break end
-        end
-
-        if not isCharacterReady() then
-            if not recoverFarm(runId, "character not ready") then break end
-        end
-
-        ----------------------------------------------------------------
-        -- BUY
-        ----------------------------------------------------------------
-        if getItemCount(CONFIG.ItemName) < CONFIG.Amount then
-            setFarmState(FarmState.FIND_BUY)
-
-            if not savedBuyPart or not savedBuyPart.Parent or not savedBuyPrompt or not savedBuyPrompt.Parent then
-                savedBuyPart, savedBuyPrompt = findTarget(CONFIG.ItemName)
-            end
-
-            if not savedBuyPart then
-                if not recoverFarm(runId, "buy target not found") then break end
-                continue
-            end
-
-            setFarmState(FarmState.BUY)
-            getInVehicle()
-
-            local reached = false
-            local ok = pcall(function()
-                reached = goToTarget(savedBuyPart)
-            end)
-
-            if not ok or not reached then
-                savedBuyPart, savedBuyPrompt = nil, nil
-                if not recoverFarm(runId, "could not reach buy target") then break end
-                continue
-            end
-
-            local beforeCount = getItemCount(CONFIG.ItemName)
-
-            local bought = performInteractionLoop(
-                savedBuyPart,
-                savedBuyPrompt,
-                function()
-                    -- Do not stop after a single successful purchase.
-                    -- Continue until the configured target amount is reached.
-                    return getItemCount(CONFIG.ItemName) >= CONFIG.Amount
-                end,
-                60,
-                0.05,
-                runId
+        if step.position then
+            table.insert(
+                export,
+                "        position = " ..
+                serialize(step.position) ..
+                ","
             )
-
-            setFarmState(FarmState.VERIFY_BUY)
-
-            if not bought and getItemCount(CONFIG.ItemName) <= beforeCount then
-                savedBuyPart, savedBuyPrompt = nil, nil
-                if not recoverFarm(runId, "buy verification failed") then break end
-                continue
-            end
-
-            consecutiveFailures = 0
-            getInVehicle()
         end
 
-        if not isFarmActive(runId) then break end
-
-        ----------------------------------------------------------------
-        -- BUY -> SELL ROUTE
-        ----------------------------------------------------------------
-        if not routeWithRecovery(postBuyWaypoints, "Post-Buy Route", runId) then
-            if not recoverFarm(runId, "post-buy route failed") then break end
-            continue
+        if step.rotation then
+            table.insert(
+                export,
+                "        rotation = " ..
+                serialize(step.rotation) ..
+                ","
+            )
         end
 
-        if not isFarmActive(runId) then break end
-
-        ----------------------------------------------------------------
-        -- SELL (reference-style implementation)
-        ----------------------------------------------------------------
-        if autoSell and getItemCount(CONFIG.ItemName) > 0 then
-            setFarmState(FarmState.SELL)
-
-            -- Match the reference seller flow: resolve the nearest seller
-            -- from the final post-buy checkpoint, go directly to that target,
-            -- dismount, then repeatedly fire the exact saved prompt until the
-            -- inventory count reaches zero.
-            local lastPos = postBuyWaypoints[#postBuyWaypoints]
-            local sellPart, sellPrompt = findNearestTargetToPos(CONFIG.SellName, lastPos)
-            if not sellPart then
-                sellPart, sellPrompt = findNearestTargetToPos("Smuggle", lastPos)
-            end
-
-            if sellPart then
-                getInVehicle()
-
-                local reached = false
-                local ok = pcall(function()
-                    reached = goToTarget(sellPart)
-                end)
-
-                if ok and reached and isFarmActive(runId) then
-                    -- goToTarget may already dismount in this build; calling
-                    -- it again is harmless and keeps the reference sequence.
-                    pcall(dismountVehicle)
-                    task.wait(0.1)
-
-                    local t = 0
-                    while isFarmActive(runId) and getItemCount(CONFIG.ItemName) > 0 and t < 200 do
-                        -- Keep the exact prompt instance selected with the
-                        -- seller, just like the reference implementation.
-                        pcall(function()
-                            interactWith(sellPart, sellPrompt)
-                        end)
-                        task.wait()
-                        t = t + 1
-                    end
-
-                    if getItemCount(CONFIG.ItemName) > 0 then
-                        -- Do NOT abandon the seller immediately. Re-resolve it
-                        -- once and give the prompt another full 200-cycle pass.
-                        local retryPart, retryPrompt = findNearestTargetToPos(CONFIG.SellName, lastPos)
-                        if not retryPart then
-                            retryPart, retryPrompt = findNearestTargetToPos("Smuggle", lastPos)
-                        end
-
-                        if retryPart then
-                            for retry = 1, 2 do
-                                if not isFarmActive(runId) then break end
-                                local retryCount = 0
-                                while isFarmActive(runId) and getItemCount(CONFIG.ItemName) > 0 and retryCount < 200 do
-                                    pcall(function()
-                                        interactWith(retryPart, retryPrompt)
-                                    end)
-                                    task.wait()
-                                    retryCount = retryCount + 1
-                                end
-                                if getItemCount(CONFIG.ItemName) <= 0 then break end
-                            end
-                        end
-                    end
-
-                    if getItemCount(CONFIG.ItemName) <= 0 then
-                        consecutiveFailures = 0
-                        setFarmState(FarmState.VERIFY_SELL)
-                        getInVehicle()
-                    else
-                        -- Selling failed: recover to the known safe checkpoint
-                        -- and let the main loop reacquire the seller instead of
-                        -- moving on with unsold goods.
-                        setFarmState(FarmState.VERIFY_SELL)
-                        if not restoreCharacterToPosition(lastPos) then
-                            if not recoverFarm(runId, "seller interaction failed") then break end
-                        else
-                            if not recoverFarm(runId, "seller did not consume goods") then break end
-                        end
-                        continue
-                    end
-                else
-                    -- Preserve the anti-fall behavior: if the direct seller
-                    -- approach fails, restore to the last safe post-buy point.
-                    if isCharacterFallingOrDead() then
-                        restoreCharacterToPosition(lastPos)
-                    end
-                    if not recoverFarm(runId, "could not reach seller") then break end
-                    continue
-                end
-            else
-                if not recoverFarm(runId, "sell target not found") then break end
-                continue
-            end
+        if step.points then
+            table.insert(
+                export,
+                "        points = " ..
+                serialize(step.points, 2) ..
+                ","
+            )
         end
 
-        if not isFarmActive(runId) then break end
-
-        ----------------------------------------------------------------
-        -- SELL -> LAUNDER ROUTE
-        ----------------------------------------------------------------
-        if not routeWithRecovery(postSellWaypoints, "Post-Sell Route", runId) then
-            if not recoverFarm(runId, "post-sell route failed") then break end
-            continue
-        end
-
-        if not isFarmActive(runId) then break end
-
-        ----------------------------------------------------------------
-        -- LAUNDER
-        ----------------------------------------------------------------
-        if autoLaunder then
-            setFarmState(FarmState.LAUNDER)
-
-            if not savedLaunderPart or not savedLaunderPart.Parent or not savedLaunderPrompt or not savedLaunderPrompt.Parent then
-                savedLaunderPart, savedLaunderPrompt = findTarget(CONFIG.LaunderName)
-            end
-
-            if savedLaunderPart then
-                getInVehicle()
-
-                local reached = false
-                local ok = pcall(function()
-                    reached = goToTarget(savedLaunderPart)
-                end)
-
-                if ok and reached then
-                    local laundered = performInteractionLoop(
-                        savedLaunderPart,
-                        savedLaunderPrompt,
-                        function()
-                            return getProcessableItemCount() <= 0
-                        end,
-                        40,
-                        0.08,
-                        runId
-                    )
-
-                    if not laundered and getProcessableItemCount() > 0 then
-                        savedLaunderPart, savedLaunderPrompt = nil, nil
-                        if not recoverFarm(runId, "launder verification failed") then break end
-                        continue
-                    end
-
-                    consecutiveFailures = 0
-                    safeWait(0.1, runId)
-                    getInVehicle()
-                else
-                    savedLaunderPart, savedLaunderPrompt = nil, nil
-                    if not recoverFarm(runId, "could not reach launder target") then break end
-                    continue
-                end
-            else
-                savedLaunderPart, savedLaunderPrompt = nil, nil
-                if not recoverFarm(runId, "launder target not found") then break end
-                continue
-            end
-        end
-
-        setFarmState(FarmState.IDLE)
-        safeWait(0.1, runId)
-        setFarmState(FarmState.FIND_BUY)
+        table.insert(export, "    },")
     end
 
-    if runId == farmRunId then
-        mainLoopRunning = false
-        setFarmState(FarmState.IDLE)
-        pcall(clearWaylines)
-    end
+    table.insert(export, "}")
+    table.insert(export, "")
+    table.insert(export, "return Route")
+
+    return table.concat(export, "\n")
 end
 
---------------------------------------------------------------------
--- 🎛️ WINDUI ELEMENTS & CONTROLS (عربي / إنجليزي)
---------------------------------------------------------------------
+local ExportButton = Instance.new("TextButton")
+ExportButton.Size = UDim2.fromOffset(105, 35)
+ExportButton.Position = UDim2.new(1, -110, 1, -43)
+ExportButton.BackgroundColor3 = Color3.fromRGB(55,95,180)
+ExportButton.BorderSizePixel = 0
+ExportButton.Text = "Export Lua"
+ExportButton.TextColor3 = Color3.new(1,1,1)
+ExportButton.Font = Enum.Font.GothamBold
+ExportButton.TextSize = 10
+ExportButton.Parent = Content
 
-ReadTab:Paragraph({
-    Title = "⚠️ تنبيه هام / Warning",
-    Content = "ALMBJL ENGINE v2.0\nتم بناء وتطوير هذا الإصدار بأسلوب almbjl مع الحفاظ على هندسة المسارات الأصلية. 🇸🇦\nRights: almbjl"
-})
+local ExportCorner = Instance.new("UICorner")
+ExportCorner.CornerRadius = UDim.new(0,6)
+ExportCorner.Parent = ExportButton
 
-ReadTab:Paragraph({
-    Title = "🏗️ ALMBJL ENGINE / Architecture",
-    Content = "State Machine + Route Recovery + Item Verification + Seller Fall Recovery + Safe Checkpoints + Interaction Retry.\nكل مرحلة لها حالة واضحة وإعادة محاولة مستقلة."
-})
+ExportButton.MouseButton1Click:Connect(function()
+    local code = buildExport()
 
-ReadTab:Paragraph({
-    Title = "user discord : almbjl",
-    Content = "تمت إضافة التحقق بعد العمليات، إعادة المحاولة، كشف السقوط/الموت أثناء الحركة، ونقطة رجوع آمنة للبائع والمسارات."
-})
+    print("========== AUTO FARM ROUTE ==========")
+    print(code)
+    print("======================================")
 
-ReadTab:Paragraph({
-    Title = "ℹ️ ملاحظة الأداء / Performance",
-    Content = "إذا واجهت تقطيعاً، فلا تلوم السكريبت بل جهازك! / If you're laggy don't blame the script!!"
-})
+    Status.Text = "● EXPORTED"
 
-MainTab:Toggle({
-    Title = "اوتو فارم / Auto Farm",
-    Desc = "تشغيل أو إيقاف اوتو فارم",
-    Icon = "power",
-    Type = "Toggle",
-    Value = isRunning,
-    Callback = function(state)
-        isRunning = state
-        if isRunning then
-            task.spawn(mainLoop)
+    -- يظهر أيضاً في Output في Roblox Studio.
+end)
+
+--------------------------------------------------
+-- LIVE POSITION
+--------------------------------------------------
+
+task.spawn(function()
+    while Gui.Parent do
+        local pos = getPosition()
+
+        if pos then
+            PositionValue.Text = formatVector(pos)
         else
-            stopFarmCleanly()
+            PositionValue.Text = "—"
         end
-    end
-})
 
-MainTab:Toggle({
-    Title = "بيع البضائع تلقائياً / Auto Sell Goods",
-    Desc = "بيع البضائع عند الامتلاء",
-    Icon = "store",
-    Type = "Toggle",
-    Value = autoSell,
-    Callback = function(state)
-        autoSell = state
+        task.wait(0.1)
     end
-})
+end)
 
-MainTab:Toggle({
-    Title = "غسيل الأموال تلقائياً / Auto Launder Cash",
-    Desc = "تنظيف الأموال تلقائياً",
-    Icon = "banknote",
-    Type = "Toggle",
-    Value = autoLaunder,
-    Callback = function(state)
-        autoLaunder = state
-    end
-})
+--------------------------------------------------
+-- DRAG WINDOW
+--------------------------------------------------
 
-MainTab:Slider({
-    Title = "سرعة الطيران / Fly Speed",
-    Desc = "تعديل سرعة الانتقال",
-    Icon = "gauge",
-    Step = 5,
-    Value = {
-        Min = 150,
-        Max = 300,
-        Default = CONFIG.Speed,
-    },
-    Callback = function(value)
-        CONFIG.Speed = value
-    end
-})
+local dragging = false
+local dragStart
+local startPosition
 
-MainTab:Slider({
-    Title = "ارتفاع التوين / Tween Height (Y)",
-    Desc = "تعديل الارتفاع عن الأرض",
-    Icon = "arrow-up-right",
-    Step = 0.1,
-    Value = {
-        Min = 1,
-        Max = 5,
-        Default = CONFIG.Height,
-    },
-    Callback = function(value)
-        CONFIG.Height = value
-    end
-})
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
 
-MainTab:Slider({
-    Title = "الكمية المطلوبة / Target Amount",
-    Desc = "حدد كمية الأغراض المراد جمعها",
-    Icon = "boxes",
-    Step = 1,
-    Value = {
-        Min = 1,
-        Max = 5,
-        Default = CONFIG.Amount,
-    },
-    Callback = function(value)
-        CONFIG.Amount = value
+        dragging = true
+        dragStart = input.Position
+        startPosition = Main.Position
     end
-})
+end)
 
-MainTab:Slider({
-    Title = "تأخير التوين / Tween Delay (s)",
-    Desc = "تحديد الوقت الفاصل للتنقل",
-    Icon = "timer",
-    Step = 0.1,
-    Value = {
-        Min = 0,
-        Max = 5,
-        Default = CONFIG.TweenDelay,
-    },
-    Callback = function(value)
-        CONFIG.TweenDelay = value
-    end
-})
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
 
-MainTab:Dropdown({
-    Title = "اختر الغرض / Select Item",
-    Desc = "حدد نوع العنصر المراد شراؤه",
-    Icon = "package-search",
-    Values = {
-        "Crate Of Avacados",
-        "Wagyu Beef",
-        "Witches Brew",
-        "Fake Designer Sneakers",
-        "Fake Diamond Ring"
-    },
-    Value = CONFIG.ItemName,
-    Callback = function(selected)
-        CONFIG.ItemName = selected
+        dragging = false
     end
-})
+end)
 
-MiscTab:Toggle({
-    Title = "تسريع اللعبة / Boost FPS",
-    Desc = "تقليل الجرافيك لرفع الفريمات",
-    Icon = "cpu",
-    Type = "Toggle",
-    Value = fpsBoostActive,
-    Callback = function(state)
-        applyFPSBoost(state)
+UserInputService.InputChanged:Connect(function(input)
+    if not dragging then
+        return
     end
-})
 
-MiscTab:Toggle({
-    Title = "منع التوقف التلقائي / Anti Gameplay Paused",
-    Desc = "منع توقف اللعبة عند خروج الماوس",
-    Icon = "shield-check",
-    Type = "Toggle",
-    Value = antiPauseActive,
-    Callback = function(state)
-        applyAntiPause(state)
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
     end
-})
 
-MiscTab:Toggle({
-    Title = "إيقاف الرندر / No Render",
-    Desc = "إيقاف رسم العالم لزيادة الأداء",
-    Icon = "eye-off",
-    Type = "Toggle",
-    Value = noRenderActive,
-    Callback = function(state)
-        applyNoRender(state)
-    end
-})
+    local delta = input.Position - dragStart
 
-MiscTab:Toggle({
-    Title = "إظهار خط المسار / Show Path Line",
-    Desc = "تشغيل/إيقاف خطوط توجيه المسار البصرية",
-    Icon = "route",
-    Type = "Toggle",
-    Value = showPathLine,
-    Callback = function(state)
-        showPathLine = state
-        if not state then clearWaylines() end
+    Main.Position = UDim2.new(
+        startPosition.X.Scale,
+        startPosition.X.Offset + delta.X,
+        startPosition.Y.Scale,
+        startPosition.Y.Offset + delta.Y
+    )
+end)
+
+--------------------------------------------------
+-- MINIMIZE
+--------------------------------------------------
+
+local minimized = false
+
+Minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+
+    Content.Visible = not minimized
+
+    if minimized then
+        Main.Size = UDim2.fromOffset(
+            Main.Size.X.Offset,
+            48
+        )
+    else
+        Main.Size = UDim2.fromOffset(
+            760,
+            540
+        )
     end
-})
+end)
+
+--------------------------------------------------
+-- MAXIMIZE / RESTORE
+--------------------------------------------------
+
+local maximized = false
+
+Maximize.MouseButton1Click:Connect(function()
+    maximized = not maximized
+
+    if maximized then
+        Main.Size = UDim2.new(0.9, 0, 0.85, 0)
+        Main.Position = UDim2.new(0.05, 0, 0.075, 0)
+    else
+        Main.Size = UDim2.fromOffset(760, 540)
+        Main.Position = UDim2.new(0.5, -380, 0.5, -270)
+    end
+end)
+
+--------------------------------------------------
+-- CLOSE
+--------------------------------------------------
+
+Close.MouseButton1Click:Connect(function()
+    Gui:Destroy()
+end)
+
+--------------------------------------------------
+-- RESIZE HANDLE
+--------------------------------------------------
+
+local ResizeHandle = Instance.new("TextButton")
+ResizeHandle.Size = UDim2.fromOffset(18, 18)
+ResizeHandle.Position = UDim2.new(1, -18, 1, -18)
+ResizeHandle.BackgroundTransparency = 1
+ResizeHandle.Text = "◢"
+ResizeHandle.TextColor3 = Color3.fromRGB(130,130,140)
+ResizeHandle.TextSize = 12
+ResizeHandle.Parent = Main
+
+local resizing = false
+local resizeStart
+local resizeSize
+
+ResizeHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        resizing = true
+        resizeStart = input.Position
+        resizeSize = Main.AbsoluteSize
+    end
+end)
+
+ResizeHandle.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        resizing = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not resizing then
+        return
+    end
+
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
+    end
+
+    local delta = input.Position - resizeStart
+
+    local width = math.max(600, resizeSize.X + delta.X)
+    local height = math.max(420, resizeSize.Y + delta.Y)
+
+    Main.Size = UDim2.fromOffset(width, height)
+end)
+
+--------------------------------------------------
+-- INITIALIZE
+--------------------------------------------------
+
+refreshSteps()
+updatePathUI()
+
+print("Auto Farm Route Builder loaded.")
