@@ -1,40 +1,18 @@
 --====================================================
 -- Auto Farm • Fake Diamond Ring (Speed Mode)
--- By المبجّل • Discord: almbjl3
+-- By المبجّل • Discord: almbjl1
 --====================================================
 
 local RS = game:GetService("ReplicatedStorage")
 local Remotes = RS:WaitForChild("__remotes")
 local BuyRemote = Remotes.WorldBuyableItemService.PurchaseWorldBuyableItem
 local SellRemote = Remotes.SmuggleService.SellSmuggledGoods
+local LaunderRemote = Remotes.MoneyLaunderService.LaunderCash
 local AntiCheatRemote = Remotes.CustomServerService.CanManageServer
 
 local Items = workspace.WorldBuyableItems.CivilianArea
 local NPC = workspace.NPC
 local player = game.Players.LocalPlayer
-
---========================
--- المسار
---========================
-local Route = {
-    BuyPos = Vector3.new(6820.766, 17.421, 19.468),
-    Points = {
-        Vector3.new(6842.128, 17.223, 19.321),
-        Vector3.new(6841.736, 17.223, 142.829),
-        Vector3.new(5904.539, 17.223, 146.274),
-        Vector3.new(4561.280, 17.223, 147.949),
-        Vector3.new(3010.252, 17.223, 150.880),
-        Vector3.new(2779.545, 17.223, 148.855),
-        Vector3.new(2550.742, 17.223, 142.769),
-        Vector3.new(1900.172, 17.223, 140.795),
-        Vector3.new(720.947, 17.223, 137.434),
-        Vector3.new(196.229, 17.223, 134.763),
-        Vector3.new(193.469, 17.223, -34.899),
-        Vector3.new(192.914, 17.223, -54.420),
-        Vector3.new(206.688, 17.082, -53.580),
-        Vector3.new(207.952, 17.244, -44.035),
-    }
-}
 
 local autoFarm = false
 local maxRings = 10
@@ -49,14 +27,12 @@ end
 
 local function floatMode()
     local root = Root()
-
     if not root:FindFirstChild("BV") then
         local bv = Instance.new("BodyVelocity", root)
         bv.Name = "BV"
         bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         bv.Velocity = Vector3.new(0, 0, 0)
     end
-
     if not root:FindFirstChild("BG") then
         local bg = Instance.new("BodyGyro", root)
         bg.Name = "BG"
@@ -75,12 +51,10 @@ end
 local function moveTo(pos)
     floatMode()
     local root = Root()
-
     while autoFarm and (root.Position - pos).Magnitude > 3 do
         root.BV.Velocity = (pos - root.Position).Unit * speed
         task.wait()
     end
-
     stopMovement()
 end
 
@@ -103,11 +77,9 @@ local function sellSpam()
     local root = Root()
     stopMovement()
 
-    -- 🔧 تحقق من وجود leaderstats قبل القراءة
     local stats = player:FindFirstChild("leaderstats")
     if not stats then
-        repeat
-            task.wait(0.2)
+        repeat task.wait(0.2)
             stats = player:FindFirstChild("leaderstats")
         until stats
     end
@@ -115,11 +87,13 @@ local function sellSpam()
     local moneyStat = stats:FindFirstChild("Money")
     local before = moneyStat and moneyStat.Value or 0
 
+    local seller = NPC:FindFirstChild("Seller4")
+    if not seller then return end
+
     for i = 1, 100 do
-        SellRemote:FireServer(NPC["Seller4"])
+        SellRemote:FireServer(seller)
         AntiCheatRemote:InvokeServer()
         task.wait(0.05)
-
         if moneyStat and moneyStat.Value > before then
             print("✔ انباع فعليًا")
             break
@@ -130,6 +104,26 @@ local function sellSpam()
 end
 
 --========================
+-- غسيل الأموال بعد البيع
+--========================
+local function launderMoney()
+    local root = Root()
+    stopMovement()
+
+    local launderNPC = NPC:FindFirstChild("LaunderCash")
+    if not launderNPC then return end
+
+    for i = 1, 80 do
+        LaunderRemote:FireServer(launderNPC)
+        AntiCheatRemote:InvokeServer()
+        task.wait(0.05)
+    end
+
+    print("💰 تم غسيل الأموال بنجاح")
+    task.wait(2)
+end
+
+--========================
 -- اللوب الأساسي
 --========================
 task.spawn(function()
@@ -137,17 +131,33 @@ task.spawn(function()
         task.wait(0.2)
         if not autoFarm then continue end
 
-        moveTo(Route.BuyPos)
+        moveTo(Vector3.new(6820.766, 17.421, 19.468))
         buyRings()
 
-        for _, p in ipairs(Route.Points) do
+        for _, p in ipairs({
+            Vector3.new(6842.128, 17.223, 19.321),
+            Vector3.new(6841.736, 17.223, 142.829),
+            Vector3.new(5904.539, 17.223, 146.274),
+            Vector3.new(4561.280, 17.223, 147.949),
+            Vector3.new(3010.252, 17.223, 150.880),
+            Vector3.new(2779.545, 17.223, 148.855),
+            Vector3.new(2550.742, 17.223, 142.769),
+            Vector3.new(1900.172, 17.223, 140.795),
+            Vector3.new(720.947, 17.223, 137.434),
+            Vector3.new(196.229, 17.223, 134.763),
+            Vector3.new(193.469, 17.223, -34.899),
+            Vector3.new(192.914, 17.223, -54.420),
+            Vector3.new(206.688, 17.082, -53.580),
+            Vector3.new(207.952, 17.244, -44.035),
+        }) do
             if not autoFarm then break end
             moveTo(p)
         end
 
         sellSpam()
+        launderMoney()
 
-        for i = #Route.Points, 1, -1 do
+        for i = 14, 1, -1 do
             if not autoFarm then break end
             moveTo(Route.Points[i])
         end
