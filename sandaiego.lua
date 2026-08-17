@@ -1,49 +1,68 @@
 --====================================================
 -- Auto Farm - Fake Diamond Ring
--- By almbjl1 (المبجّل)
+-- By almbjl (المبجّل)
 --====================================================
 
--- تحميل WindUI مع تأخير بسيط لضمان ظهور الأزرار
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 task.wait(1)
 
---====================================================
--- بيانات المسار
---====================================================
-local Route = {
-    name = "AutoFarm_Main",
-    steps = {
-        {
-            type = "Action",
-            category = "Buy",
-            name = "Buy Fake Diamond Ring",
-            position = Vector3.new(6820.941, 17.421, 20.054),
-        },
-        {
-            type = "Path",
-            category = "Path",
-            name = "To sll",
-            points = {
-                {position = Vector3.new(6854.121, 17.223, 20.914)},
-                {position = Vector3.new(6844.108, 17.223, 142.581)},
-                {position = Vector3.new(6795.110, 17.223, 142.215)},
-                {position = Vector3.new(4754.197, 16.411, 143.214)},
-                {position = Vector3.new(3793.107, 16.413, 144.526)},
-                {position = Vector3.new(2780.473, 17.248, 149.317)},
-                {position = Vector3.new(1549.154, 16.410, 135.654)},
-                {position = Vector3.new(1400.638, 16.388, 135.813)},
-                {position = Vector3.new(1378.808, 16.373, 105.375)},
-                {position = Vector3.new(262.297, 17.223, 94.578)},
-                {position = Vector3.new(259.445, 17.244, -40.166)},
-                {position = Vector3.new(215.130, 17.244, -39.732)},
-            },
-        },
-    },
-}
+local window = WindUI:Window({
+    Title = "Auto Farm • Fake Diamond Ring | المبجّل",
+    Subtitle = "Discord: almbjl",
+    Theme = "Dark",
+})
+
+local tab = window:Tab("Auto Farm")
+
+local autoFarmEnabled = false
+local flyHeight = 5
+local flySpeed = 60
+local maxRings = 5
+
+tab:Toggle({
+    Name = "تشغيل الأوتو فارم",
+    Default = false,
+    Callback = function(v)
+        autoFarmEnabled = v
+    end,
+})
+
+tab:Slider({
+    Name = "عدد Fake Diamond Ring",
+    Min = 1, Max = 8, Default = 5,
+    Callback = function(v)
+        maxRings = v
+    end,
+})
+
+tab:Slider({
+    Name = "ارتفاع فوق الأرض",
+    Min = 2, Max = 20, Default = 5,
+    Callback = function(v)
+        flyHeight = v
+    end,
+})
+
+tab:Slider({
+    Name = "سرعة الطيران",
+    Min = 20, Max = 120, Default = 60,
+    Callback = function(v)
+        flySpeed = v
+    end,
+})
+
+tab:Button({
+    Name = "إظهار المسار في الـ Output",
+    Callback = function()
+        print("========== ROUTE ==========")
+        print("المسار جاهز ✅")
+    end,
+})
 
 --====================================================
--- الريموتات
+-- نظام Anti‑Stuck + الأوتو فارم
 --====================================================
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("__remotes")
 
@@ -57,73 +76,12 @@ local Vehicles = workspace.Vehicles
 local NPC = workspace.NPC
 
 local player = game.Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
     return char:WaitForChild("HumanoidRootPart")
 end
-
---====================================================
--- واجهة WindUI
---====================================================
-local window = WindUI:CreateWindow({
-    Title = "Auto Farm • Fake Diamond Ring | المبجّل",
-    Subtitle = "Discord: almbjl",
-    Theme = "Dark",
-})
-
-local mainTab = window:CreateTab("Auto Farm")
-
-local autoFarmEnabled = false
-local flyHeight = 5
-local flySpeed = 60
-local maxRings = 5
-
-mainTab:CreateToggle({
-    Name = "تشغيل الأوتو فارم",
-    Default = false,
-    Callback = function(v)
-        autoFarmEnabled = v
-    end,
-})
-
-mainTab:CreateSlider({
-    Name = "عدد Fake Diamond Ring",
-    Min = 1, Max = 8, Default = 5,
-    Callback = function(v)
-        maxRings = v
-    end,
-})
-
-mainTab:CreateSlider({
-    Name = "ارتفاع فوق الأرض",
-    Min = 2, Max = 20, Default = 5,
-    Callback = function(v)
-        flyHeight = v
-    end,
-})
-
-mainTab:CreateSlider({
-    Name = "سرعة الطيران",
-    Min = 20, Max = 120, Default = 60,
-    Callback = function(v)
-        flySpeed = v
-    end,
-})
-
-mainTab:CreateButton({
-    Name = "إظهار المسار في الـ Output",
-    Callback = function()
-        print("========== ROUTE ==========")
-        for i, p in ipairs(Route.steps[2].points) do
-            print(i, p.position)
-        end
-    end,
-})
-
---====================================================
--- نظام Anti‑Stuck
---====================================================
-local TweenService = game:GetService("TweenService")
 
 local function antiStuckCheck(root, lastPos)
     local moved = (root.Position - lastPos).Magnitude
@@ -132,8 +90,7 @@ end
 
 local function safeReset()
     local root = getRoot()
-    local buyPos = Route.steps[1].position
-    root.CFrame = CFrame.new(buyPos.X, buyPos.Y + flyHeight, buyPos.Z)
+    root.CFrame = CFrame.new(6820.941, 17.421 + flyHeight, 20.054)
 end
 
 local function moveTo(targetPos)
@@ -144,12 +101,7 @@ local function moveTo(targetPos)
     local dist = (root.Position - targetPos).Magnitude
     local timeNeeded = dist / flySpeed
 
-    local tween = TweenService:Create(
-        root,
-        TweenInfo.new(timeNeeded, Enum.EasingStyle.Linear),
-        {CFrame = CFrame.new(targetPos)}
-    )
-
+    local tween = TweenService:Create(root, TweenInfo.new(timeNeeded, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
     tween:Play()
 
     for i = 1, math.floor(timeNeeded * 2) do
@@ -174,17 +126,6 @@ local function moveTo(targetPos)
     tween.Completed:Wait()
 end
 
-local function moveAlongPath()
-    for _, point in ipairs(Route.steps[2].points) do
-        if not autoFarmEnabled then break end
-        local pos = point.position
-        moveTo(Vector3.new(pos.X, pos.Y + flyHeight, pos.Z))
-    end
-end
-
---====================================================
--- أوامر الشراء والبيع
---====================================================
 local function buyRing()
     PurchaseWorldBuyableItem:FireServer(WorldBuyableItems["Fake Diamond Ring"])
 end
@@ -203,21 +144,14 @@ local function pingServer()
     end)
 end
 
---====================================================
--- لوب الأوتو فارم
---====================================================
 task.spawn(function()
     while true do
         task.wait(0.2)
         if not autoFarmEnabled then continue end
 
         local root = getRoot()
+        moveTo(Vector3.new(6820.941, 17.421 + flyHeight, 20.054))
 
-        -- الذهاب لنقطة الشراء
-        local buyPos = Route.steps[1].position
-        moveTo(Vector3.new(buyPos.X, buyPos.Y + flyHeight, buyPos.Z))
-
-        -- شراء الخواتم
         for i = 1, maxRings do
             if not autoFarmEnabled then break end
             buyRing()
@@ -226,10 +160,7 @@ task.spawn(function()
             task.wait(0.2)
         end
 
-        -- الذهاب لنقطة البيع
-        moveAlongPath()
-
-        -- بيع البضاعة
+        moveTo(Vector3.new(215.130, 17.244 + flyHeight, -39.732))
         sellGoods()
         pingServer()
     end
