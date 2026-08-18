@@ -2,7 +2,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "almbjl | -gentlman- - Combat &  System",
+   Name = "almbjl || -Discord- - Combat & System",
    LoadingTitle = "جاري تحميل النظام الأفضل...",
    LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
@@ -19,7 +19,7 @@ local _G_Settings = {
     AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
-    LootESPEnabled = true,     -- كشف لوت اللاعبين الآخرين فقط
+    LootESPEnabled = true,     -- كشف حقائب والأغراض الخاصة باللاعبين الآخرين
     FOvSize = 120,             -- حجم دائرة الـ FOV للجوال
     WalkSpeed = 16,            -- السرعة الحالية
     JumpPower = 50,            -- قوة القفز الحالية
@@ -143,17 +143,17 @@ Tab:CreateToggle({
 })
 
 Tab:CreateToggle({
-   Name = "كشف لوت وأغراض اللاعبين الآخرين فقط",
+   Name = "كشف لوت شنطة وأغراض اللاعبين الآخرين فقط",
    CurrentValue = true,
    Flag = "LootESPToggle",
    Callback = function(Value)
       _G_Settings.LootESPEnabled = Value
       if not Value then
           for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
-              if p.Character then
-                  for _, item in ipairs(p.Character:GetChildren()) do
-                      if item:IsA("Tool") and item:FindFirstChild("almbjl_LootESP") then
-                          item.almbjl_LootESP:Destroy()
+              if p.Character and p.Character:FindFirstChild("Head") then
+                  for _, child in ipairs(p.Character.Head:GetChildren()) do
+                      if child.Name == "almbjl_InventoryGUI" then
+                          child:Destroy()
                       end
                   end
               end
@@ -323,43 +323,64 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- نظام كشف لوت اللاعبين الآخرين فقط (خفيف جداً وبدون لاغ)
+-- نظام كشف محتويات شنطة اللاعبين فقط (Backpack & Character Tools) فوق رؤوسهم
 RunService.RenderStepped:Connect(function()
     if not _G_Settings.LootESPEnabled then return end
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            for _, item in ipairs(player.Character:GetChildren()) do
-                if item:IsA("Tool") then
-                    local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
-                    if handle and not item:FindFirstChild("almbjl_LootESP") then
-                        local highlight = Instance.new("Highlight")
-                        highlight.Name = "almbjl_LootESP"
-                        highlight.Adornee = item
-                        highlight.FillColor = Color3.fromRGB(255, 215, 0) -- ذهبي لامع
-                        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)   -- أحمر
-                        highlight.FillTransparency = 0.4
-                        highlight.OutlineTransparency = 0
-                        highlight.Parent = item
-                        
-                        local billboard = Instance.new("BillboardGui")
-                        billboard.Name = "almbjl_LootESP"
-                        billboard.Size = UDim2.new(0, 120, 0, 40)
-                        billboard.StudsOffset = Vector3.new(0, 2, 0)
-                        billboard.AlwaysOnTop = true
-                        billboard.Adornee = handle
-                        billboard.Parent = item
-                        
-                        local textLabel = Instance.new("TextLabel")
-                        textLabel.Size = UDim2.new(1, 0, 1, 0)
-                        textLabel.BackgroundTransparency = 1
-                        textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-                        textLabel.TextStrokeTransparency = 0
-                        textLabel.TextSize = 13
-                        textLabel.Font = Enum.Font.SourceSansBold
-                        textLabel.Text = "[" .. player.Name .. "] " .. item.Name
-                        textLabel.Parent = billboard
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local billboard = head:FindFirstChild("almbjl_InventoryGUI")
+            
+            if not billboard then
+                billboard = Instance.new("BillboardGui")
+                billboard.Name = "almbjl_InventoryGUI"
+                billboard.Size = UDim2.new(0, 200, 0, 100)
+                billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+                billboard.AlwaysOnTop = true
+                billboard.Adornee = head
+                billboard.Parent = head
+                
+                local textLabel = Instance.new("TextLabel")
+                textLabel.Name = "InventoryText"
+                textLabel.Size = UDim2.new(1, 0, 1, 0)
+                textLabel.BackgroundTransparency = 1
+                textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- ذهبي لامع
+                textLabel.TextStrokeTransparency = 0
+                textLabel.TextSize = 12
+                textLabel.Font = Enum.Font.SourceSansBold
+                textLabel.TextWrapped = true
+                textLabel.TextYAlignment = Enum.TextYAlignment.Top
+                textLabel.Parent = billboard
+            end
+            
+            -- جمع الأغراض من الحقيبة (Backpack) ومن الشخصية نفسها (التي يحملها أو يرتديها)
+            local itemsList = {}
+            
+            -- فحص الشنطة الأساسية
+            if player:FindFirstChild("Backpack") then
+                for _, item in ipairs(player.Backpack:GetChildren()) do
+                    if item:IsA("Tool") then
+                        table.insert(itemsList, "• " .. item.Name)
                     end
+                end
+            end
+            
+            -- فحص ما يمسكه أو يرتديه اللاعب حالياً
+            if player.Character then
+                for _, item in ipairs(player.Character:GetChildren()) do
+                    if item:IsA("Tool") then
+                        table.insert(itemsList, "• " .. item.Name .. " (ممسوك)")
+                    end
+                end
+            end
+            
+            local textLabel = billboard:FindFirstChild("InventoryText")
+            if textLabel then
+                if #itemsList > 0 then
+                    textLabel.Text = "[" .. player.Name .. " شنطة]\n" .. table.concat(itemsList, "\n")
+                else
+                    textLabel.Text = "[" .. player.Name .. " شنطة]\n(فارغة)"
                 end
             end
         end
