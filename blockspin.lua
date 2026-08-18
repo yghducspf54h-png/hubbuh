@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "almbjl | Max Edition - Combat System",
-   LoadingTitle = "جاري تحميل النظام الأفضل...",
+   LoadingTitle = " 1جاري تحميل النظام الأفضل...",
    LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
       Enabled = false,
@@ -16,9 +16,9 @@ local Tab = Window:CreateTab("التحكم والقتال", 4483362458)
 -- المتغيرات والخصائص
 local _G_Settings = {
     SilentAimEnabled = true,
+    AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
-    TeamCheck = true
 }
 
 -- قسم الأيم بوت والطلقة التلقائية
@@ -30,6 +30,15 @@ Tab:CreateToggle({
    Flag = "SilentAimToggle",
    Callback = function(Value)
       _G_Settings.SilentAimEnabled = Value
+   end,
+})
+
+Tab:CreateToggle({
+   Name = "تفعيل الأيم بوت (زر الماوس الأيمن)",
+   CurrentValue = true,
+   Flag = "AimbotToggle",
+   Callback = function(Value)
+      _G_Settings.AimbotEnabled = Value
    end,
 })
 
@@ -51,16 +60,27 @@ Tab:CreateToggle({
    Flag = "ESPToggle",
    Callback = function(Value)
       _G_Settings.ESPEnabled = Value
-      -- كود تفعيل/تعطيل الإي إس بي هنا
+      if not Value then
+          -- إزالة الـ ESP فوراً عند الإيقاف
+          for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+              if p.Character and p.Character:FindFirstChild("almbjl_ESP") then
+                  p.Character.almbjl_ESP:Destroy()
+              end
+          end
+      end
    end,
 })
 
--- المنطق البرمجي للوظائف (الطلقة التلقائية مع فحص الجدران)
+-- المنطق البرمجي
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = Workspace.CurrentCamera
 
+-- دالة فحص الجدران (WallCheck)
 local function isVisible(targetPart, originPos)
     if not _G_Settings.WallCheck then return true end
     
@@ -73,7 +93,6 @@ local function isVisible(targetPart, originPos)
     local result = Workspace:Raycast(originPos, direction, raycastParams)
     
     if result then
-        -- لو العائق هو جزء من جسم اللاعب المستهدف نفسه أو موديل اللاعب تعتبر رؤية صحيحة
         local hitInstance = result.Instance
         if hitInstance:IsDescendantOf(targetPart.Parent) then
             return true
@@ -84,6 +103,7 @@ local function isVisible(targetPart, originPos)
     return true
 end
 
+-- دالة جلب أفضل وأقرب تارجت
 local function getBestTarget()
     local closestTarget = nil
     local shortestDistance = math.huge
@@ -99,7 +119,6 @@ local function getBestTarget()
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             
             if humanoid and humanoid.Health > 0 then
-                -- تطبيق فحص الجدران إذا كان مفعلًا
                 if isVisible(targetRoot, originPos) then
                     local distance = (targetRoot.Position - myRoot.Position).Magnitude
                     if distance < shortestDistance then
@@ -114,7 +133,49 @@ local function getBestTarget()
     return closestTarget
 end
 
--- حلقة إطلاق النار التلقائية عند تفعيل الميزة
+-- 1. نظام الـ ESP المحدث باستمرار (يتعامل مع الموت والإحياء واللاعبين الجدد)
+RunService.RenderStepped:Connect(function()
+    if not _G_Settings.ESPEnabled then return end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local char = player.Character
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            
+            if humanoid and humanoid.Health > 0 then
+                if not char:FindFirstChild("almbjl_ESP") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "almbjl_ESP"
+                    highlight.Adornee = char
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    highlight.Parent = char
+                end
+            else
+                -- لو اللاعب مات، احذف الإي إس بي عنه
+                if char:FindFirstChild("almbjl_ESP") then
+                    char.almbjl_ESP:Destroy()
+                end
+            end
+        end
+    end
+end)
+
+-- 2. نظام الأيم بوت (يعمل عند الضغط مطولاً على كلك يمين ويتخطى الجدران)
+RunService.RenderStepped:Connect(function()
+    if _G_Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = getBestTarget()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPart = target.Character.HumanoidRootPart
+            -- توجيه الكاميرا بسلاسة نحو اللاعب المستهدف
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+        end
+    end
+end)
+
+-- 3. حلقة السايلت آيم (إطلاق الطلقة التلقائية الموجهة لأقرب لاعب دون تعديل)
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -139,8 +200,7 @@ task.spawn(function()
                     
                     local bulletCounter = math.random(1000, 9999)
                     
-                    -- إطلاق الحدث للسيرفر
-                    local success, err = pcall(function()
+                    pcall(function()
                         local weaponsSystem = ReplicatedStorage:WaitForChild("WeaponsSystem", 2)
                         if weaponsSystem then
                             local net = weaponsSystem:WaitForChild("Network", 2)
