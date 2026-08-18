@@ -2,7 +2,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "almbjl | -Discord- - Combat &  System",
+   Name = "almbjl | -gentlman- - Combat &  System",
    LoadingTitle = "جاري تحميل النظام الأفضل...",
    LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
@@ -19,10 +19,10 @@ local _G_Settings = {
     AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
-    LootESPEnabled = true,     -- كشف اللوت والأغراض
+    LootESPEnabled = true,     -- كشف لوت اللاعبين الآخرين فقط
     FOvSize = 120,             -- حجم دائرة الـ FOV للجوال
-    WalkSpeed = 16,            -- السرعة الافتراضية
-    JumpPower = 50,            -- قوة القفز الافتراضية
+    WalkSpeed = 16,            -- السرعة الحالية
+    JumpPower = 50,            -- قوة القفز الحالية
     SpeedEnabled = false,
     JumpEnabled = false,
 }
@@ -77,6 +77,12 @@ Tab:CreateToggle({
    Flag = "SpeedToggle",
    Callback = function(Value)
       _G_Settings.SpeedEnabled = Value
+      local char = game:GetService("Players").LocalPlayer.Character
+      if char and char:FindFirstChild("Humanoid") then
+          if not Value then
+              char.Humanoid.WalkSpeed = 16 -- العودة للسرعة الطبيعية فور الإيقاف
+          end
+      end
    end,
 })
 
@@ -97,6 +103,12 @@ Tab:CreateToggle({
    Flag = "JumpToggle",
    Callback = function(Value)
       _G_Settings.JumpEnabled = Value
+      local char = game:GetService("Players").LocalPlayer.Character
+      if char and char:FindFirstChild("Humanoid") then
+          if not Value then
+              char.Humanoid.JumpPower = 50 -- العودة للقوة الطبيعية فور الإيقاف
+          end
+      end
    end,
 })
 
@@ -131,15 +143,19 @@ Tab:CreateToggle({
 })
 
 Tab:CreateToggle({
-   Name = "كشف اللوت والأغراض (ذهبي/أحمر مع الاسم والشكل)",
+   Name = "كشف لوت وأغراض اللاعبين الآخرين فقط",
    CurrentValue = true,
    Flag = "LootESPToggle",
    Callback = function(Value)
       _G_Settings.LootESPEnabled = Value
       if not Value then
-          for _, item in ipairs(workspace:GetDescendants()) do
-              if item:FindFirstChild("almbjl_LootESP") then
-                  item.almbjl_LootESP:Destroy()
+          for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+              if p.Character then
+                  for _, item in ipairs(p.Character:GetChildren()) do
+                      if item:IsA("Tool") and item:FindFirstChild("almbjl_LootESP") then
+                          item.almbjl_LootESP:Destroy()
+                      end
+                  end
               end
           end
       end
@@ -166,17 +182,22 @@ FOVCircle.Filled = false
 -- معرفة نوع الجهاز
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- تطبيق السرعة وقوة القفز باستمرار
+-- تطبيق وإلغاء السرعة وقوة القفز بدقة خفيفة
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") then
         local humanoid = char.Humanoid
         if _G_Settings.SpeedEnabled then
             humanoid.WalkSpeed = _G_Settings.WalkSpeed
+        else
+            humanoid.WalkSpeed = 16
         end
         if _G_Settings.JumpEnabled then
             humanoid.UseJumpPower = true
             humanoid.JumpPower = _G_Settings.JumpPower
+        else
+            humanoid.UseJumpPower = true
+            humanoid.JumpPower = 50
         end
     end
 end)
@@ -302,43 +323,44 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- نظام كشف اللوت (Loot ESP) بلون ذهبي وأحمر مع الأسماء والأشكال
+-- نظام كشف لوت اللاعبين الآخرين فقط (خفيف جداً وبدون لاغ)
 RunService.RenderStepped:Connect(function()
     if not _G_Settings.LootESPEnabled then return end
     
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        -- التحقق مما إذا كان العنصر عبارة عن أداة (Tool) أو صندوق لوت (Drop / Box / Item)
-        if obj:IsA("Tool") or obj:IsA("Model") and (string.lower(obj.Name):find("loot") or string.lower(obj.Name):find("box") or string.lower(obj.Name):find("drop") or string.lower(obj.Name):find("item")) then
-            local primaryPart = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("Tool") and obj:FindFirstChild("Handle"))
-            
-            if primaryPart and not obj:FindFirstChild("almbjl_LootESP") then
-                local highlight = Instance.new("Highlight")
-                highlight.Name = "almbjl_LootESP"
-                highlight.Adornee = obj
-                highlight.FillColor = Color3.fromRGB(255, 215, 0) -- ذهبي لامع
-                highlight.OutlineColor = Color3.fromRGB(255, 0, 0)   -- أحمر
-                highlight.FillTransparency = 0.4
-                highlight.OutlineTransparency = 0
-                highlight.Parent = obj
-                
-                -- إضافة اسم العنصر وشكله كـ BillboardGui فوقه
-                local billboard = Instance.new("BillboardGui")
-                billboard.Name = "almbjl_LootESP"
-                billboard.Size = UDim2.new(0, 100, 0, 40)
-                billboard.StudsOffset = Vector3.new(0, 2, 0)
-                billboard.AlwaysOnTop = true
-                billboard.Adornee = primaryPart
-                billboard.Parent = obj
-                
-                local textLabel = Instance.new("TextLabel")
-                textLabel.Size = UDim2.new(1, 0, 1, 0)
-                textLabel.BackgroundTransparency = 1
-                textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-                textLabel.TextStrokeTransparency = 0
-                textLabel.TextSize = 13
-                textLabel.Font = Enum.Font.SourceSansBold
-                textLabel.Text = "[لوت] " .. obj.Name
-                textLabel.Parent = billboard
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            for _, item in ipairs(player.Character:GetChildren()) do
+                if item:IsA("Tool") then
+                    local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
+                    if handle and not item:FindFirstChild("almbjl_LootESP") then
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "almbjl_LootESP"
+                        highlight.Adornee = item
+                        highlight.FillColor = Color3.fromRGB(255, 215, 0) -- ذهبي لامع
+                        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)   -- أحمر
+                        highlight.FillTransparency = 0.4
+                        highlight.OutlineTransparency = 0
+                        highlight.Parent = item
+                        
+                        local billboard = Instance.new("BillboardGui")
+                        billboard.Name = "almbjl_LootESP"
+                        billboard.Size = UDim2.new(0, 120, 0, 40)
+                        billboard.StudsOffset = Vector3.new(0, 2, 0)
+                        billboard.AlwaysOnTop = true
+                        billboard.Adornee = handle
+                        billboard.Parent = item
+                        
+                        local textLabel = Instance.new("TextLabel")
+                        textLabel.Size = UDim2.new(1, 0, 1, 0)
+                        textLabel.BackgroundTransparency = 1
+                        textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                        textLabel.TextStrokeTransparency = 0
+                        textLabel.TextSize = 13
+                        textLabel.Font = Enum.Font.SourceSansBold
+                        textLabel.Text = "[" .. player.Name .. "] " .. item.Name
+                        textLabel.Parent = billboard
+                    end
+                end
             end
         end
     end
