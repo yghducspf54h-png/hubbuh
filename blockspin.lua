@@ -2,9 +2,9 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "almbjl | Max Edition - Combat System",
+   Name = "almbjl | -Discord- - Combat System",
    LoadingTitle = "جاري تحميل النظام الأفضل...",
-   LoadingSubtitle = "by Discord almbjl",
+   LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
       Enabled = false,
    },
@@ -15,7 +15,7 @@ local Tab = Window:CreateTab("التحكم والقتال", 4483362458)
 
 -- المتغيرات والخصائص
 local _G_Settings = {
-    SilentAimMode = "Closest", -- الخيارات: "Closest" (أقرب لاعب) أو "All" (كل اللاعبين) أو "Off"
+    SilentAimEnabled = true,   -- تفعيل/إيقاف السايلت آيم لأقرب لاعب
     AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
@@ -25,20 +25,12 @@ local _G_Settings = {
 -- قسم الأيم بوت والطلقة التلقائية
 Tab:CreateSection("إعدادات الطلقة والأيم بوت (Max)")
 
-Tab:CreateDropdown({
-   Name = "نظام توجيه الطلقة (Silent Aim)",
-   Options = {"أقرب لاعب فقط (Closest)", "كل اللاعبين في الماب (All)", "إيقاف (Off)"},
-   CurrentOption = {"أقرب لاعب فقط (Closest)"},
-   Flag = "SilentAimModeFlag",
-   Callback = function(Option)
-      local choice = Option[1]
-      if string.find(choice, "Closest") then
-          _G_Settings.SilentAimMode = "Closest"
-      elseif string.find(choice, "All") then
-          _G_Settings.SilentAimMode = "All"
-      else
-          _G_Settings.SilentAimMode = "Off"
-      end
+Tab:CreateToggle({
+   Name = "تفعيل توجيه الطلقة لأقرب لاعب (Silent Aim)",
+   CurrentValue = true,
+   Flag = "SilentAimToggle",
+   Callback = function(Value)
+      _G_Settings.SilentAimEnabled = Value
    end,
 })
 
@@ -175,48 +167,31 @@ local function getAimbotTarget()
     return bestTarget
 end
 
--- دالة جلب أهداف السايلنت آيم (مصححة ومحدثة لضمان عملها فوراً)
-local function getSilentAimTargets()
-    local targets = {}
+-- دالة جلب أقرب لاعب فقط للسايلنت آيم
+local function getClosestSilentTarget()
+    local closest = nil
+    local minDist = math.huge
     local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return targets end
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
     local myRoot = character.HumanoidRootPart
     local originPos = myRoot.Position + Vector3.new(0, 2, 0)
 
-    if _G_Settings.SilentAimMode == "Closest" then
-        local closest = nil
-        local minDist = math.huge
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local targetRoot = player.Character.HumanoidRootPart
-                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    if isVisible(targetRoot, originPos) then
-                        local dist = (targetRoot.Position - myRoot.Position).Magnitude
-                        if dist < minDist then
-                            minDist = dist
-                            closest = player
-                        end
-                    end
-                end
-            end
-        end
-        if closest then table.insert(targets, closest) end
-    elseif _G_Settings.SilentAimMode == "All" then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local targetRoot = player.Character.HumanoidRootPart
-                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    if isVisible(targetRoot, originPos) then
-                        table.insert(targets, player)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local targetRoot = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                if isVisible(targetRoot, originPos) then
+                    local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                    if dist < minDist then
+                        minDist = dist
+                        closest = player
                     end
                 end
             end
         end
     end
-    
-    return targets
+    return closest
 end
 
 -- نظام الـ ESP المحدث باستمرار
@@ -276,67 +251,65 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- حلقة السايلت آيم المصححة (تستدعي الأحداث بشكل مباشر وتضمن إرسال الطلقات)
+-- حلقة السايلنت آيم (تستهدف أقرب لاعب تلقائياً بدقة)
 task.spawn(function()
     while true do
         task.wait(0.05)
-        if _G_Settings.SilentAimMode ~= "Off" then
+        if _G_Settings.SilentAimEnabled then
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             local weapon = backpack and backpack:FindFirstChild("AK47") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AK47"))
             
             if weapon and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local targets = getSilentAimTargets()
+                local targetPlayer = getClosestSilentTarget()
                 
-                for _, targetPlayer in ipairs(targets) do
-                    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetRoot = targetPlayer.Character.HumanoidRootPart
-                        local myRoot = LocalPlayer.Character.HumanoidRootPart
-                        local originPos = myRoot.Position + Vector3.new(0, 2, 0)
-                        
-                        local initialDist = (targetRoot.Position - originPos).Magnitude
-                        local predictionFactor = math.clamp(initialDist / 800, 0.015, 0.06)
-                        local futurePos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * predictionFactor)
-                        local direction = (futurePos - originPos).Unit
-                        local distanceVal = (futurePos - originPos).Magnitude
-                        local firedTime = tick()
-                        
-                        local bulletCounter = math.random(10000, 99999)
-                        
-                        pcall(function()
-                            local weaponsSystem = ReplicatedStorage:FindFirstChild("WeaponsSystem")
-                            if weaponsSystem then
-                                local net = weaponsSystem:FindFirstChild("Network")
-                                if net then
-                                    local firedEvent = net:FindFirstChild("WeaponFired")
-                                    local hitEvent = net:FindFirstChild("WeaponHit")
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = targetPlayer.Character.HumanoidRootPart
+                    local myRoot = LocalPlayer.Character.HumanoidRootPart
+                    local originPos = myRoot.Position + Vector3.new(0, 2, 0)
+                    
+                    local initialDist = (targetRoot.Position - originPos).Magnitude
+                    local predictionFactor = math.clamp(initialDist / 800, 0.015, 0.06)
+                    local futurePos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * predictionFactor)
+                    local direction = (futurePos - originPos).Unit
+                    local distanceVal = (futurePos - originPos).Magnitude
+                    local firedTime = tick()
+                    
+                    local bulletCounter = math.random(10000, 99999)
+                    
+                    pcall(function()
+                        local weaponsSystem = ReplicatedStorage:FindFirstChild("WeaponsSystem")
+                        if weaponsSystem then
+                            local net = weaponsSystem:FindFirstChild("Network")
+                            if net then
+                                local firedEvent = net:FindFirstChild("WeaponFired")
+                                local hitEvent = net:FindFirstChild("WeaponHit")
+                                
+                                if firedEvent and hitEvent then
+                                    firedEvent:FireServer(weapon, {
+                                        id = bulletCounter,
+                                        charge = 0,
+                                        origin = vector.create(originPos.X, originPos.Y, originPos.Z),
+                                        dir = vector.create(direction.X, direction.Y, direction.Z)
+                                    })
                                     
-                                    if firedEvent and hitEvent then
-                                        firedEvent:FireServer(weapon, {
-                                            id = bulletCounter,
-                                            charge = 0,
-                                            origin = vector.create(originPos.X, originPos.Y, originPos.Z),
-                                            dir = vector.create(direction.X, direction.Y, direction.Z)
-                                        })
-                                        
-                                        task.wait(distanceVal / 300)
-                                        
-                                        hitEvent:FireServer(weapon, {
-                                            p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
-                                            pid = bulletCounter,
-                                            part = targetRoot,
-                                            d = distanceVal,
-                                            maxDist = distanceVal * 1.1,
-                                            h = targetPlayer.Character,
-                                            m = targetRoot.Material,
-                                            n = targetRoot.CFrame.UpVector,
-                                            t = tick() - firedTime,
-                                            sid = bulletCounter
-                                        })
-                                    end
+                                    task.wait(distanceVal / 300)
+                                    
+                                    hitEvent:FireServer(weapon, {
+                                        p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
+                                        pid = bulletCounter,
+                                        part = targetRoot,
+                                        d = distanceVal,
+                                        maxDist = distanceVal * 1.1,
+                                        h = targetPlayer.Character,
+                                        m = targetRoot.Material,
+                                        n = targetRoot.CFrame.UpVector,
+                                        t = tick() - firedTime,
+                                        sid = bulletCounter
+                                    })
                                 end
                             end
-                        end)
-                    end
+                        end
+                    end)
                 end
             end
         end
