@@ -1,137 +1,73 @@
--- إعداد Alanazi 💪2
--- أوتو فارم كامل بدون مشي (Teleport)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
 
-local player = game.Players.LocalPlayer
-local char = player.Character or player.CharacterAdded:Wait()
-local hrp = char:WaitForChild("HumanoidRootPart")
+-- عداد عشوائي لتوليد IDs متغيرة لكل طلقة
+local bulletCounter = math.random(100, 999)
 
-local autoFarm = false
-local savedBoxPos = nil
-local maxBoxes = 3
+local function getClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local character = LocalPlayer.Character
+    
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myRoot = character.HumanoidRootPart
 
--- اللون اللي عطيتني: #0C6194 = (12, 97, 148)
-local blueColor = Color3.fromRGB(12, 97, 148)
-
--- Teleport سريع
-local function tp(pos)
-    if pos then
-        hrp.CFrame = CFrame.new(pos)
-    end
-end
-
--- إيجاد الدائرة الزرقاء
-local function getBlueCircle()
-    local nearest, dist = nil, math.huge
-    for _, part in pairs(workspace:GetChildren()) do
-        if part:IsA("Part") and part.Color == blueColor then
-            local d = (hrp.Position - part.Position).Magnitude
-            if d < dist then
-                dist = d
-                nearest = part
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local targetRoot = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            
+            if humanoid and humanoid.Health > 0 then
+                local distance = (targetRoot.Position - myRoot.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
             end
         end
     end
-    return nearest
+    
+    return closestPlayer
 end
 
--- أخذ 3 صناديق
-local function takeBoxes()
-    for i = 1, maxBoxes do
-        if not autoFarm then break end
+local backpack = LocalPlayer:WaitForChild("Backpack")
+local weapon = backpack:FindFirstChild("AK47") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AK47"))
 
-        if savedBoxPos then
-            tp(savedBoxPos + Vector3.new(0, 3, 0))
-        end
-
-        local box = workspace:FindFirstChild("Box")
-        if box and box:FindFirstChild("ProximityPrompt") then
-            fireproximityprompt(box.ProximityPrompt)
-            task.wait(0.4)
-        else
-            break
-        end
-    end
+if not weapon then
+    warn("سلاح AK47 غير موجود!")
+    return
 end
 
--- تكديس الصناديق
-local function stackBoxes()
-    local circle = getBlueCircle()
-    if circle then
-        tp(circle.Position + Vector3.new(0, 4, 0)) -- فوق الدائرة
-        task.wait(3)
-    end
-end
+local targetPlayer = getClosestPlayer()
 
--- الحلقة الرئيسية
-task.spawn(function()
-    while task.wait(1) do
-        if autoFarm then
-            takeBoxes()
-            stackBoxes()
-        end
-    end
-end)
-
--- واجهة التحكم
-local gui = Instance.new("ScreenGui", player.PlayerGui)
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(240, 200)
-frame.Position = UDim2.new(0.05, 0, 0.05, 0)
-frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-frame.BorderSizePixel = 0
-
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.fromOffset(240, 30)
-title.Text = "Alanazi Auto Farm"
-title.TextColor3 = Color3.new(1,1,1)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-
-local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Size = UDim2.fromOffset(220, 40)
-toggleBtn.Position = UDim2.new(0, 10, 0, 40)
-toggleBtn.Text = "Auto Farm: OFF"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-toggleBtn.TextColor3 = Color3.new(1,1,1)
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.TextSize = 14
-
-local saveBtn = Instance.new("TextButton", frame)
-saveBtn.Size = UDim2.fromOffset(220, 40)
-saveBtn.Position = UDim2.new(0, 10, 0, 90)
-saveBtn.Text = "Save Box Position"
-saveBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
-saveBtn.TextColor3 = Color3.new(1,1,1)
-saveBtn.Font = Enum.Font.GothamBold
-saveBtn.TextSize = 14
-
-local colorBtn = Instance.new("TextButton", frame)
-colorBtn.Size = UDim2.fromOffset(220, 40)
-colorBtn.Position = UDim2.new(0, 10, 0, 140)
-colorBtn.Text = "Blue Color: #0C6194"
-colorBtn.BackgroundColor3 = blueColor
-colorBtn.TextColor3 = Color3.new(1,1,1)
-colorBtn.Font = Enum.Font.GothamBold
-colorBtn.TextSize = 14
-
--- تشغيل الأوتو فارم صدق
-toggleBtn.MouseButton1Click:Connect(function()
-    autoFarm = not autoFarm
-    toggleBtn.Text = autoFarm and "Auto Farm: ON" or "Auto Farm: OFF"
-    toggleBtn.BackgroundColor3 = autoFarm and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(60, 120, 200)
-end)
-
--- حفظ مكان الصناديق
-saveBtn.MouseButton1Click:Connect(function()
-    savedBoxPos = hrp.Position
-    saveBtn.Text = "Saved!"
-    task.delay(2, function()
-        saveBtn.Text = "Save Box Position"
-    end)
-end)
-
--- زر اللون (عرض فقط)
-colorBtn.MouseButton1Click:Connect(function()
-    colorBtn.Text = "Blue Color: #0C6194"
-end)
+if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    local targetRoot = targetPlayer.Character.HumanoidRootPart
+    local targetCharacter = targetPlayer.Character
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    
+    if myRoot then
+        bulletCounter = bulletCounter + 1
+        local originPos = myRoot.Position + Vector3.new(0, 2, 0)
+        
+        -- 1. تحسين معامل التوقع (predictionFactor) ليكون أكثر دقة ومرونة حسب المسافة
+        local initialDist = (targetRoot.Position - originPos).Magnitude
+        local predictionFactor = math.clamp(initialDist / 800, 0.015, 0.06)
+        
+        local futurePos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * predictionFactor)
+        local direction = (futurePos - originPos).Unit
+        
+        local distanceVal = (futurePos - originPos).Magnitude
+        local firedTime = tick()
+        
+        -- إرسال حدث إطلاق النار
+        local argsFire = {
+            weapon,
+            {
+                id = bulletCounter,
+                charge = 0,
+                origin = vector.create(originPos.X, originPos.Y, originPos.Z),
+                dir = vector.create(direction.X, direction.Y, direction.Z)
+            }
+        }
