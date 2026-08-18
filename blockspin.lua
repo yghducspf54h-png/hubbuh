@@ -2,7 +2,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "almbjl | -Discord- - Combat System",
+   Name = "almbjl | -Discord- - Combat &  System",
    LoadingTitle = "جاري تحميل النظام الأفضل...",
    LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
@@ -19,7 +19,12 @@ local _G_Settings = {
     AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
+    LootESPEnabled = true,     -- كشف اللوت والأغراض
     FOvSize = 120,             -- حجم دائرة الـ FOV للجوال
+    WalkSpeed = 16,            -- السرعة الافتراضية
+    JumpPower = 50,            -- قوة القفز الافتراضية
+    SpeedEnabled = false,
+    JumpEnabled = false,
 }
 
 -- قسم الأيم بوت والطلقة التلقائية
@@ -63,8 +68,51 @@ Tab:CreateToggle({
    end,
 })
 
--- قسم الـ ESP
-Tab:CreateSection("نظام الكشف (ESP)")
+-- قسم تحكم اللاعب (السرعة والقفز)
+Tab:CreateSection("تحكم الشخصية (السرعة والقفز)")
+
+Tab:CreateToggle({
+   Name = "تفعيل تعديل السرعة",
+   CurrentValue = false,
+   Flag = "SpeedToggle",
+   Callback = function(Value)
+      _G_Settings.SpeedEnabled = Value
+   end,
+})
+
+Tab:CreateSlider({
+   Name = "سرعة الحركة (WalkSpeed)",
+   Range = {16, 200},
+   Increment = 1,
+   CurrentValue = 16,
+   Flag = "SpeedSlider",
+   Callback = function(Value)
+      _G_Settings.WalkSpeed = Value
+   end,
+})
+
+Tab:CreateToggle({
+   Name = "تفعيل تعديل قوة القفز",
+   CurrentValue = false,
+   Flag = "JumpToggle",
+   Callback = function(Value)
+      _G_Settings.JumpEnabled = Value
+   end,
+})
+
+Tab:CreateSlider({
+   Name = "قوة القفز (JumpPower)",
+   Range = {50, 350},
+   Increment = 5,
+   CurrentValue = 50,
+   Flag = "JumpSlider",
+   Callback = function(Value)
+      _G_Settings.JumpPower = Value
+   end,
+})
+
+-- قسم الـ ESP وكشف اللوت
+Tab:CreateSection("نظام كشف اللاعبين واللوت (ESP & Loot)")
 
 Tab:CreateToggle({
    Name = "تفعيل كشف اللاعبين (ESP)",
@@ -76,6 +124,22 @@ Tab:CreateToggle({
           for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
               if p.Character and p.Character:FindFirstChild("almbjl_ESP") then
                   p.Character.almbjl_ESP:Destroy()
+              end
+          end
+      end
+   end,
+})
+
+Tab:CreateToggle({
+   Name = "كشف اللوت والأغراض (ذهبي/أحمر مع الاسم والشكل)",
+   CurrentValue = true,
+   Flag = "LootESPToggle",
+   Callback = function(Value)
+      _G_Settings.LootESPEnabled = Value
+      if not Value then
+          for _, item in ipairs(workspace:GetDescendants()) do
+              if item:FindFirstChild("almbjl_LootESP") then
+                  item.almbjl_LootESP:Destroy()
               end
           end
       end
@@ -101,6 +165,21 @@ FOVCircle.Filled = false
 
 -- معرفة نوع الجهاز
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- تطبيق السرعة وقوة القفز باستمرار
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        local humanoid = char.Humanoid
+        if _G_Settings.SpeedEnabled then
+            humanoid.WalkSpeed = _G_Settings.WalkSpeed
+        end
+        if _G_Settings.JumpEnabled then
+            humanoid.UseJumpPower = true
+            humanoid.JumpPower = _G_Settings.JumpPower
+        end
+    end
+end)
 
 -- دالة فحص الجدران (WallCheck)
 local function isVisible(targetPart, originPos)
@@ -194,7 +273,7 @@ local function getClosestSilentTarget()
     return closest
 end
 
--- نظام الـ ESP المحدث باستمرار
+-- نظام الـ ESP للاعبين
 RunService.RenderStepped:Connect(function()
     if not _G_Settings.ESPEnabled then return end
     
@@ -218,6 +297,48 @@ RunService.RenderStepped:Connect(function()
                 if char:FindFirstChild("almbjl_ESP") then
                     char.almbjl_ESP:Destroy()
                 end
+            end
+        end
+    end
+end)
+
+-- نظام كشف اللوت (Loot ESP) بلون ذهبي وأحمر مع الأسماء والأشكال
+RunService.RenderStepped:Connect(function()
+    if not _G_Settings.LootESPEnabled then return end
+    
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        -- التحقق مما إذا كان العنصر عبارة عن أداة (Tool) أو صندوق لوت (Drop / Box / Item)
+        if obj:IsA("Tool") or obj:IsA("Model") and (string.lower(obj.Name):find("loot") or string.lower(obj.Name):find("box") or string.lower(obj.Name):find("drop") or string.lower(obj.Name):find("item")) then
+            local primaryPart = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("Tool") and obj:FindFirstChild("Handle"))
+            
+            if primaryPart and not obj:FindFirstChild("almbjl_LootESP") then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "almbjl_LootESP"
+                highlight.Adornee = obj
+                highlight.FillColor = Color3.fromRGB(255, 215, 0) -- ذهبي لامع
+                highlight.OutlineColor = Color3.fromRGB(255, 0, 0)   -- أحمر
+                highlight.FillTransparency = 0.4
+                highlight.OutlineTransparency = 0
+                highlight.Parent = obj
+                
+                -- إضافة اسم العنصر وشكله كـ BillboardGui فوقه
+                local billboard = Instance.new("BillboardGui")
+                billboard.Name = "almbjl_LootESP"
+                billboard.Size = UDim2.new(0, 100, 0, 40)
+                billboard.StudsOffset = Vector3.new(0, 2, 0)
+                billboard.AlwaysOnTop = true
+                billboard.Adornee = primaryPart
+                billboard.Parent = obj
+                
+                local textLabel = Instance.new("TextLabel")
+                textLabel.Size = UDim2.new(1, 0, 1, 0)
+                textLabel.BackgroundTransparency = 1
+                textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                textLabel.TextStrokeTransparency = 0
+                textLabel.TextSize = 13
+                textLabel.Font = Enum.Font.SourceSansBold
+                textLabel.Text = "[لوت] " .. obj.Name
+                textLabel.Parent = billboard
             end
         end
     end
