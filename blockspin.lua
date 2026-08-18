@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "almbjl | Max Edition - Combat System",
-   LoadingTitle = " 1جاري تحميل النظام الأفضل...",
+   LoadingTitle = "جاري تحميل النظام الأفضل...",
    LoadingSubtitle = "by almbjl",
    ConfigurationSaving = {
       Enabled = false,
@@ -15,30 +15,50 @@ local Tab = Window:CreateTab("التحكم والقتال", 4483362458)
 
 -- المتغيرات والخصائص
 local _G_Settings = {
-    SilentAimEnabled = true,
+    SilentAimMode = "Closest", -- الخيارات: "Closest" (أقرب لاعب) أو "All" (كل اللاعبين) أو "Off"
     AimbotEnabled = true,
     WallCheck = true,
     ESPEnabled = true,
+    FOvSize = 120,             -- حجم دائرة الـ FOV للجوال
 }
 
 -- قسم الأيم بوت والطلقة التلقائية
 Tab:CreateSection("إعدادات الطلقة والأيم بوت (Max)")
 
-Tab:CreateToggle({
-   Name = "تفعيل توجيه الطلقة لأقرب لاعب (Silent Aim)",
-   CurrentValue = true,
-   Flag = "SilentAimToggle",
-   Callback = function(Value)
-      _G_Settings.SilentAimEnabled = Value
+Tab:CreateDropdown({
+   Name = "نظام توجيه الطلقة (Silent Aim)",
+   Options = {"أقرب لاعب فقط (Closest)", "كل اللاعبين في الماب (All)", "إيقاف (Off)"},
+   CurrentOption = {"أقرب لاعب فقط (Closest)"},
+   Flag = "SilentAimModeFlag",
+   Callback = function(Option)
+      local choice = Option[1]
+      if string.find(choice, "Closest") then
+          _G_Settings.SilentAimMode = "Closest"
+      elseif string.find(choice, "All") then
+          _G_Settings.SilentAimMode = "All"
+      else
+          _G_Settings.SilentAimMode = "Off"
+      end
    end,
 })
 
 Tab:CreateToggle({
-   Name = "تفعيل الأيم بوت (زر الماوس الأيمن)",
+   Name = "تفعيل الأيم بوت (تلقائي: PC كلك يمين / Mobile دائرة FOV)",
    CurrentValue = true,
    Flag = "AimbotToggle",
    Callback = function(Value)
       _G_Settings.AimbotEnabled = Value
+   end,
+})
+
+Tab:CreateSlider({
+   Name = "حجم دائرة الـ FOV (للايباد والجوال)",
+   Range = {50, 300},
+   Increment = 5,
+   CurrentValue = 120,
+   Flag = "FOV的书",
+   Callback = function(Value)
+      _G_Settings.FOvSize = Value
    end,
 })
 
@@ -61,7 +81,6 @@ Tab:CreateToggle({
    Callback = function(Value)
       _G_Settings.ESPEnabled = Value
       if not Value then
-          -- إزالة الـ ESP فوراً عند الإيقاف
           for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
               if p.Character and p.Character:FindFirstChild("almbjl_ESP") then
                   p.Character.almbjl_ESP:Destroy()
@@ -80,6 +99,17 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 
+-- إنشاء دائرة الـ FOV المرئية للجوال/الآيباد
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Transparency = 0.7
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Filled = false
+
+-- معرفة نوع الجهاز (هل هو جهاز محمول أم كمبيوتر)
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
 -- دالة فحص الجدران (WallCheck)
 local function isVisible(targetPart, originPos)
     if not _G_Settings.WallCheck then return true end
@@ -97,21 +127,22 @@ local function isVisible(targetPart, originPos)
         if hitInstance:IsDescendantOf(targetPart.Parent) then
             return true
         end
-        return false -- يوجد جدار يعيق الرؤية
+        return false 
     end
     
     return true
 end
 
--- دالة جلب أفضل وأقرب تارجت
-local function getBestTarget()
-    local closestTarget = nil
+-- دالة جلب أفضل تارجت للأيم بوت (حسب الجهاز)
+local function getAimbotTarget()
+    local bestTarget = nil
     local shortestDistance = math.huge
     local character = LocalPlayer.Character
     
     if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
     local myRoot = character.HumanoidRootPart
     local originPos = myRoot.Position + Vector3.new(0, 2, 0)
+    local mouseLocation = UserInputService:GetMouseLocation()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -120,20 +151,77 @@ local function getBestTarget()
             
             if humanoid and humanoid.Health > 0 then
                 if isVisible(targetRoot, originPos) then
-                    local distance = (targetRoot.Position - myRoot.Position).Magnitude
-                    if distance < shortestDistance then
-                        shortestDistance = distance
-                        closestTarget = player
+                    if isMobile then
+                        -- طالما هو جوال/آيباد: الفحص يتم داخل نطاق دائرة الـ FOV على الشاشة
+                        local screenPoint, onScreen = Camera:WorldToViewportPoint(targetRoot.Position)
+                        if onScreen then
+                            local screenDist = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
+                            if screenDist <= _G_Settings.FOvSize and screenDist < shortestDistance then
+                                shortestDistance = screenDist
+                                bestTarget = player
+                            end
+                        end
+                    else
+                        -- إذا كان PC: يعتمد على الأقرب مطلقاً مع ضغط كلك يمين
+                        local distance = (targetRoot.Position - myRoot.Position).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            bestTarget = player
+                        end
                     end
                 end
             end
         end
     end
     
-    return closestTarget
+    return bestTarget
 end
 
--- 1. نظام الـ ESP المحدث باستمرار (يتعامل مع الموت والإحياء واللاعبين الجدد)
+-- دالة جلب الأهداف للسايلت آيم (تدعم أقرب لاعب أو كل اللاعبين)
+local function getSilentAimTargets()
+    local targets = {}
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return targets end
+    local myRoot = character.HumanoidRootPart
+    local originPos = myRoot.Position + Vector3.new(0, 2, 0)
+
+    if _G_Settings.SilentAimMode == "Closest" then
+        local closest = nil
+        local minDist = math.huge
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = player.Character.HumanoidRootPart
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    if isVisible(targetRoot, originPos) then
+                        local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            closest = player
+                        end
+                    end
+                end
+            end
+        end
+        if closest then table.insert(targets, closest) end
+    elseif _G_Settings.SilentAimMode == "All" then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = player.Character.HumanoidRootPart
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    if isVisible(targetRoot, originPos) then
+                        table.insert(targets, player)
+                    end
+                end
+            end
+        end
+    end
+    
+    return targets
+end
+
+-- تحديث الـ ESP باستمرار
 RunService.RenderStepped:Connect(function()
     if not _G_Settings.ESPEnabled then return end
     
@@ -154,7 +242,6 @@ RunService.RenderStepped:Connect(function()
                     highlight.Parent = char
                 end
             else
-                -- لو اللاعب مات، احذف الإي إس بي عنه
                 if char:FindFirstChild("almbjl_ESP") then
                     char.almbjl_ESP:Destroy()
                 end
@@ -163,72 +250,90 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 2. نظام الأيم بوت (يعمل عند الضغط مطولاً على كلك يمين ويتخطى الجدران)
+-- نظام الأيم بوت (PC بالضغط على كلك يمين / Mobile تلقائي داخل الـ FOV)
 RunService.RenderStepped:Connect(function()
-    if _G_Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local target = getBestTarget()
-        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPart = target.Character.HumanoidRootPart
-            -- توجيه الكاميرا بسلاسة نحو اللاعب المستهدف
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+    if isMobile then
+        FOVCircle.Visible = _G_Settings.AimbotEnabled
+        FOVCircle.Radius = _G_Settings.FOvSize
+        FOVCircle.Position = UserInputService:GetMouseLocation()
+    else
+        FOVCircle.Visible = false
+    end
+
+    if _G_Settings.AimbotEnabled then
+        local shouldAim = false
+        if isMobile then
+            shouldAim = true -- في الجوال يتتبع اللاعبين داخل الدائرة باستمرار
+        else
+            shouldAim = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) -- في البي سي عند ضغط كلك يمين
+        end
+
+        if shouldAim then
+            local target = getAimbotTarget()
+            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPart = target.Character.HumanoidRootPart
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            end
         end
     end
 end)
 
--- 3. حلقة السايلت آيم (إطلاق الطلقة التلقائية الموجهة لأقرب لاعب دون تعديل)
+-- حلقة السايلت آيم (تدعم خياري الأقرب أو الكل)
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if _G_Settings.SilentAimEnabled then
+        if _G_Settings.SilentAimMode ~= "Off" then
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             local weapon = backpack and backpack:FindFirstChild("AK47") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AK47"))
             
             if weapon and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local targetPlayer = getBestTarget()
+                local targets = getSilentAimTargets()
                 
-                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local targetRoot = targetPlayer.Character.HumanoidRootPart
-                    local myRoot = LocalPlayer.Character.HumanoidRootPart
-                    local originPos = myRoot.Position + Vector3.new(0, 2, 0)
-                    
-                    local initialDist = (targetRoot.Position - originPos).Magnitude
-                    local predictionFactor = math.clamp(initialDist / 800, 0.015, 0.06)
-                    local futurePos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * predictionFactor)
-                    local direction = (futurePos - originPos).Unit
-                    local distanceVal = (futurePos - originPos).Magnitude
-                    local firedTime = tick()
-                    
-                    local bulletCounter = math.random(1000, 9999)
-                    
-                    pcall(function()
-                        local weaponsSystem = ReplicatedStorage:WaitForChild("WeaponsSystem", 2)
-                        if weaponsSystem then
-                            local net = weaponsSystem:WaitForChild("Network", 2)
-                            if net then
-                                net.WeaponFired:FireServer(weapon, {
-                                    id = bulletCounter,
-                                    charge = 0,
-                                    origin = vector.create(originPos.X, originPos.Y, originPos.Z),
-                                    dir = vector.create(direction.X, direction.Y, direction.Z)
-                                })
-                                
-                                task.wait(distanceVal / 300)
-                                
-                                net.WeaponHit:FireServer(weapon, {
-                                    p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
-                                    pid = bulletCounter,
-                                    part = targetRoot,
-                                    d = distanceVal,
-                                    maxDist = distanceVal * 1.1,
-                                    h = targetPlayer.Character,
-                                    m = targetRoot.Material,
-                                    n = targetRoot.CFrame.UpVector,
-                                    t = tick() - firedTime,
-                                    sid = bulletCounter
-                                })
+                for _, targetPlayer in ipairs(targets) do
+                    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local targetRoot = targetPlayer.Character.HumanoidRootPart
+                        local myRoot = LocalPlayer.Character.HumanoidRootPart
+                        local originPos = myRoot.Position + Vector3.new(0, 2, 0)
+                        
+                        local initialDist = (targetRoot.Position - originPos).Magnitude
+                        local predictionFactor = math.clamp(initialDist / 800, 0.015, 0.06)
+                        local futurePos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * predictionFactor)
+                        local direction = (futurePos - originPos).Unit
+                        local distanceVal = (futurePos - originPos).Magnitude
+                        local firedTime = tick()
+                        
+                        local bulletCounter = math.random(1000, 9999)
+                        
+                        pcall(function()
+                            local weaponsSystem = ReplicatedStorage:WaitForChild("WeaponsSystem", 2)
+                            if weaponsSystem then
+                                local net = weaponsSystem:WaitForChild("Network", 2)
+                                if net then
+                                    net.WeaponFired:FireServer(weapon, {
+                                        id = bulletCounter,
+                                        charge = 0,
+                                        origin = vector.create(originPos.X, originPos.Y, originPos.Z),
+                                        dir = vector.create(direction.X, direction.Y, direction.Z)
+                                    })
+                                    
+                                    task.wait(distanceVal / 300)
+                                    
+                                    net.WeaponHit:FireServer(weapon, {
+                                        p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
+                                        pid = bulletCounter,
+                                        part = targetRoot,
+                                        d = distanceVal,
+                                        maxDist = distanceVal * 1.1,
+                                        h = targetPlayer.Character,
+                                        m = targetRoot.Material,
+                                        n = targetRoot.CFrame.UpVector,
+                                        t = tick() - firedTime,
+                                        sid = bulletCounter
+                                    })
+                                end
                             end
-                        end
-                    end)
+                        end)
+                    end
                 end
             end
         end
