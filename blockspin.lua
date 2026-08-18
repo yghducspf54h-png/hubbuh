@@ -4,7 +4,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "almbjl | Max Edition - Combat System",
    LoadingTitle = "جاري تحميل النظام الأفضل...",
-   LoadingSubtitle = "by almbjl",
+   LoadingSubtitle = "by Discord almbjl",
    ConfigurationSaving = {
       Enabled = false,
    },
@@ -56,7 +56,7 @@ Tab:CreateSlider({
    Range = {50, 300},
    Increment = 5,
    CurrentValue = 120,
-   Flag = "FOV的书",
+   Flag = "FOVSliderFlag",
    Callback = function(Value)
       _G_Settings.FOvSize = Value
    end,
@@ -90,7 +90,7 @@ Tab:CreateToggle({
    end,
 })
 
--- المنطق البرمجي
+-- الخدمات والمتغيرات الأساسية
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
@@ -107,7 +107,7 @@ FOVCircle.Thickness = 2
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
 FOVCircle.Filled = false
 
--- معرفة نوع الجهاز (هل هو جهاز محمول أم كمبيوتر)
+-- معرفة نوع الجهاز
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- دالة فحص الجدران (WallCheck)
@@ -133,7 +133,7 @@ local function isVisible(targetPart, originPos)
     return true
 end
 
--- دالة جلب أفضل تارجت للأيم بوت (حسب الجهاز)
+-- دالة جلب أفضل تارجت للأيم بوت
 local function getAimbotTarget()
     local bestTarget = nil
     local shortestDistance = math.huge
@@ -152,7 +152,6 @@ local function getAimbotTarget()
             if humanoid and humanoid.Health > 0 then
                 if isVisible(targetRoot, originPos) then
                     if isMobile then
-                        -- طالما هو جوال/آيباد: الفحص يتم داخل نطاق دائرة الـ FOV على الشاشة
                         local screenPoint, onScreen = Camera:WorldToViewportPoint(targetRoot.Position)
                         if onScreen then
                             local screenDist = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
@@ -162,7 +161,6 @@ local function getAimbotTarget()
                             end
                         end
                     else
-                        -- إذا كان PC: يعتمد على الأقرب مطلقاً مع ضغط كلك يمين
                         local distance = (targetRoot.Position - myRoot.Position).Magnitude
                         if distance < shortestDistance then
                             shortestDistance = distance
@@ -177,7 +175,7 @@ local function getAimbotTarget()
     return bestTarget
 end
 
--- دالة جلب الأهداف للسايلت آيم (تدعم أقرب لاعب أو كل اللاعبين)
+-- دالة جلب أهداف السايلنت آيم (مصححة ومحدثة لضمان عملها فوراً)
 local function getSilentAimTargets()
     local targets = {}
     local character = LocalPlayer.Character
@@ -221,7 +219,7 @@ local function getSilentAimTargets()
     return targets
 end
 
--- تحديث الـ ESP باستمرار
+-- نظام الـ ESP المحدث باستمرار
 RunService.RenderStepped:Connect(function()
     if not _G_Settings.ESPEnabled then return end
     
@@ -250,7 +248,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- نظام الأيم بوت (PC بالضغط على كلك يمين / Mobile تلقائي داخل الـ FOV)
+-- نظام الأيم بوت (PC و Mobile)
 RunService.RenderStepped:Connect(function()
     if isMobile then
         FOVCircle.Visible = _G_Settings.AimbotEnabled
@@ -263,9 +261,9 @@ RunService.RenderStepped:Connect(function()
     if _G_Settings.AimbotEnabled then
         local shouldAim = false
         if isMobile then
-            shouldAim = true -- في الجوال يتتبع اللاعبين داخل الدائرة باستمرار
+            shouldAim = true 
         else
-            shouldAim = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) -- في البي سي عند ضغط كلك يمين
+            shouldAim = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) 
         end
 
         if shouldAim then
@@ -278,10 +276,10 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- حلقة السايلت آيم (تدعم خياري الأقرب أو الكل)
+-- حلقة السايلت آيم المصححة (تستدعي الأحداث بشكل مباشر وتضمن إرسال الطلقات)
 task.spawn(function()
     while true do
-        task.wait(0.1)
+        task.wait(0.05)
         if _G_Settings.SilentAimMode ~= "Off" then
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             local weapon = backpack and backpack:FindFirstChild("AK47") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AK47"))
@@ -302,34 +300,39 @@ task.spawn(function()
                         local distanceVal = (futurePos - originPos).Magnitude
                         local firedTime = tick()
                         
-                        local bulletCounter = math.random(1000, 9999)
+                        local bulletCounter = math.random(10000, 99999)
                         
                         pcall(function()
-                            local weaponsSystem = ReplicatedStorage:WaitForChild("WeaponsSystem", 2)
+                            local weaponsSystem = ReplicatedStorage:FindFirstChild("WeaponsSystem")
                             if weaponsSystem then
-                                local net = weaponsSystem:WaitForChild("Network", 2)
+                                local net = weaponsSystem:FindFirstChild("Network")
                                 if net then
-                                    net.WeaponFired:FireServer(weapon, {
-                                        id = bulletCounter,
-                                        charge = 0,
-                                        origin = vector.create(originPos.X, originPos.Y, originPos.Z),
-                                        dir = vector.create(direction.X, direction.Y, direction.Z)
-                                    })
+                                    local firedEvent = net:FindFirstChild("WeaponFired")
+                                    local hitEvent = net:FindFirstChild("WeaponHit")
                                     
-                                    task.wait(distanceVal / 300)
-                                    
-                                    net.WeaponHit:FireServer(weapon, {
-                                        p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
-                                        pid = bulletCounter,
-                                        part = targetRoot,
-                                        d = distanceVal,
-                                        maxDist = distanceVal * 1.1,
-                                        h = targetPlayer.Character,
-                                        m = targetRoot.Material,
-                                        n = targetRoot.CFrame.UpVector,
-                                        t = tick() - firedTime,
-                                        sid = bulletCounter
-                                    })
+                                    if firedEvent and hitEvent then
+                                        firedEvent:FireServer(weapon, {
+                                            id = bulletCounter,
+                                            charge = 0,
+                                            origin = vector.create(originPos.X, originPos.Y, originPos.Z),
+                                            dir = vector.create(direction.X, direction.Y, direction.Z)
+                                        })
+                                        
+                                        task.wait(distanceVal / 300)
+                                        
+                                        hitEvent:FireServer(weapon, {
+                                            p = vector.create(futurePos.X, futurePos.Y, futurePos.Z),
+                                            pid = bulletCounter,
+                                            part = targetRoot,
+                                            d = distanceVal,
+                                            maxDist = distanceVal * 1.1,
+                                            h = targetPlayer.Character,
+                                            m = targetRoot.Material,
+                                            n = targetRoot.CFrame.UpVector,
+                                            t = tick() - firedTime,
+                                            sid = bulletCounter
+                                        })
+                                    end
                                 end
                             end
                         end)
